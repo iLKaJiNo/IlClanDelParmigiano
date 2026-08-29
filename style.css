@@ -1,0 +1,154 @@
+/* ════════════════════════════════════════════════════════
+   Il Clan del Parmigiano — style.css
+   Tema: formaggio + topolini. Dark, caldo, un po' buffo.
+   ════════════════════════════════════════════════════════ */
+
+:root{
+  --bg:#241708; --bg2:#2f2010; --card:#3a2a15; --card2:#42311c;
+  --line:rgba(255,255,255,.09); --text:#f7ecd8; --dim:rgba(247,236,216,.55);
+  --cheese:#F2B33D; --cheese-d:#C9871F; --cheese-bg:rgba(242,179,61,.14); --cheese-brd:rgba(242,179,61,.35);
+  --mouse:#B9A38C; --moss:#6FA05A; --moss-bg:rgba(111,160,90,.14); --moss-brd:rgba(111,160,90,.35);
+  --berry:#D0685A; --berry-bg:rgba(208,104,90,.14); --berry-brd:rgba(208,104,90,.35);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;}
+@media(max-width:600px){ html{font-size:14px;} }
+body{
+  font-family:'Baloo 2',cursive; background:var(--bg); color:var(--text);
+  min-height:100vh; min-height:100dvh; -webkit-tap-highlight-color:transparent;
+}
+body::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse 60% 40% at 85% 10%, rgba(242,179,61,.10), transparent 70%),
+             radial-gradient(ellipse 50% 50% at 10% 90%, rgba(111,160,90,.08), transparent 70%);
+}
+.screen{display:none; flex-direction:column; min-height:100vh; min-height:100dvh; position:relative; z-index:1;}
+.screen.attiva{display:flex;}
+
+/* ── HEADER ── */
+.top{display:flex; align-items:center; gap:12px; padding:14px 18px; padding-top:max(14px,env(safe-area-inset-top));
+  background:var(--bg2); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50;}
+.top img{width:34px; height:34px; flex-shrink:0;}
+.top-titoli{flex:1; min-width:0;}
+.top h1{font-size:1.1rem; font-weight:800; color:var(--cheese);}
+.top p{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+.top-azioni{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+.btn-pill{background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:20px; color:var(--dim);
+  font-family:'Baloo 2',cursive; font-size:.72rem; font-weight:700; padding:6px 12px; cursor:pointer;}
+.sync-dot{width:8px; height:8px; border-radius:50%; background:var(--cheese); flex-shrink:0;}
+.sync-dot:not(.ok):not(.err){animation:pulse 1s ease-in-out infinite;}
+.sync-dot.ok{background:#6FCF5A;} .sync-dot.err{background:#E05A4A;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
+
+/* ── BODY / CARD ── */
+.body{flex:1; width:100%; max-width:720px; margin:0 auto; padding:16px; padding-bottom:90px; display:flex; flex-direction:column; gap:16px;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px;}
+.card-titolo{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;}
+
+/* ── AUTH / SCELTA NOME ── */
+#auth-screen{align-items:center; justify-content:center; padding:32px 22px;}
+.auth-logo{width:88px; height:88px; margin-bottom:12px;}
+.auth-title{font-size:1.7rem; font-weight:800; color:var(--cheese); text-align:center;}
+.auth-sub{font-size:.85rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; margin:6px 0 22px; text-align:center;}
+.auth-box{width:100%; max-width:360px;}
+#lista-persone{display:flex; flex-direction:column; gap:8px; margin-bottom:16px; max-height:260px; overflow-y:auto;}
+.persona-pick{display:flex; align-items:center; gap:10px; background:var(--card2); border:1px solid var(--line);
+  border-radius:14px; padding:12px 14px; cursor:pointer; transition:border-color .15s;}
+.persona-pick:hover{border-color:var(--cheese-brd);}
+.persona-pick .pp-emoji{font-size:1.3rem;}
+.persona-pick .pp-nome{flex:1; font-weight:700;}
+.persona-pick .pp-badge{font-size:.65rem; padding:2px 8px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
+.pp-badge.pagato{background:var(--moss-bg); color:var(--moss); border:1px solid var(--moss-brd);}
+.pp-badge.attesa{background:var(--berry-bg); color:var(--berry); border:1px solid var(--berry-brd);}
+
+/* ── INPUT / BOTTONI ── */
+.inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
+  color:var(--text); font-family:'Baloo 2',cursive; font-size:1rem; font-weight:600; padding:0 14px; outline:none;}
+.inp:focus{border-color:var(--cheese-brd);}
+.btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:1rem;
+  font-weight:800; cursor:pointer; transition:transform .12s;}
+.btn:active{transform:scale(.98);}
+.btn-cheese{background:linear-gradient(135deg,var(--cheese),var(--cheese-d)); color:#2a1c05;}
+.btn-ghost{background:var(--card2); border:1.5px solid var(--line); color:var(--text);}
+.btn-danger{background:var(--berry-bg); border:1.5px solid var(--berry-brd); color:var(--berry);}
+.btn-mini{height:36px; padding:0 14px; font-size:.85rem; border-radius:10px;}
+.errore{min-height:18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:.8rem; color:var(--berry); text-align:center; margin:6px 0;}
+
+/* ── TAB BAR ── */
+.tab-bar{position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--bg2); border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom); z-index:60;}
+.tab-btn{flex:1; background:none; border:none; color:var(--dim); font-family:'Baloo 2',cursive; font-weight:700;
+  font-size:.68rem; padding:9px 0 8px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;}
+.tab-btn .ti{font-size:1.25rem; line-height:1;}
+.tab-btn.attiva{color:var(--cheese);}
+
+.tab-page{display:none;} .tab-page.attiva{display:flex; flex-direction:column; gap:16px;}
+
+/* ── ORDINE (form) ── */
+.tipo-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+.tipo-row:last-child{border-bottom:none;}
+.tipo-nome{flex:1; font-weight:700;}
+.tipo-prezzo{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+.stepper{display:flex; align-items:center; gap:8px;}
+.step-btn{width:34px; height:34px; border-radius:10px; border:1.5px solid var(--line); background:var(--card2);
+  color:var(--cheese); font-size:1.1rem; font-weight:800; cursor:pointer;}
+.step-val{min-width:52px; text-align:center; font-weight:800;}
+
+.riga-carrello{display:flex; align-items:center; gap:10px; background:var(--card2); border:1px solid var(--line);
+  border-radius:12px; padding:10px 12px; margin-bottom:8px;}
+.riga-carrello .rc-info{flex:1;}
+.riga-carrello .rc-tot{font-weight:800; color:var(--cheese);}
+.rc-del{background:none; border:none; color:var(--dim); font-size:1.3rem; cursor:pointer;}
+
+/* ── TABELLA ── */
+.tabella-wrap{overflow-x:auto;}
+table.tb{width:100%; border-collapse:collapse; font-size:.85rem;}
+table.tb th{text-align:left; font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.68rem;
+  text-transform:uppercase; letter-spacing:.4px; padding:8px 10px; border-bottom:2px solid var(--line); white-space:nowrap;}
+table.tb td{padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
+table.tb tr:last-child td{border-bottom:none;}
+.badge{font-size:.65rem; padding:2px 8px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
+.badge.ok{background:var(--moss-bg); color:var(--moss); border:1px solid var(--moss-brd);}
+.badge.no{background:var(--berry-bg); color:var(--berry); border:1px solid var(--berry-brd);}
+.tot-riga{background:var(--cheese-bg);}
+
+/* ── PAGAMENTI ── */
+.pay-link{display:flex; align-items:center; gap:12px; background:var(--card2); border:1px solid var(--line);
+  border-radius:14px; padding:14px; margin-bottom:10px; text-decoration:none; color:var(--text); cursor:pointer;}
+.pay-link .pl-ico{font-size:1.5rem;}
+.pay-link .pl-info{flex:1; min-width:0;}
+.pay-link .pl-nome{font-weight:700;}
+.pay-link .pl-val{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; overflow:hidden; text-overflow:ellipsis;}
+
+/* ── ADMIN / PIN ── */
+.pin-dots{display:flex; justify-content:center; gap:14px; margin:18px 0 8px;}
+.pin-dot{width:14px; height:14px; border-radius:50%; border:2px solid var(--cheese-brd); transition:all .15s;}
+.pin-dot.filled{background:var(--cheese); border-color:var(--cheese);}
+.pin-pad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:260px; margin:0 auto;}
+.pin-key{height:56px; border-radius:14px; border:1.5px solid var(--line); background:var(--card2); color:var(--text);
+  font-family:'Baloo 2',cursive; font-size:1.3rem; font-weight:700; cursor:pointer;}
+
+.admin-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+.admin-row:last-child{border-bottom:none;}
+.admin-row .ar-nome{font-weight:700;}
+.admin-row .ar-actions{display:flex; gap:6px; flex-wrap:wrap;}
+
+/* ── MODALI ── */
+.modal-overlay{display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.6);
+  align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2); border:1px solid var(--line); border-radius:22px; padding:22px; width:100%;
+  max-width:400px; max-height:88vh; overflow-y:auto;}
+.modal h2{font-size:1.2rem; font-weight:800; color:var(--cheese); margin-bottom:10px;}
+.m-row{margin-bottom:12px;}
+.m-row label{display:block; font-size:.78rem; font-weight:700; color:var(--text); margin-bottom:5px; font-family:'Nunito',sans-serif;}
+.m-btns{display:flex; gap:10px; margin-top:16px;}
+.m-btns .btn{flex:1;}
+
+.empty{text-align:center; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; padding:26px 10px; line-height:1.6;}
+
+.archivio-item{display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card2);
+  border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:8px; cursor:pointer;}
+.archivio-item .ai-nome{font-weight:700;}
+.archivio-item .ai-meta{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}

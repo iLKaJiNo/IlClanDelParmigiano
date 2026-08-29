@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clan Parmigiano">
+<meta name="theme-color" content="#241708">
+<title>Il Clan del Parmigiano</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./logo.svg">
+<link rel="stylesheet" href="./style.css">
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(e){ console.log("Errore SW:", e); });
+  });
+}
+</script>
+</head>
+<body>
+
+<!-- NESSUN GRUPPO ATTIVO -->
+<div id="nogruppo-screen" class="screen attiva" style="align-items:center;justify-content:center;padding:32px;">
+  <img src="./logo.svg" style="width:90px;height:90px;margin-bottom:14px;" alt="">
+  <div class="auth-title">Il Clan del Parmigiano</div>
+  <p class="auth-sub">Nessun gruppo d'acquisto attivo al momento.<br>L'admin deve crearne uno nuovo.</p>
+  <button class="btn btn-cheese" style="max-width:280px;" onclick="apriAdmin()">🐭 Vai all'area Admin</button>
+</div>
+
+<!-- SCELTA / CREAZIONE NOME -->
+<div id="auth-screen" class="screen" style="align-items:center;justify-content:center;padding:28px 20px;">
+  <img src="./logo.svg" class="auth-logo" alt="">
+  <div class="auth-title">Il Clan del Parmigiano</div>
+  <div class="auth-sub" id="auth-gruppo-titolo">—</div>
+  <div class="auth-box">
+    <div id="lista-persone"></div>
+    <input class="inp" id="nuovo-nome" placeholder="Il tuo nome" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')confermaNuovoNome()">
+    <div class="errore" id="auth-errore"></div>
+    <button class="btn btn-cheese" onclick="confermaNuovoNome()">🐭 Entra come nuovo topolino</button>
+    <button class="btn btn-ghost" style="margin-top:10px;" onclick="apriAdmin()">🔐 Sono l'admin</button>
+  </div>
+</div>
+
+<!-- APP PRINCIPALE -->
+<div id="app-screen" class="screen">
+  <div class="top">
+    <img src="./logo.svg" alt="">
+    <div class="top-titoli">
+      <h1 id="app-gruppo-titolo">Clan del Parmigiano</h1>
+      <p>🐭 <span id="app-mio-nome"></span> · <a href="javascript:void(0)" onclick="cambioIdentita()" style="color:var(--dim);">cambia</a></p>
+    </div>
+    <div class="top-azioni">
+      <span class="sync-dot" id="dot"></span>
+      <button class="btn-pill" onclick="apriAdmin()">🔐</button>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- TAB ORDINA -->
+    <div class="tab-page attiva" data-tab="ordina">
+      <div class="card">
+        <div class="card-titolo">Scegli il tuo parmigiano</div>
+        <div id="ordina-tipi"></div>
+      </div>
+      <div class="card" id="carrello-wrap" style="display:none;">
+        <div class="card-titolo">Nel carrello</div>
+        <div id="carrello-list"></div>
+        <button class="btn btn-cheese" onclick="confermaCarrello()">✅ Conferma ordine</button>
+      </div>
+      <div class="card">
+        <div class="card-titolo">Il tuo ordine</div>
+        <div id="mie-righe"></div>
+        <div id="mio-totale" style="margin-top:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;"></div>
+      </div>
+    </div>
+
+    <!-- TAB TABELLA -->
+    <div class="tab-page" data-tab="tabella">
+      <div class="card">
+        <div class="card-titolo">Tabella completa del gruppo</div>
+        <div id="tabella-body"></div>
+      </div>
+    </div>
+
+    <!-- TAB PAGAMENTI -->
+    <div class="tab-page" data-tab="pagamenti">
+      <div class="card">
+        <div class="card-titolo">Come pagare</div>
+        <div id="pagamenti-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tab-bar">
+    <button class="tab-btn attiva" data-tab="ordina" onclick="switchTab('ordina')"><span class="ti">🧀</span><span>Ordina</span></button>
+    <button class="tab-btn" data-tab="tabella" onclick="switchTab('tabella')"><span class="ti">📋</span><span>Tabella</span></button>
+    <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">💳</span><span>Pagamenti</span></button>
+  </nav>
+</div>
+
+<!-- SCHERMATA ADMIN -->
+<div id="admin-screen" class="screen">
+  <div class="top">
+    <img src="./logo.svg" alt="">
+    <div class="top-titoli"><h1>Amministrazione</h1></div>
+    <div class="top-azioni"><button class="btn-pill" onclick="chiudiAdmin()">← Torna</button></div>
+  </div>
+  <div class="body" id="admin-content"></div>
+</div>
+
+<!-- MODALE NUOVO GRUPPO -->
+<div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this)chiudiNuovoGruppo()">
+  <div class="modal">
+    <h2>🧀 Nuovo gruppo d'acquisto</h2>
+    <div class="m-row"><label>Titolo (es. Ottobre 2026)</label><input class="inp" id="ng-titolo"></div>
+    <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);">Parte con i 4 tipi standard (12/24/36/48 mesi) a prezzo di default — li modifichi subito dopo dall'admin.</p>
+    <div class="errore" id="ng-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiNuovoGruppo()">Annulla</button>
+      <button class="btn btn-cheese" onclick="confermaNuovoGruppo()">Crea</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="./utils.js"></script>
+<script src="./api.js"></script>
+<script src="./ui.js"></script>
+<script src="./admin.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

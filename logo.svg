@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Fetta di formaggio -->
+  <path d="M10 100 L64 22 L118 100 Z" fill="#F2B33D" stroke="#B9791A" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="60" cy="55" r="7" fill="#FFE7A8"/>
+  <circle cx="80" cy="72" r="5" fill="#FFE7A8"/>
+  <circle cx="45" cy="80" r="6" fill="#FFE7A8"/>
+  <circle cx="70" cy="90" r="4" fill="#FFE7A8"/>
+  <!-- Topolino che sbircia -->
+  <g>
+    <ellipse cx="64" cy="106" rx="20" ry="16" fill="#8A7A6B"/>
+    <circle cx="50" cy="92" r="9" fill="#8A7A6B"/>
+    <circle cx="78" cy="92" r="9" fill="#8A7A6B"/>
+    <circle cx="50" cy="92" r="5" fill="#5C4E42"/>
+    <circle cx="78" cy="92" r="5" fill="#5C4E42"/>
+    <circle cx="57" cy="104" r="2.5" fill="#241708"/>
+    <circle cx="71" cy="104" r="2.5" fill="#241708"/>
+    <ellipse cx="64" cy="111" rx="4" ry="3" fill="#E8A2A0"/>
+  </g>
+</svg>
