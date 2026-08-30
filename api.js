@@ -11,10 +11,14 @@ function dot(cls, txt){
 }
 
 async function appStart(){
+  initTheme();          // prima del primo render, altrimenti si vede il lampo di tema sbagliato
+  initTile();
   dot("", "Annusando il formaggio...");
   await caricaTutto();
   initRealtime();
+  initTabSwipe();
   mostraSchermataGiusta();
+  initInvitoInstalla();   // su iOS non c'è un evento che lo accenda: va valutato all'avvio
 }
 
 async function caricaTutto(){
@@ -33,11 +37,14 @@ async function caricaTutto(){
       if(rt.error) throw rt.error;
       if(rp.error) throw rp.error;
       if(rr.error) throw rr.error;
+      var rn = await sb.from("note").select("*").eq("gruppo_id", gruppo.id).order("creata_il", { ascending: false });
+      if(rn.error) throw rn.error;
       tipi = rt.data || [];
       persone = rp.data || [];
       righe = rr.data || [];
+      note = rn.data || [];
     } else {
-      tipi = []; persone = []; righe = [];
+      tipi = []; persone = []; righe = []; note = [];
     }
 
     var ri = await sb.from("impostazioni").select("*").eq("id", 1).maybeSingle();
@@ -61,7 +68,9 @@ function mostraSchermataGiusta(){
   }
   var mia = getMiaIdentita();
   var esiste = mia && persone.some(function(p){ return p.id === mia; });
-  if(esiste){
+  // Se l'admin imposta (o cambia) la password del gruppo, i device già dentro
+  // tornano al cancello: è esattamente ciò che serve per rimettere fuori un estraneo.
+  if(esiste && gruppoSbloccato()){
     mioId = mia;
     mostraSchermata("app-screen");
     renderApp();
@@ -106,25 +115,62 @@ async function setPagato(id, val){
   var r = await sb.from("persone").update({ pagato: val }).eq("id", id);
   if(r.error) throw r.error;
 }
+// Il topino SEGNALA di aver pagato; non si imposta `pagato`, che resta autorità dell'admin.
+async function segnalaPagamento(id, metodo){
+  var r = await sb.from("persone").update({ pagamento_segnalato: true, metodo_segnalato: metodo }).eq("id", id);
+  if(r.error) throw r.error;
+}
+async function annullaSegnalazione(id){
+  var r = await sb.from("persone").update({ pagamento_segnalato: false, metodo_segnalato: null }).eq("id", id);
+  if(r.error) throw r.error;
+}
+// L'admin conferma: marca pagato e toglie la richiesta dalla lista "da confermare".
+// `metodo_segnalato` resta, è la traccia di come ha pagato.
+async function confermaPagamentoAdmin(id){
+  var r = await sb.from("persone").update({ pagato: true, pagamento_segnalato: false }).eq("id", id);
+  if(r.error) throw r.error;
+}
 async function eliminaPersona(id){
   var r = await sb.from("persone").delete().eq("id", id);
   if(r.error) throw r.error;
 }
 
 // ── AZIONI: righe ordine ──
-async function salvaRigheCarrello(personaId, righeCarrello){
-  var payload = righeCarrello.map(function(r){
-    return { persona_id: personaId, tipo_id: r.tipo_id, kg_nominale: r.kg };
-  });
-  var r = await sb.from("righe_ordine").insert(payload);
+// Una sola riga per persona+tipo (vincolo unique persona_id,tipo_id): mai insert, sempre upsert.
+// Il payload contiene solo kg_nominale, quindi un prezzo_reale già inserito dall'admin
+// sopravvive alla modifica dei kg (resta però riferito alla quantità vecchia: da rivedere
+// quando arriverà la chiusura ordini del punto E).
+async function salvaKgRiga(personaId, tipoId, kg){
+  if(!(kg > 0)) return eliminaRigaDi(personaId, tipoId);   // CHECK kg_nominale > 0: lo zero non esiste, è un delete
+  var r = await sb.from("righe_ordine")
+    .upsert({ persona_id: personaId, tipo_id: tipoId, kg_nominale: kg },
+            { onConflict: "persona_id,tipo_id" })
+    .select().single();
   if(r.error) throw r.error;
+  return r.data;
 }
-async function eliminaRiga(id){
-  var r = await sb.from("righe_ordine").delete().eq("id", id);
+async function eliminaRigaDi(personaId, tipoId){
+  var r = await sb.from("righe_ordine").delete().eq("persona_id", personaId).eq("tipo_id", tipoId);
   if(r.error) throw r.error;
+  return null;
 }
 async function setPrezzoReale(id, val){
   var r = await sb.from("righe_ordine").update({ prezzo_reale: val }).eq("id", id);
+  if(r.error) throw r.error;
+}
+
+// ── AZIONI: bacheca note ──
+async function creaNota(testo){
+  var r = await sb.from("note").insert({ gruppo_id: gruppo.id, persona_id: mioId, testo: testo }).select().single();
+  if(r.error) throw r.error;
+  return r.data;
+}
+async function aggiornaNota(id, testo){
+  var r = await sb.from("note").update({ testo: testo, aggiornata_il: new Date().toISOString() }).eq("id", id);
+  if(r.error) throw r.error;
+}
+async function eliminaNota(id){
+  var r = await sb.from("note").delete().eq("id", id);
   if(r.error) throw r.error;
 }
 
@@ -137,12 +183,39 @@ async function aggiornaSpedizione(totale){
   var r = await sb.from("gruppi_acquisto").update({ spedizione_totale: totale }).eq("id", gruppo.id);
   if(r.error) throw r.error;
 }
+async function aggiornaChiusuraOrdini(iso){
+  var r = await sb.from("gruppi_acquisto").update({ chiusura_ordini: iso }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
 async function aggiornaImpostazioni(patch){
   var r = await sb.from("impostazioni").update(patch).eq("id", 1);
   if(r.error) throw r.error;
 }
-async function creaGruppo(titolo, tipiIniziali){
-  var rg = await sb.from("gruppi_acquisto").insert({ titolo: titolo }).select().single();
+// Riceve GIÀ l'hash: il testo in chiaro non deve mai arrivare fino a qui.
+async function aggiornaPasswordGruppo(hash){
+  var r = await sb.from("gruppi_acquisto").update({ password_hash: hash || null }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+// L'arrivo del pacco lo dichiara l'admin. Si scrive `now()` lato client, come tutte le
+// altre date dell'app: il valore serve a un banner, non a un audit.
+async function segnalaArrivoPacco(){
+  var r = await sb.from("gruppi_acquisto").update({ arrivo_segnalato_at: new Date().toISOString() }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+async function annullaArrivoPacco(){
+  var r = await sb.from("gruppi_acquisto").update({ arrivo_segnalato_at: null }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+async function aggiornaNoteNegoziante(testo){
+  var r = await sb.from("gruppi_acquisto").update({ note_negoziante: testo || null }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+async function aggiornaCostoRealeTotale(val){
+  var r = await sb.from("gruppi_acquisto").update({ costo_reale_totale: val }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+async function creaGruppo(titolo, passwordHash, tipiIniziali){
+  var rg = await sb.from("gruppi_acquisto").insert({ titolo: titolo, password_hash: passwordHash || null }).select().single();
   if(rg.error) throw rg.error;
   var g = rg.data;
   var payload = tipiIniziali.map(function(t, i){
@@ -154,6 +227,14 @@ async function creaGruppo(titolo, tipiIniziali){
 }
 async function archiviaGruppo(){
   var r = await sb.from("gruppi_acquisto").update({ stato: "archiviato", chiuso_at: new Date().toISOString() }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
+// Eliminazione DEFINITIVA di un gruppo archiviato. Persone, righe e note se ne vanno
+// con lui: le foreign key sono già `on delete cascade`, il lavoro lo fa il DB.
+// Il filtro su `stato` è una cintura oltre alle bretelle: il gruppo attivo non si tocca,
+// e cancellare l'ordine in corso non è un'operazione che si fa per sbaglio a mezzanotte.
+async function eliminaGruppoArchiviato(gruppoId){
+  var r = await sb.from("gruppi_acquisto").delete().eq("id", gruppoId).eq("stato", "archiviato");
   if(r.error) throw r.error;
 }
 async function caricaDettaglioArchivio(gruppoId){

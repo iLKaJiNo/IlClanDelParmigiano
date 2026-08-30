@@ -5,12 +5,34 @@
 
 :root{
   --bg:#241708; --bg2:#2f2010; --card:#3a2a15; --card2:#42311c;
-  --line:rgba(255,255,255,.09); --text:#f7ecd8; --dim:rgba(247,236,216,.55);
+  --line:rgba(255,255,255,.09); --text:#f7ecd8; --dim:rgba(247,236,216,.70);
   --cheese:#F2B33D; --cheese-d:#C9871F; --cheese-bg:rgba(242,179,61,.14); --cheese-brd:rgba(242,179,61,.35);
-  --mouse:#B9A38C; --moss:#6FA05A; --moss-bg:rgba(111,160,90,.14); --moss-brd:rgba(111,160,90,.35);
-  --berry:#D0685A; --berry-bg:rgba(208,104,90,.14); --berry-brd:rgba(208,104,90,.35);
+  --mouse:#B9A38C; --moss:#8CBE79; --moss-bg:rgba(111,160,90,.14); --moss-brd:rgba(111,160,90,.35);
+  --berry:#F2AFA4; --berry-bg:rgba(208,104,90,.14); --berry-brd:rgba(208,104,90,.35);
   --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sunken:rgba(255,255,255,.06);
+  --cheese-txt:#F2B33D;   /* oro come testo: nel tema scuro coincide con --cheese */
 }
+
+/* ── TEMA CHIARO ──
+   Stesse variabili ridefinite, nessun altro selettore sa che esiste.
+   Il Clan è scuro di default (identità visiva), il chiaro è opt-in. */
+body.chiaro{
+  --bg:#FDF6E9; --bg2:#F6EAD3; --card:#FFFCF5; --card2:#F7EFDD;
+  --line:rgba(58,36,10,.14); --text:#2E1F08; --dim:rgba(46,31,8,.74);
+  --cheese:#B87A12; --cheese-d:#8F5C08; --cheese-bg:rgba(184,122,18,.13); --cheese-brd:rgba(184,122,18,.42);
+  --mouse:#8A7663; --moss:#3B6632; --moss-bg:rgba(74,124,64,.13); --moss-brd:rgba(74,124,64,.42);
+  --berry:#94261A; --berry-bg:rgba(179,58,43,.12); --berry-brd:rgba(179,58,43,.40);
+  --sunken:rgba(58,36,10,.05);
+  --cheese-txt:#8A5A05;   /* l'oro pieno su crema non arriva a 4.5:1, come testo va scurito */
+}
+/* Applicato dallo script inline in <head>, prima che l'app parta */
+html.pre-chiaro body{ --bg:#FDF6E9; --bg2:#F6EAD3; --card:#FFFCF5; --card2:#F7EFDD;
+  --line:rgba(58,36,10,.14); --text:#2E1F08; --dim:rgba(46,31,8,.74);
+  --cheese:#B87A12; --cheese-d:#8F5C08; --cheese-bg:rgba(184,122,18,.13); --cheese-brd:rgba(184,122,18,.42);
+  --moss:#3B6632; --moss-bg:rgba(74,124,64,.13); --moss-brd:rgba(74,124,64,.42);
+  --berry:#94261A; --berry-bg:rgba(179,58,43,.12); --berry-brd:rgba(179,58,43,.40);
+  --sunken:rgba(58,36,10,.05); --cheese-txt:#8A5A05; }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{font-size:16px;}
 @media(max-width:600px){ html{font-size:14px;} }
@@ -23,6 +45,17 @@ body::before{
   background:radial-gradient(ellipse 60% 40% at 85% 10%, rgba(242,179,61,.10), transparent 70%),
              radial-gradient(ellipse 50% 50% at 10% 90%, rgba(111,160,90,.08), transparent 70%);
 }
+/* Texture opt-in: layer SOPRA i gradienti, non al posto loro.
+   Il tile è nero pieno: come immagine sparirebbe sul tema scuro. Stessa soluzione
+   di tutti gli altri SVG neri (vedi `.svg-inv` in fondo) — maschera + colore del tema,
+   così non serve più un `filter:invert` da spegnere a mano sul tema chiaro. */
+body.tile-on::after, html.pre-tile body::after{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-color:var(--text); opacity:.05;
+  -webkit-mask:url('./tile-formaggio.svg') repeat center/120px;
+  mask:url('./tile-formaggio.svg') repeat center/120px;
+}
+body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; }
 .screen{display:none; flex-direction:column; min-height:100vh; min-height:100dvh; position:relative; z-index:1;}
 .screen.attiva{display:flex;}
 
@@ -31,11 +64,17 @@ body::before{
   background:var(--bg2); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50;}
 .top img{width:34px; height:34px; flex-shrink:0;}
 .top-titoli{flex:1; min-width:0;}
-.top h1{font-size:1.1rem; font-weight:800; color:var(--cheese);}
+.top h1{font-size:1.1rem; font-weight:800; color:var(--cheese-txt);}
 .top p{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
 .top-azioni{display:flex; align-items:center; gap:8px; flex-shrink:0;}
-.btn-pill{background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:20px; color:var(--dim);
+.btn-pill{background:var(--sunken); border:1px solid var(--line); border-radius:20px; color:var(--dim);
   font-family:'Baloo 2',cursive; font-size:.72rem; font-weight:700; padding:6px 12px; cursor:pointer;}
+/* Bottoni icona dell'header: compatti, ma sopra i 30px anche a 320px di larghezza */
+.btn-ico{width:32px; height:32px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:var(--sunken); border:1px solid var(--line); border-radius:50%; font-size:.92rem;
+  cursor:pointer; padding:0; line-height:1; transition:transform .1s, opacity .15s; -webkit-appearance:none;}
+.btn-ico:active{transform:scale(.9);}
+.btn-ico.spento{opacity:.4; filter:grayscale(1);}
 .sync-dot{width:8px; height:8px; border-radius:50%; background:var(--cheese); flex-shrink:0;}
 .sync-dot:not(.ok):not(.err){animation:pulse 1s ease-in-out infinite;}
 .sync-dot.ok{background:#6FCF5A;} .sync-dot.err{background:#E05A4A;}
@@ -49,7 +88,7 @@ body::before{
 /* ── AUTH / SCELTA NOME ── */
 #auth-screen{align-items:center; justify-content:center; padding:32px 22px;}
 .auth-logo{width:88px; height:88px; margin-bottom:12px;}
-.auth-title{font-size:1.7rem; font-weight:800; color:var(--cheese); text-align:center;}
+.auth-title{font-size:1.7rem; font-weight:800; color:var(--cheese-txt); text-align:center;}
 .auth-sub{font-size:.85rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; margin:6px 0 22px; text-align:center;}
 .auth-box{width:100%; max-width:360px;}
 #lista-persone{display:flex; flex-direction:column; gap:8px; margin-bottom:16px; max-height:260px; overflow-y:auto;}
@@ -81,27 +120,191 @@ body::before{
 .tab-btn{flex:1; background:none; border:none; color:var(--dim); font-family:'Baloo 2',cursive; font-weight:700;
   font-size:.68rem; padding:9px 0 8px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;}
 .tab-btn .ti{font-size:1.25rem; line-height:1;}
-.tab-btn.attiva{color:var(--cheese);}
+.tab-btn.attiva{color:var(--cheese-txt);}
 
 .tab-page{display:none;} .tab-page.attiva{display:flex; flex-direction:column; gap:16px;}
+.tab-switching{animation:tabIn .22s ease-out;}
+@keyframes tabIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+@media(prefers-reduced-motion:reduce){
+  .tab-switching{animation:none;}
+  .step-btn:active,.btn:active,.btn-ico:active{transform:none;}
+}
 
-/* ── ORDINE (form) ── */
-.tipo-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
-.tipo-row:last-child{border-bottom:none;}
-.tipo-nome{flex:1; font-weight:700;}
+/* ── CALCOLATRICE (dalla Tana; variabili rinominate sulla convenzione del Clan) ── */
+.inp-euro-wrap{position:relative;}
+.inp-euro-wrap .inp{padding-right:34px;}
+.btn-calc-icon{position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  background:none; border:none; font-size:1rem; cursor:pointer; padding:2px; line-height:1;
+  opacity:.55; transition:opacity .15s;}
+.btn-calc-icon:hover,.btn-calc-icon:active{opacity:1;}
+/* Il display resta scuro in entrambi i temi: è un display, non una superficie dell'app */
+.calc-display{background:#1A1006; border-radius:var(--r-md); padding:14px 18px; margin-bottom:16px;
+  text-align:right; min-height:74px; display:flex; flex-direction:column; justify-content:center; gap:2px;}
+.calc-expr{font-size:.875rem; color:rgba(255,255,255,.45); font-family:'Nunito',sans-serif;
+  font-weight:600; min-height:18px;}
+.calc-result{font-size:1.75rem; color:#F2B33D; font-weight:800; line-height:1.1; word-break:break-all;}
+.calc-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+.calc-key{height:52px; border-radius:var(--r-sm); border:1.5px solid var(--line); background:var(--card2);
+  color:var(--text); font-family:'Baloo 2',cursive; font-size:1.25rem; font-weight:700; cursor:pointer;
+  transition:transform .1s, background .15s; -webkit-appearance:none;}
+.calc-key:active{transform:scale(.93);}
+.calc-op{background:var(--cheese-bg); border-color:var(--cheese-brd); color:var(--cheese-txt);}
+.calc-back{background:var(--card2); color:var(--dim); font-size:1.1rem;}
+.calc-clear{background:var(--berry-bg); border-color:var(--berry-brd); color:var(--berry);}
+.calc-eq{background:linear-gradient(135deg,var(--cheese),var(--cheese-d)); border:none;
+  color:#2a1c05; font-size:1.4rem;}
+
+/* ── MODALE PREZZI REALI PER PERSONA ── */
+.mr-riga{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+.mr-riga:last-of-type{border-bottom:none;}
+.mr-info{flex:1; min-width:0;}
+.mr-tipo{font-weight:700;}
+.mr-kg{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim);}
+.mr-campo{width:124px; flex-shrink:0;}
+.mr-campo .inp{height:40px;}
+
+/* ── ACCESSO (lucchetto + modale d'ingresso) ── */
+.auth-lucchetto{font-family:'Nunito',sans-serif; font-weight:600; font-size:.78rem; color:var(--cheese-txt);
+  background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:var(--r-md);
+  padding:10px 12px; margin-bottom:14px; line-height:1.35;}
+.modal-sub{font-family:'Nunito',sans-serif; font-weight:600; font-size:.82rem; color:var(--dim);
+  line-height:1.4; margin:6px 0 14px;}
+
+/* ── ORDINE (stepper: una riga per tipo, il valore mostrato È l'ordine) ── */
+.banner-ordini{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4;
+  border-radius:var(--r-md); padding:10px 12px; margin-bottom:12px; border:1px solid;}
+.banner-ordini.aperto{color:var(--cheese-txt); background:var(--cheese-bg); border-color:var(--cheese-brd);}
+.banner-ordini.chiuso{color:var(--berry); background:var(--berry-bg); border-color:var(--berry-brd);}
+.tipo-row.bloccata{opacity:.62;}
+.tipo-row.bloccata.attiva{opacity:.78;}
+.hint{font-family:'Nunito',sans-serif; font-weight:600; font-size:.78rem; color:var(--dim); margin-bottom:12px;}
+/* Ordini chiusi: la riga sopra gli stepper smette di essere un'istruzione e diventa uno
+   STATO, quindi prende il colore degli ordini chiusi invece del grigio dei suggerimenti.
+   Resta anche quando il banner in cima tace per lasciare il campo a quello dell'arrivo. */
+.hint.chiuso{color:var(--berry);}
+.tipo-row{display:flex; flex-direction:column; gap:6px; padding:12px; margin-bottom:8px;
+  background:var(--card2); border:1px solid var(--line); border-radius:var(--r-md); transition:border-color .15s;}
+.tipo-row:last-of-type{margin-bottom:0;}
+.tipo-row.attiva{border-color:var(--cheese-brd); background:var(--cheese-bg);}
+.tr-alto,.tr-basso{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.tipo-nome{font-weight:700; font-size:1.02rem;}
+.tipo-tot{font-weight:800; color:var(--dim); font-family:'Nunito',sans-serif; font-size:.95rem;
+  font-variant-numeric:tabular-nums;}
+.tipo-row.attiva .tipo-tot{color:var(--cheese-txt);}
 .tipo-prezzo{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
-.stepper{display:flex; align-items:center; gap:8px;}
-.step-btn{width:34px; height:34px; border-radius:10px; border:1.5px solid var(--line); background:var(--card2);
-  color:var(--cheese); font-size:1.1rem; font-weight:800; cursor:pointer;}
-.step-val{min-width:52px; text-align:center; font-weight:800;}
 
-.riga-carrello{display:flex; align-items:center; gap:10px; background:var(--card2); border:1px solid var(--line);
-  border-radius:12px; padding:10px 12px; margin-bottom:8px;}
-.riga-carrello .rc-info{flex:1;}
-.riga-carrello .rc-tot{font-weight:800; color:var(--cheese);}
-.rc-del{background:none; border:none; color:var(--dim); font-size:1.3rem; cursor:pointer;}
+/* Stepper a pillola: niente frecce, target tattili da 44px */
+.stepper{display:flex; align-items:center; gap:2px; padding:3px; flex-shrink:0;
+  background:var(--sunken); border:1px solid var(--line); border-radius:999px;}
+.step-btn{width:38px; height:38px; flex-shrink:0; border:none; border-radius:50%; background:transparent;
+  color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-size:1.4rem; font-weight:700; line-height:1;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background .15s, transform .1s; -webkit-appearance:none;}
+.step-btn:active{transform:scale(.88); background:var(--cheese-bg);}
+.step-btn:disabled{color:var(--dim); opacity:.3; cursor:default; transform:none; background:transparent;}
+.step-val{min-width:66px; text-align:center; font-weight:800; font-size:.95rem;
+  font-family:'Nunito',sans-serif; font-variant-numeric:tabular-nums;}
 
-/* ── TABELLA ── */
+/* Griglia atteso/reale x con-e-senza-spedizione: i quattro numeri da confrontare */
+.mt-griglia{display:grid; grid-template-columns:auto 1fr 1fr; gap:4px 8px; align-items:baseline;}
+.mt-h{font-size:.66rem; font-weight:800; color:var(--dim); text-transform:uppercase;
+  letter-spacing:.3px; text-align:right; padding-bottom:4px; line-height:1.2;}
+.mt-l{font-weight:800; color:var(--dim);}
+.mt-l.reale,.mt-v.reale{color:var(--moss);}
+.mt-v{text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--text);}
+.mt-v.forte{font-size:1.1rem; font-weight:800;}
+.mt-nota{margin-top:10px; font-size:.72rem; font-weight:600; color:var(--dim); line-height:1.35;}
+
+/* Riquadro spedizione: la divisione resta visibile, non solo il risultato */
+.sped-conto{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px;
+  font-family:'Nunito',sans-serif; font-variant-numeric:tabular-nums;}
+.sped-num{font-weight:700; color:var(--text); font-size:.95rem;}
+.sped-op{font-weight:800; color:var(--dim);}
+.sped-quota{font-weight:800; color:var(--cheese-txt); font-size:1.05rem;}
+.sped-nota{margin-top:8px; font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600;
+  color:var(--dim); line-height:1.35;}
+
+/* Riepilogo costi del topino */
+.mio-totale{margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem;}
+.mt-riga{display:flex; justify-content:space-between; gap:12px; padding:4px 0; color:var(--dim);
+  font-variant-numeric:tabular-nums;}
+.mt-riga.reale{color:var(--moss);}
+.mt-riga.grande{margin-top:6px; padding-top:8px; border-top:1px solid var(--line);
+  color:var(--text); font-size:1.05rem; font-weight:800;}
+.mt-riga.grande span:last-child{color:var(--cheese-txt);}
+
+/* Via le frecce native dai campi numerici (admin compreso) — §5.B */
+input[type=number]{-moz-appearance:textfield; appearance:textfield;}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+
+/* ── TABELLA DI GRUPPO (card impilate, mai scroll orizzontale) ── */
+.persona-card{background:var(--card2); border:1px solid var(--line); border-radius:var(--r-md);
+  padding:14px; margin-bottom:10px;}
+.persona-card:last-child{margin-bottom:0;}
+.persona-card.mia{border-color:var(--cheese-brd); background:var(--cheese-bg);}
+.persona-card.totale-gruppo{background:var(--bg2); border-color:var(--cheese-brd);}
+.pc-testa{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.pc-nome{font-weight:800; font-size:1.05rem;}
+.pc-tu{font-family:'Nunito',sans-serif; font-size:.65rem; font-weight:800; color:var(--cheese-txt);
+  background:var(--bg2); border-radius:20px; padding:2px 8px; vertical-align:middle;}
+.pc-voci{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;}
+.pc-voce{font-family:'Nunito',sans-serif; font-size:.76rem; font-weight:600; color:var(--text);
+  background:var(--bg2); border:1px solid var(--line); border-radius:20px; padding:3px 10px;}
+.pc-voce b{font-weight:800; color:var(--cheese-txt);}
+.pc-voce.vuota{color:var(--dim); font-style:italic;}
+.pc-kg{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:700; color:var(--dim); margin-bottom:8px;}
+.pc-conti{border-top:1px solid var(--line); padding-top:8px;
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem;}
+.pc-riga{display:flex; justify-content:space-between; gap:12px; padding:3px 0; color:var(--dim);
+  font-variant-numeric:tabular-nums;}
+.pc-riga.reale{color:var(--moss);}
+.pc-riga.grande{margin-top:5px; padding-top:7px; border-top:1px solid var(--line);
+  color:var(--text); font-size:1rem; font-weight:800;}
+.pc-riga.grande span:last-child{color:var(--cheese-txt);}
+
+/* Topino grasso: pulsa mentre il gruppo è aperto, si posa quando viene archiviato */
+.badge-grasso{display:inline-block; font-size:.9rem; animation:grassoPulse 1.8s ease-in-out infinite;
+  transform-origin:center;}
+.badge-grasso.incoronato{animation:none; filter:drop-shadow(0 0 4px var(--cheese-brd));}
+@keyframes grassoPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+@media(prefers-reduced-motion:reduce){ .badge-grasso{animation:none;} }
+
+/* ── BACHECA ── */
+.nota-composer{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+.nota-textarea{width:100%; box-sizing:border-box; resize:none; min-height:44px; max-height:200px;
+  border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card2); color:var(--text);
+  padding:10px 12px; font-family:'Nunito',sans-serif; font-weight:600; font-size:.9rem; line-height:1.4;}
+.nota-textarea:focus{outline:none; border-color:var(--cheese-brd);}
+.nota-item{border:1px solid var(--line); border-radius:var(--r-md); background:var(--card2);
+  padding:11px 13px; margin-bottom:8px;}
+.nota-item:last-child{margin-bottom:0;}
+.nota-item.mia{border-color:var(--cheese-brd); background:var(--cheese-bg);}
+.nota-item.in-modifica{background:var(--bg2);}
+/* pre-wrap tiene gli a capo scritti a mano, break-word impedisce alle URL di sfondare */
+.nota-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.9rem; line-height:1.45;
+  white-space:pre-wrap; word-break:break-word;}
+.nota-piede{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px;}
+.nota-meta{font-family:'Nunito',sans-serif; font-size:.7rem; font-weight:600; color:var(--dim);
+  line-height:1.3;}
+.nota-azioni{display:flex; gap:2px; flex-shrink:0;}
+.nota-ico{border:none; background:transparent; cursor:pointer; padding:4px 6px; font-size:.95rem;
+  border-radius:var(--r-sm); line-height:1;}
+.nota-ico:active{background:var(--sunken);}
+.nota-azioni-edit{display:flex; gap:8px; justify-content:flex-end; margin-top:8px;}
+
+/* ── STATISTICHE ── */
+.grafico-wrap{width:100%; margin-bottom:12px;}
+.grafico-wrap canvas{display:block; max-width:100%;}
+.stat-lista{font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem;}
+.stat-riga{display:flex; justify-content:space-between; gap:12px; padding:5px 0; color:var(--dim);
+  border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
+.stat-riga:last-child{border-bottom:none;}
+.stat-perc{color:var(--cheese-txt); font-weight:800;}
+.stat-riga.totale{color:var(--text); font-weight:800; border-top:1px solid var(--line); margin-top:4px;}
+
+/* Resta per l'archivio admin, che usa ancora una tabella vera */
 .tabella-wrap{overflow-x:auto;}
 table.tb{width:100%; border-collapse:collapse; font-size:.85rem;}
 table.tb th{text-align:left; font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.68rem;
@@ -114,6 +317,32 @@ table.tb tr:last-child td{border-bottom:none;}
 .tot-riga{background:var(--cheese-bg);}
 
 /* ── PAGAMENTI ── */
+.pay-tot{background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:var(--r-md);
+  padding:14px; margin-bottom:14px; text-align:center;}
+.pt-label{font-family:'Nunito',sans-serif; font-size:.72rem; font-weight:700; color:var(--dim);
+  text-transform:uppercase; letter-spacing:.4px;}
+.pt-val{font-size:2rem; font-weight:800; color:var(--cheese-txt); line-height:1.2;
+  font-variant-numeric:tabular-nums;}
+.pt-sub{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim);}
+.pay-contanti{font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:600; color:var(--dim);
+  text-align:center; padding:10px 0;}
+
+.pay-stato{border-radius:var(--r-md); padding:12px 14px; margin-top:14px;
+  font-family:'Nunito',sans-serif; font-size:.88rem; font-weight:700; border:1px solid;}
+.pay-stato.attesa{color:var(--cheese-txt); background:var(--cheese-bg); border-color:var(--cheese-brd);}
+.pay-stato.confermato{color:var(--moss); background:var(--moss-bg); border-color:var(--moss-brd);}
+.ps-sub{font-weight:600; font-size:.76rem; color:var(--dim); margin-top:4px; line-height:1.35;}
+
+.metodi-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px;}
+.metodo-btn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  min-height:76px; padding:10px 6px; border-radius:var(--r-md); border:1.5px solid var(--line);
+  background:var(--card2); color:var(--text); font-family:'Baloo 2',cursive; font-size:.86rem;
+  font-weight:700; cursor:pointer; text-align:center; line-height:1.2;
+  transition:transform .1s, border-color .15s; -webkit-appearance:none;}
+.metodo-btn:active{transform:scale(.95);}
+.metodo-btn:hover{border-color:var(--cheese-brd);}
+.mb-ico{font-size:1.5rem; line-height:1;}
+
 .pay-link{display:flex; align-items:center; gap:12px; background:var(--card2); border:1px solid var(--line);
   border-radius:14px; padding:14px; margin-bottom:10px; text-decoration:none; color:var(--text); cursor:pointer;}
 .pay-link .pl-ico{font-size:1.5rem;}
@@ -132,7 +361,16 @@ table.tb tr:last-child td{border-bottom:none;}
 .admin-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
 .admin-row:last-child{border-bottom:none;}
 .admin-row .ar-nome{font-weight:700;}
-.admin-row .ar-actions{display:flex; gap:6px; flex-wrap:wrap;}
+.admin-row .ar-actions{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+.admin-row.cliccabile{cursor:pointer; margin:0 -6px; padding:10px 6px; border-radius:var(--r-sm);
+  transition:background .15s;}
+.admin-row.cliccabile:active{background:var(--sunken);}
+.card-attesa{border-color:var(--cheese-brd); background:var(--cheese-bg);}
+.ar-flag{font-family:'Nunito',sans-serif; font-size:.66rem; font-weight:800; color:var(--cheese-txt);
+  background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:20px; padding:2px 8px;
+  white-space:nowrap;}
+.ar-sub{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim); margin-top:2px;}
+.ar-freccia{color:var(--dim); font-size:1.2rem; line-height:1;}
 
 /* ── MODALI ── */
 .modal-overlay{display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.6);
@@ -140,7 +378,7 @@ table.tb tr:last-child td{border-bottom:none;}
 .modal-overlay.open{display:flex;}
 .modal{background:var(--bg2); border:1px solid var(--line); border-radius:22px; padding:22px; width:100%;
   max-width:400px; max-height:88vh; overflow-y:auto;}
-.modal h2{font-size:1.2rem; font-weight:800; color:var(--cheese); margin-bottom:10px;}
+.modal h2{font-size:1.2rem; font-weight:800; color:var(--cheese-txt); margin-bottom:10px;}
 .m-row{margin-bottom:12px;}
 .m-row label{display:block; font-size:.78rem; font-weight:700; color:var(--text); margin-bottom:5px; font-family:'Nunito',sans-serif;}
 .m-btns{display:flex; gap:10px; margin-top:16px;}
@@ -152,3 +390,87 @@ table.tb tr:last-child td{border-bottom:none;}
   border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:8px; cursor:pointer;}
 .archivio-item .ai-nome{font-weight:700;}
 .archivio-item .ai-meta{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+
+/* ── KG RICEVUTI E SCARTO (derivati da prezzo_reale / prezzo_kg, mai registrati) ──
+   Verde muschio come tutti gli altri numeri "reali": chi ha già imparato che il verde
+   è il consuntivo non deve impararlo una seconda volta. */
+.mt-scarto{margin-top:10px; font-family:'Nunito',sans-serif; font-size:.78rem; font-weight:700;
+  color:var(--moss); background:var(--moss-bg); border:1px solid var(--moss-brd);
+  border-radius:var(--r-sm); padding:7px 10px; text-align:center;}
+.pc-kg.pc-ric{color:var(--moss); margin-top:-4px;}
+.mr-scarto{font-family:'Nunito',sans-serif; font-size:.72rem; font-weight:700; color:var(--moss);
+  margin-top:3px; line-height:1.3;}
+.mr-scarto:empty{display:none;}
+
+/* Quadratura: quando non torna, il numero deve gridare, non sussurrare */
+.pc-riga.non-quadra span:last-child{color:var(--berry);}
+.pc-riga.non-quadra span:first-child{color:var(--berry);}
+
+/* ── DOCUMENTO COPIABILE (ordine per il negoziante) ──
+   Monospaziato e a capo conservati: è il testo esatto che finisce nella email. */
+.doc-testo{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace; font-size:.76rem;
+  line-height:1.55; color:var(--text); background:var(--card2); border:1px solid var(--line);
+  border-radius:var(--r-md); padding:12px 14px; margin-bottom:12px;
+  white-space:pre-wrap; word-break:break-word; overflow-x:auto;}
+
+/* Archivio: il titolo apre il dettaglio, il cestino no — servono due bersagli distinti */
+.archivio-item{cursor:default;}
+.archivio-item .ai-testo{flex:1; min-width:0; cursor:pointer;}
+.archivio-item .ar-freccia{cursor:pointer;}
+
+/* ════════════════════════════════════════════════════════
+   SVG MASCHERATI — una regola sola per tutti
+   ════════════════════════════════════════════════════════
+   Gli SVG del progetto (tranne il logo) sono NERI PIENI: come <img> sparirebbero
+   sul tema scuro, e servirebbe un `filter:invert` da spegnere a mano su quello chiaro.
+   Con la maschera il file dà solo la FORMA e il colore lo mette il CSS: `currentColor`
+   segue il tema da sé, in tutti e due i versi, senza una regola per asset.
+   Uso:  <span class="svg-inv svg-topino"></span>  + una classe di misura, oppure
+         una `width`/`height` dal contesto. Il colore si eredita dal testo.
+   Il logo NON passa di qui: è colorato e non va invertito. */
+.svg-inv{display:inline-block; background-color:currentColor;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center;  mask-position:center;
+  -webkit-mask-size:contain;     mask-size:contain;
+  -webkit-mask-image:var(--svg); mask-image:var(--svg);}
+.svg-topino{--svg:url('./topino.svg');}
+.svg-formaggio-arrivato{--svg:url('./formaggio-arrivato.svg');}
+.svg-topo-monete{--svg:url('./topo-monete.svg');}
+
+/* Icona SVG dentro un bottone testuale. 20px: alla prova su `formaggio-arrivato`
+   cilindro e spicchio staccato restano distinguibili — tratto uniforme, due sole masse. */
+.btn-ico-svg{width:20px; height:20px; vertical-align:-.26em; margin-right:4px;}
+
+/* Badge "topino grasso": misura in em, così segue il corpo del testo che lo contiene */
+.badge-grasso{color:var(--cheese-txt);}
+.topino-ico{width:1.05em; height:1.05em; vertical-align:-.16em;}
+
+/* ── BANNER "IL FORMAGGIO È ARRIVATO" (tab Ordina, per tutti) ──
+   Verde `--moss` di proposito: distingue "buona notizia, c'è da fare qualcosa" dal
+   `--berry` degli ordini chiusi e dal `--cheese` delle informazioni normali.
+   Sta SOPRA la card "Il tuo ordine": è un annuncio al gruppo, non un dato del tuo ordine. */
+.banner-arrivo{display:flex; align-items:center; gap:12px;
+  color:var(--moss); background:var(--moss-bg); border:1px solid var(--moss-brd);
+  border-radius:var(--r-md); padding:12px 14px; margin-bottom:12px;}
+.banner-arrivo .svg-inv{width:32px; height:32px; flex-shrink:0;}
+.ba-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4; min-width:0;}
+.ba-testo b{font-family:'Baloo 2',cursive; font-weight:800; font-size:.98rem; display:block; margin-bottom:1px;}
+
+/* ── ILLUSTRAZIONE IN TESTA ALLA TAB PAGAMENTI ──
+   A 20-24px questo disegno (corpo, ciotola, due monete, scintille) diventa un grumo:
+   nella tab bar restano le emoji. Qui invece c'è lo spazio, ed è l'unica cosa che
+   rende meno arido un elenco di coordinate bancarie. */
+.pay-illustra{display:flex; justify-content:center; margin-bottom:6px; color:var(--cheese-txt);}
+.pay-illustra .svg-inv{width:60px; height:60px;}
+
+/* ── INVITO ALL'INSTALLAZIONE ──
+   Discreto e chiudibile: un banner che ricompare a ogni apertura, dalla seconda volta
+   in poi viene chiuso senza leggerlo. La × ricorda la scelta in localStorage. */
+.installa-box{position:relative; background:var(--card2); border:1px dashed var(--cheese-brd);
+  border-radius:var(--r-md); padding:14px; margin-top:12px;}
+.installa-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem;
+  line-height:1.5; color:var(--dim); padding-right:26px;}
+.installa-testo b{color:var(--cheese-txt);}
+.installa-box .btn{margin-top:10px;}
+.installa-x{position:absolute; top:6px; right:8px; width:28px; height:28px; line-height:1;
+  background:none; border:0; color:var(--dim); font-size:1.3rem; cursor:pointer; padding:0;}

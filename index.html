@@ -13,9 +13,27 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
 <link rel="manifest" href="./manifest.json">
-<link rel="apple-touch-icon" href="./logo.svg">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="stylesheet" href="./style.css">
 <script>
+// Tema prima del primo paint: gli script dell'app sono in fondo al body.
+try{
+  if(localStorage.getItem("clan_parm_tema") === "chiaro") document.documentElement.classList.add("pre-chiaro");
+  if(localStorage.getItem("clan_parm_tile") !== "off")     document.documentElement.classList.add("pre-tile");
+}catch(e){}
+// `beforeinstallprompt` può scattare PRIMA che gli script in fondo al body siano
+// eseguiti: l'evento va catturato qui e consumato dopo. Senza preventDefault Chrome
+// mostra la sua barretta, che compare e sparisce da sola senza che nessuno la legga.
+var _promptInstall = null;
+window.addEventListener("beforeinstallprompt", function(e){
+  e.preventDefault();
+  _promptInstall = e;
+  if(typeof mostraInvitoInstalla === "function") mostraInvitoInstalla();
+});
+window.addEventListener("appinstalled", function(){
+  _promptInstall = null;
+  if(typeof nascondiInvitoInstalla === "function") nascondiInvitoInstalla();
+});
 if("serviceWorker" in navigator){
   window.addEventListener("load", function(){
     navigator.serviceWorker.register("./sw.js").catch(function(e){ console.log("Errore SW:", e); });
@@ -39,6 +57,7 @@ if("serviceWorker" in navigator){
   <div class="auth-title">Il Clan del Parmigiano</div>
   <div class="auth-sub" id="auth-gruppo-titolo">—</div>
   <div class="auth-box">
+    <div class="auth-lucchetto" id="auth-lucchetto" style="display:none;">🔒 Questo gruppo è protetto da password: te la chiedo appena scegli il tuo nome.</div>
     <div id="lista-persone"></div>
     <input class="inp" id="nuovo-nome" placeholder="Il tuo nome" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')confermaNuovoNome()">
     <div class="errore" id="auth-errore"></div>
@@ -57,26 +76,34 @@ if("serviceWorker" in navigator){
     </div>
     <div class="top-azioni">
       <span class="sync-dot" id="dot"></span>
-      <button class="btn-pill" onclick="apriAdmin()">🔐</button>
+      <button class="btn-ico" id="btn-tema" onclick="toggleTema()" title="Cambia tema">☀️</button>
+      <button class="btn-ico" id="btn-tile" onclick="toggleTile()" title="Sfondo a formaggio">🧀</button>
+      <button class="btn-ico" onclick="apriAdmin()" title="Area admin">🔐</button>
     </div>
   </div>
 
   <div class="body">
     <!-- TAB ORDINA -->
     <div class="tab-page attiva" data-tab="ordina">
-      <div class="card">
-        <div class="card-titolo">Scegli il tuo parmigiano</div>
-        <div id="ordina-tipi"></div>
-      </div>
-      <div class="card" id="carrello-wrap" style="display:none;">
-        <div class="card-titolo">Nel carrello</div>
-        <div id="carrello-list"></div>
-        <button class="btn btn-cheese" onclick="confermaCarrello()">✅ Conferma ordine</button>
-      </div>
+      <div class="banner-arrivo" id="banner-arrivo" style="display:none;"></div>
       <div class="card">
         <div class="card-titolo">Il tuo ordine</div>
-        <div id="mie-righe"></div>
-        <div id="mio-totale" style="margin-top:10px;font-family:'Nunito',sans-serif;font-weight:700;font-size:.9rem;"></div>
+        <div class="banner-ordini" id="ordina-banner" style="display:none;"></div>
+        <div class="hint" id="ordina-hint">Tocca − e + per scegliere quanti kg. Si salva da solo. 🧀</div>
+        <div id="ordina-tipi"></div>
+        <div id="mio-totale" class="mio-totale"></div>
+      </div>
+      <div class="card">
+        <div class="card-titolo">🚚 Spedizione</div>
+        <div id="spedizione-box"></div>
+      </div>
+      <!-- Invito all'installazione: in coda e non in cima, perché il banner ordini e
+           quello dell'arrivo sono informazione operativa e hanno la precedenza. -->
+      <div class="installa-box" id="installa-box" style="display:none;">
+        <button class="installa-x" onclick="chiudiInvitoInstalla()" aria-label="Chiudi l'invito">×</button>
+        <div class="installa-testo" id="installa-testo"></div>
+        <button class="btn btn-cheese btn-mini" id="installa-btn" style="display:none;"
+                onclick="installaApp()">📲 Installa l'app</button>
       </div>
     </div>
 
@@ -88,9 +115,22 @@ if("serviceWorker" in navigator){
       </div>
     </div>
 
+    <!-- TAB BACHECA -->
+    <div class="tab-page" data-tab="bacheca">
+      <div class="card">
+        <div class="card-titolo">📝 Bacheca del clan</div>
+        <div id="bacheca-body"></div>
+      </div>
+      <div class="card">
+        <div class="card-titolo">📊 Kg per stagionatura</div>
+        <div id="stat-body"></div>
+      </div>
+    </div>
+
     <!-- TAB PAGAMENTI -->
     <div class="tab-page" data-tab="pagamenti">
       <div class="card">
+        <div class="pay-illustra"><span class="svg-inv svg-topo-monete"></span></div>
         <div class="card-titolo">Come pagare</div>
         <div id="pagamenti-body"></div>
       </div>
@@ -100,6 +140,7 @@ if("serviceWorker" in navigator){
   <nav class="tab-bar">
     <button class="tab-btn attiva" data-tab="ordina" onclick="switchTab('ordina')"><span class="ti">🧀</span><span>Ordina</span></button>
     <button class="tab-btn" data-tab="tabella" onclick="switchTab('tabella')"><span class="ti">📋</span><span>Tabella</span></button>
+    <button class="tab-btn" data-tab="bacheca" onclick="switchTab('bacheca')"><span class="ti">📝</span><span>Bacheca</span></button>
     <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">💳</span><span>Pagamenti</span></button>
   </nav>
 </div>
@@ -114,12 +155,124 @@ if("serviceWorker" in navigator){
   <div class="body" id="admin-content"></div>
 </div>
 
+<!-- MODALE INGRESSO: conferma identità + password di gruppo al primo accesso -->
+<div class="modal-overlay" id="modal-ingresso" onclick="if(event.target===this)chiudiIngresso()">
+  <div class="modal">
+    <h2 id="mi-titolo">Sei tu?</h2>
+    <p class="modal-sub" id="mi-sub">Se hai toccato il nome sbagliato, annulla e riprova.</p>
+    <div class="m-row" id="mi-pwd-row" style="display:none;">
+      <label>Password del gruppo</label>
+      <input class="inp" id="mi-pwd" type="password" autocapitalize="none" autocorrect="off"
+             spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter')confermaIngresso()">
+    </div>
+    <div class="errore" id="mi-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiIngresso()">Annulla</button>
+      <button class="btn btn-cheese" onclick="confermaIngresso()">Sono io 🐭</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE "HO PAGATO": scelta del metodo -->
+<div class="modal-overlay" id="modal-segnala" onclick="if(event.target===this)chiudiSegnalaPagamento()">
+  <div class="modal">
+    <h2>✅ Come hai pagato?</h2>
+    <p class="modal-sub">Segnali solo che hai pagato: l'admin conferma dopo aver verificato.</p>
+    <div id="sp-metodi" class="metodi-grid"></div>
+    <div class="errore" id="sp-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiSegnalaPagamento()">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE CALCOLATRICE (solo + e −: serve a sommare più etichette, non a moltiplicare) -->
+<div class="modal-overlay" id="modal-calc" onclick="if(event.target===this)closeCalc()">
+  <div class="modal" style="max-width:300px;">
+    <div class="calc-display">
+      <div class="calc-expr" id="calc-expr">&nbsp;</div>
+      <div class="calc-result" id="calc-result">0</div>
+    </div>
+    <div class="calc-grid">
+      <button type="button" class="calc-key" onclick="calcDigit('7')">7</button>
+      <button type="button" class="calc-key" onclick="calcDigit('8')">8</button>
+      <button type="button" class="calc-key" onclick="calcDigit('9')">9</button>
+      <button type="button" class="calc-key calc-op" onclick="calcOp('+')">+</button>
+      <button type="button" class="calc-key" onclick="calcDigit('4')">4</button>
+      <button type="button" class="calc-key" onclick="calcDigit('5')">5</button>
+      <button type="button" class="calc-key" onclick="calcDigit('6')">6</button>
+      <button type="button" class="calc-key calc-op" onclick="calcOp('-')">−</button>
+      <button type="button" class="calc-key" onclick="calcDigit('1')">1</button>
+      <button type="button" class="calc-key" onclick="calcDigit('2')">2</button>
+      <button type="button" class="calc-key" onclick="calcDigit('3')">3</button>
+      <button type="button" class="calc-key calc-back" onclick="calcBack()">←</button>
+      <button type="button" class="calc-key" onclick="calcDigit('0')">0</button>
+      <button type="button" class="calc-key" onclick="calcDigit('.')">,</button>
+      <button type="button" class="calc-key calc-clear" onclick="calcClear()">C</button>
+      <button type="button" class="calc-key calc-eq" onclick="calcConferma()">✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE PREZZI REALI DI UNA PERSONA -->
+<div class="modal-overlay" id="modal-reali" onclick="if(event.target===this)chiudiReali()">
+  <div class="modal">
+    <h2 id="mr-titolo">Prezzi reali</h2>
+    <p class="modal-sub">Leggi l'importo dall'etichetta di ogni pezzo. Se una riga è fatta di più pezzi, sommali con la 🧮.<br>I kg ricevuti compaiono da soli: il prezzo al kg è fisso, quindi si ricavano dall'importo.</p>
+    <div id="mr-righe"></div>
+    <div class="errore" id="mr-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiReali()">Chiudi</button>
+      <button class="btn btn-cheese" onclick="salvaRealiPersona()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE ELIMINAZIONE DEFINITIVA DI UN GRUPPO ARCHIVIATO -->
+<div class="modal-overlay" id="modal-elimina-gruppo" onclick="if(event.target===this)chiudiEliminaGruppo()">
+  <div class="modal">
+    <h2>🗑️ Eliminare per sempre?</h2>
+    <p class="modal-sub" id="eg-sub">—</p>
+    <div class="m-row">
+      <label>Per confermare, riscrivi il titolo del gruppo</label>
+      <input class="inp" id="eg-titolo" autocapitalize="none" autocorrect="off" spellcheck="false"
+             autocomplete="off" oninput="verificaTitoloElimina()"
+             onkeydown="if(event.key==='Enter')confermaEliminaGruppo()">
+    </div>
+    <div class="errore" id="eg-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiEliminaGruppo()">Annulla</button>
+      <button class="btn btn-danger" id="eg-conferma" disabled onclick="confermaEliminaGruppo()">Elimina per sempre</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE CAMBIO PIN ADMIN -->
+<div class="modal-overlay" id="modal-pin" onclick="if(event.target===this)chiudiCambioPin()">
+  <div class="modal">
+    <h2>🔐 Cambia il PIN admin</h2>
+    <div class="m-row"><label>PIN attuale</label>
+      <input class="inp" id="cp-vecchio" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+    <div class="m-row"><label>Nuovo PIN (6 cifre)</label>
+      <input class="inp" id="cp-nuovo" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+    <div class="m-row"><label>Ripeti il nuovo PIN</label>
+      <input class="inp" id="cp-conferma" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+    <div class="errore" id="cp-errore"></div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiCambioPin()">Annulla</button>
+      <button class="btn btn-cheese" onclick="confermaCambioPin()">Cambia PIN</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE NUOVO GRUPPO -->
 <div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this)chiudiNuovoGruppo()">
   <div class="modal">
     <h2>🧀 Nuovo gruppo d'acquisto</h2>
     <div class="m-row"><label>Titolo (es. Ottobre 2026)</label><input class="inp" id="ng-titolo"></div>
-    <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);">Parte con i 4 tipi standard (12/24/36/48 mesi) a prezzo di default — li modifichi subito dopo dall'admin.</p>
+    <div class="m-row"><label>Password d'accesso (lasciala vuota per non metterla)</label>
+      <input class="inp" id="ng-password" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="es. topogrigio26"></div>
+    <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);">Parte con i 4 tipi standard (12/24/36/48 mesi) a prezzo di default — li modifichi subito dopo dall'admin. La password va girata sul gruppo WhatsApp: serve una volta sola per dispositivo.</p>
     <div class="errore" id="ng-errore"></div>
     <div class="m-btns">
       <button class="btn btn-ghost" onclick="chiudiNuovoGruppo()">Annulla</button>
