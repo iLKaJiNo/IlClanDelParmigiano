@@ -56,6 +56,12 @@ if("serviceWorker" in navigator){
   <img src="./logo.svg" class="auth-logo" alt="">
   <div class="auth-title">Il Clan del Parmigiano</div>
   <div class="auth-sub" id="auth-gruppo-titolo">—</div>
+  <div class="installa-box" id="installa-box-auth" style="display:none;">
+    <button class="installa-x" onclick="chiudiInvitoInstalla()" aria-label="Chiudi l'invito">×</button>
+    <div class="installa-testo" id="installa-testo-auth"></div>
+    <button class="btn btn-cheese btn-mini" id="installa-btn-auth" style="display:none;"
+            onclick="installaApp()">📲 Installa l'app</button>
+  </div>
   <div class="auth-box">
     <div class="auth-lucchetto" id="auth-lucchetto" style="display:none;">🔒 Questo gruppo è protetto da password: te la chiedo appena scegli il tuo nome.</div>
     <div id="lista-persone"></div>
@@ -141,7 +147,7 @@ if("serviceWorker" in navigator){
     <button class="tab-btn attiva" data-tab="ordina" onclick="switchTab('ordina')"><span class="ti">🧀</span><span>Ordina</span></button>
     <button class="tab-btn" data-tab="tabella" onclick="switchTab('tabella')"><span class="ti">📋</span><span>Tabella</span></button>
     <button class="tab-btn" data-tab="bacheca" onclick="switchTab('bacheca')"><span class="ti">📝</span><span>Bacheca</span></button>
-    <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">💳</span><span>Pagamenti</span></button>
+    <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">💳<span class="tab-dot" id="tab-dot-pagamenti" style="display:none;"></span></span><span>Pagamenti</span></button>
   </nav>
 </div>
 
@@ -156,7 +162,7 @@ if("serviceWorker" in navigator){
 </div>
 
 <!-- MODALE INGRESSO: conferma identità + password di gruppo al primo accesso -->
-<div class="modal-overlay" id="modal-ingresso" onclick="if(event.target===this)chiudiIngresso()">
+<div class="modal-overlay" id="modal-ingresso" onclick="if(event.target===this&&topModal()==='modal-ingresso')chiudiIngresso()">
   <div class="modal">
     <h2 id="mi-titolo">Sei tu?</h2>
     <p class="modal-sub" id="mi-sub">Se hai toccato il nome sbagliato, annulla e riprova.</p>
@@ -174,20 +180,21 @@ if("serviceWorker" in navigator){
 </div>
 
 <!-- MODALE "HO PAGATO": scelta del metodo -->
-<div class="modal-overlay" id="modal-segnala" onclick="if(event.target===this)chiudiSegnalaPagamento()">
+<div class="modal-overlay" id="modal-segnala" onclick="if(event.target===this&&topModal()==='modal-segnala')chiudiSegnalaPagamento()">
   <div class="modal">
-    <h2>✅ Come hai pagato?</h2>
-    <p class="modal-sub">Segnali solo che hai pagato: l'admin conferma dopo aver verificato.</p>
+    <h2 id="sp-titolo">✅ Come hai pagato?</h2>
+    <p class="modal-sub" id="sp-sub">Segnali solo che hai pagato: l'admin conferma dopo aver verificato.</p>
+    <div id="sp-avviso"></div>
     <div id="sp-metodi" class="metodi-grid"></div>
     <div class="errore" id="sp-errore"></div>
-    <div class="m-btns">
+    <div class="m-btns" id="sp-btns">
       <button class="btn btn-ghost" onclick="chiudiSegnalaPagamento()">Annulla</button>
     </div>
   </div>
 </div>
 
 <!-- MODALE CALCOLATRICE (solo + e −: serve a sommare più etichette, non a moltiplicare) -->
-<div class="modal-overlay" id="modal-calc" onclick="if(event.target===this)closeCalc()">
+<div class="modal-overlay" id="modal-calc" onclick="if(event.target===this&&topModal()==='modal-calc')closeCalc()">
   <div class="modal" style="max-width:300px;">
     <div class="calc-display">
       <div class="calc-expr" id="calc-expr">&nbsp;</div>
@@ -211,14 +218,15 @@ if("serviceWorker" in navigator){
       <button type="button" class="calc-key calc-clear" onclick="calcClear()">C</button>
       <button type="button" class="calc-key calc-eq" onclick="calcConferma()">✓</button>
     </div>
+    <div class="errore" id="calc-errore"></div>
   </div>
 </div>
 
 <!-- MODALE PREZZI REALI DI UNA PERSONA -->
-<div class="modal-overlay" id="modal-reali" onclick="if(event.target===this)chiudiReali()">
+<div class="modal-overlay" id="modal-reali" onclick="if(event.target===this&&topModal()==='modal-reali')chiudiReali()">
   <div class="modal">
     <h2 id="mr-titolo">Prezzi reali</h2>
-    <p class="modal-sub">Leggi l'importo dall'etichetta di ogni pezzo. Se una riga è fatta di più pezzi, sommali con la 🧮.<br>I kg ricevuti compaiono da soli: il prezzo al kg è fisso, quindi si ricavano dall'importo.</p>
+    <p class="modal-sub">Leggi l'importo dall'etichetta di ogni pezzo. Se una riga è fatta di più pezzi, sommali con la 🧮.</p>
     <div id="mr-righe"></div>
     <div class="errore" id="mr-errore"></div>
     <div class="m-btns">
@@ -229,7 +237,7 @@ if("serviceWorker" in navigator){
 </div>
 
 <!-- MODALE ELIMINAZIONE DEFINITIVA DI UN GRUPPO ARCHIVIATO -->
-<div class="modal-overlay" id="modal-elimina-gruppo" onclick="if(event.target===this)chiudiEliminaGruppo()">
+<div class="modal-overlay" id="modal-elimina-gruppo" onclick="if(event.target===this&&topModal()==='modal-elimina-gruppo')chiudiEliminaGruppo()">
   <div class="modal">
     <h2>🗑️ Eliminare per sempre?</h2>
     <p class="modal-sub" id="eg-sub">—</p>
@@ -248,7 +256,7 @@ if("serviceWorker" in navigator){
 </div>
 
 <!-- MODALE CAMBIO PIN ADMIN -->
-<div class="modal-overlay" id="modal-pin" onclick="if(event.target===this)chiudiCambioPin()">
+<div class="modal-overlay" id="modal-pin" onclick="if(event.target===this&&topModal()==='modal-pin')chiudiCambioPin()">
   <div class="modal">
     <h2>🔐 Cambia il PIN admin</h2>
     <div class="m-row"><label>PIN attuale</label>
@@ -266,7 +274,7 @@ if("serviceWorker" in navigator){
 </div>
 
 <!-- MODALE NUOVO GRUPPO -->
-<div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this)chiudiNuovoGruppo()">
+<div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this&&topModal()==='modal-nuovo-gruppo')chiudiNuovoGruppo()">
   <div class="modal">
     <h2>🧀 Nuovo gruppo d'acquisto</h2>
     <div class="m-row"><label>Titolo (es. Ottobre 2026)</label><input class="inp" id="ng-titolo"></div>

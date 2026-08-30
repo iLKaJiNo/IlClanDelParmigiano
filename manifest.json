@@ -1,7 +1,7 @@
 {
   "id": "/IlClanDelParmigiano/",
   "name": "Il Clan del Parmigiano",
-  "short_name": "Clan Parmigiano",
+  "short_name": "Il Clan del Parmigiano",
   "description": "Gruppo d'acquisto parmigiano — ordini, conti, consegne",
   "start_url": "./index.html",
   "display": "standalone",

@@ -28,7 +28,19 @@ var TABS = ["ordina", "tabella", "bacheca", "pagamenti"]; // + "admin" sempre vi
 var THEME_KEY = "clan_parm_tema";
 var TILE_KEY  = "clan_parm_tile";
 
+// Chrome ignora `navigator.vibrate()` finché l'utente non ha interagito col documento
+// (*sticky user activation*); su iOS Safari `navigator.vibrate` non esiste proprio.
+// Non è un difetto dell'app: è una regola della piattaforma. Due conseguenze operative:
+//  1. un `vibrate(0)` al primo `pointerdown` attiva il documento senza far vibrare nulla,
+//     così la prima vibrazione vera parte al primo colpo invece che al secondo;
+//  2. `vibra()` va chiamata come PRIMA istruzione di un handler, mai dopo un `await`:
+//     l'attivazione utente scade, e dopo l'await il browser non la riconosce più.
 function vibra(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+function innescaVibrazione(){
+  document.addEventListener("pointerdown", function(){
+    try{ navigator.vibrate(0); }catch(e){}
+  }, { once: true, passive: true });
+}
 
 function applyTheme(chiaro){
   // La classe di pre-paint su <html> ha specificità maggiore di body.chiaro:
@@ -376,3 +388,34 @@ async function passwordCorretta(tentativo){
   if(!h) return true;
   return (await hashPassword(tentativo)) === h;
 }
+
+// ── STACK DEI MODALI ──
+// Tutti gli overlay hanno lo stesso `z-index:1000` in CSS: a parità vince l'ordine nel DOM,
+// quindi un modale aperto DOPO poteva finire SOTTO a uno aperto prima (la calcolatrice
+// sepolta dal modale dei prezzi reali). Lo z-index non si decide più a mano nel CSS: lo
+// decide l'ordine di apertura, che è l'unico che conosce chi sta sopra a chi.
+var _modalStack = [];
+function openModal(id){
+  var el = document.getElementById(id);
+  if(!el || _modalStack.indexOf(id) > -1) return;
+  el.style.zIndex = 1000 + _modalStack.length * 10;
+  _modalStack.push(id);
+  el.classList.add("open");
+  document.body.classList.add("modal-aperto");
+}
+function closeModal(id){
+  var el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove("open");
+  el.style.zIndex = "";
+  _modalStack = _modalStack.filter(function(x){ return x !== id; });
+  if(!_modalStack.length){
+    document.body.classList.remove("modal-aperto");
+    // Il realtime si è tenuto da parte i ridisegni saltati mentre il modale era aperto.
+    if(typeof renderAdminDifferito === "function") renderAdminDifferito();
+  }
+}
+// Chi sta in cima. Serve ai click sullo sfondo: senza, un tocco a lato della calcolatrice
+// chiuderebbe il modale che sta sotto e si ricadrebbe nel bug di partenza.
+function topModal(){ return _modalStack[_modalStack.length - 1] || null; }
+function modaleAperto(){ return _modalStack.length > 0; }

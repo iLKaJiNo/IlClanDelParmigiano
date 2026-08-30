@@ -474,3 +474,116 @@ table.tb tr:last-child td{border-bottom:none;}
 .installa-box .btn{margin-top:10px;}
 .installa-x{position:absolute; top:6px; right:8px; width:28px; height:28px; line-height:1;
   background:none; border:0; color:var(--dim); font-size:1.3rem; cursor:pointer; padding:0;}
+
+/* ── STACK DEI MODALI ──
+   Lo z-index dei singoli overlay lo scrive `openModal()` in linea, secondo l'ordine di
+   apertura: qui resta solo il valore di base e il blocco dello scroll di fondo, che
+   prima mancava e lasciava scorrere la pagina sotto al modale. */
+body.modal-aperto{overflow:hidden;}
+
+/* ── INTERRUTTORI (admin, riga topolino) ──
+   Due pillole che seguivano convenzioni opposte — una diceva l'AZIONE ("no sped."),
+   l'altra lo STATO ("non pagato") — sono diventate due interruttori veri, etichettati
+   sempre e solo con lo stato. */
+.sw-riga{display:flex; align-items:center; gap:10px; padding:6px 0 6px 4px;
+  font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:700; color:var(--dim);}
+.sw-riga .sw-nome{flex:0 0 92px;}
+.sw-riga .sw-stato{font-weight:800; color:var(--text);}
+.sw-riga .sw-stato.spento{color:var(--dim); font-weight:700;}
+.sw{width:44px; height:26px; border-radius:13px; background:var(--card2);
+    border:1.5px solid var(--line); position:relative; flex-shrink:0; padding:0; cursor:pointer;
+    transition:background .18s, border-color .18s;}
+.sw::after{content:''; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    border-radius:50%; background:var(--dim); transition:transform .18s, background .18s;}
+.sw.on{background:var(--cheese-bg); border-color:var(--cheese-brd);}
+.sw.on::after{transform:translateX(18px); background:var(--cheese);}
+.sw:focus-visible{outline:2px solid var(--cheese-brd); outline-offset:2px;}
+@media(prefers-reduced-motion:reduce){ .sw,.sw::after{transition:none;} }
+/* La riga col nome non ha più bottoni-stato: solo matita e cestino, e nessun bordo
+   sotto, perché i due interruttori appartengono ancora a quella persona. */
+.persona-blocco{padding:10px 0; border-bottom:1px solid var(--line);}
+.persona-blocco:last-child{border-bottom:none;}
+.persona-blocco .admin-row{padding:0; border-bottom:none;}
+
+/* ── PALLINO SULLA TAB PAGAMENTI ──
+   Un pallino e non una parola: a 320px la tab bar non ha spazio per un'etichetta in più.
+   Acceso finché il totale è stimato, spento quando diventa reale. */
+.tab-btn .ti{position:relative; display:inline-block;}
+.tab-dot{position:absolute; top:-1px; right:-4px; width:8px; height:8px; border-radius:50%;
+  background:var(--cheese); border:1.5px solid var(--bg2);}
+
+/* ── FISARMONICA A FASI (admin) ──
+   Tredici card sempre aperte costringevano a scorrere sopra la quadratura dello scontrino
+   in piena raccolta ordini. La fase si DEDUCE dai dati, non si salva da nessuna parte:
+   niente migrazione e niente stato da tenere allineato. Le fasi passate restano
+   toccabili — la spedizione si corregge, gli ordini si riaprono. */
+.fasi-testa{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
+  padding:14px 16px; margin-bottom:12px;}
+.fasi-striscia{display:flex; align-items:center; justify-content:space-between; gap:2px; margin-bottom:10px;}
+.fs-passo{font-size:1.05rem; line-height:1; color:var(--dim); background:none; border:0; padding:2px 1px; cursor:pointer;}
+.fs-passo.fatto{color:var(--cheese-txt);}
+.fs-passo.ora{color:var(--cheese); font-size:1.3rem;}
+.fs-linea{flex:1; height:1.5px; background:var(--line); min-width:4px;}
+.fasi-tocca{font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600;
+  line-height:1.45; color:var(--dim);}
+.fasi-tocca b{color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-weight:800;
+  font-size:.95rem; display:block; margin-bottom:2px;}
+
+.fase{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+  margin-bottom:10px; overflow:hidden;}
+.fase-testa{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  background:none; border:0; padding:14px 16px; cursor:pointer; color:var(--text);
+  font-family:'Baloo 2',cursive; font-weight:800; font-size:1rem;}
+.fase-num{width:24px; height:24px; flex-shrink:0; border-radius:50%; display:flex;
+  align-items:center; justify-content:center; font-size:.78rem; font-weight:800;
+  background:var(--sunken); color:var(--dim); border:1px solid var(--line);}
+.fase.corrente .fase-num{background:var(--cheese-bg); color:var(--cheese-txt); border-color:var(--cheese-brd);}
+.fase.corrente > .fase-testa{color:var(--cheese-txt);}
+.fase-freccia{margin-left:auto; color:var(--dim); font-size:.9rem; transition:transform .18s;}
+.fase.aperta .fase-freccia{transform:rotate(90deg);}
+.fase-corpo{display:none; padding:0 12px 12px;}
+.fase.aperta .fase-corpo{display:block; animation:tabIn .22s ease both;}
+.fase-corpo .card{border:none; background:transparent; padding:10px 4px; border-radius:0;}
+.fase-corpo .card + .card{border-top:1px solid var(--line);}
+/* "Pagamenti da confermare" deve restare evidenziata anche dentro la fisarmonica: è una
+   coda di lavoro, non una card qualunque, e sciogliersi nel fondo la farebbe sparire. */
+.fase-corpo .card.card-attesa{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
+  border-radius:var(--r-md); padding:14px; margin-bottom:10px;}
+@media(prefers-reduced-motion:reduce){ .fase.aperta .fase-corpo{animation:none;} .fase-freccia{transition:none;} }
+
+/* ── SCONTRINO: la sottrazione della spedizione, in chiaro ──
+   L'admin digita un solo numero, quello che ha davanti agli occhi: la fattura del
+   negoziante, spedizione inclusa. La sottrazione la fa l'app. La spedizione è MOSTRATA,
+   non ri-digitata: due campi che scrivono la stessa colonna in due card diverse si
+   desincronizzano al primo salvataggio parziale. */
+.scontrino-calc{margin-top:12px; padding-top:10px; border-top:1px solid var(--line);
+  font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600;}
+.sc-riga{display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:3px 0;}
+.sc-riga.risultato{border-top:1px solid var(--line); margin-top:6px; padding-top:8px;
+  font-weight:800; font-size:.95rem; color:var(--cheese-txt);}
+.sc-riga .sc-mod{font-size:.72rem; font-weight:700; color:var(--dim);
+  background:none; border:0; padding:0 0 0 8px; text-decoration:underline; cursor:pointer;}
+.card.evidenzia{animation:evidenzia 1.4s ease;}
+@keyframes evidenzia{0%,100%{background:transparent;} 25%,60%{background:var(--cheese-bg);}}
+@media(prefers-reduced-motion:reduce){ .card.evidenzia{animation:none;} }
+
+/* ── AVVISO PRIMA DI PAGARE SU UN TOTALE STIMATO (§4.4) ── */
+.avviso-stima{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
+  border-radius:var(--r-md); padding:14px; margin-bottom:12px;
+  font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600; line-height:1.5; color:var(--text);}
+.avviso-stima b{color:var(--cheese-txt);}
+
+/* ── TOTALE DEFINITIVO (§4.5) ──
+   Il passaggio da stimato a reale è proprio la cosa che vale la pena vedere: stesso verde
+   già usato per la colonna "reale" della tabella e del riepilogo. */
+.pay-tot.reale{background:var(--moss-bg); border-color:var(--moss-brd);}
+.pay-tot.reale .pt-val{color:var(--moss);}
+
+/* ── PILLOLA "ADMIN" (tab Tabella, §5) ──
+   Non un topo diverso: il topino è già il badge del "topino grasso", e due topi diversi
+   nella stessa colonna diventano un rebus. Piccola, color formaggio, e visibile a TUTTI —
+   che è esattamente il punto: sapere a chi chiedere. */
+.pill-admin{font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:800;
+  text-transform:uppercase; letter-spacing:.4px; color:var(--cheese-txt);
+  background:var(--cheese-bg); border:1px solid var(--cheese-brd);
+  border-radius:999px; padding:2px 7px; vertical-align:.12em; white-space:nowrap;}

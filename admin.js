@@ -8,6 +8,7 @@ var _pinBuffer = "";
 
 function apriAdmin(){
   mostraSchermata("admin-screen");
+  _faseAperta = null;   // riparte dalla fase dedotta dai dati, non da dove si era rimasti ieri
   if(sessionStorage.getItem(ADMIN_SESSION_KEY) === "1"){
     adminOk = true;
     renderAdmin();
@@ -83,6 +84,7 @@ async function verificaPin(pin){
       adminOk = true;
       sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
       renderAdmin();
+      proponiFlagAdmin();
     }catch(e){
       document.getElementById("pin-errore").textContent = "Errore salvataggio: " + e.message;
     }
@@ -91,6 +93,7 @@ async function verificaPin(pin){
       adminOk = true;
       sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
       renderAdmin();
+      proponiFlagAdmin();
     } else {
       document.getElementById("pin-errore").textContent = "PIN errato.";
       _pinBuffer = "";
@@ -98,94 +101,297 @@ async function verificaPin(pin){
     }
   }
 }
+// `persone` è per-gruppo, quindi il flag va rimesso a ogni nuovo giro: un passaggio manuale
+// da rifare ogni volta è un passaggio da dimenticare. Si propone da solo qui, che è l'unico
+// momento in cui l'app sa con certezza che chi ha in mano il telefono è l'admin.
+// Il "no" si ricorda per gruppo, come la × dell'invito all'installazione: una domanda che
+// ritorna a ogni sblocco viene chiusa senza leggerla.
+function chiaveNoAdmin(){ return "clan_parm_no_admin_" + (gruppo ? gruppo.id : "none"); }
+async function proponiFlagAdmin(){
+  if(!gruppo || !mioId) return;
+  var io = persone.find(function(x){ return x.id === mioId; });
+  if(!io || io.is_admin) return;
+  try{ if(localStorage.getItem(chiaveNoAdmin()) === "1") return; }catch(e){}
+  if(!confirm("Sei entrato come admin e sei registrato come " + io.nome
+      + ".\n\nTi segno come admin del gruppo, cos\u00ec gli altri sanno a chi chiedere?")){
+    try{ localStorage.setItem(chiaveNoAdmin(), "1"); }catch(e){}
+    return;
+  }
+  try{
+    await setIsAdmin(io.id, true);
+    await caricaTutto(); renderAdmin();
+    dot("ok", "Segnato come admin \uD83D\uDC2D");
+  }catch(e){ alert("Errore: " + e.message); }
+}
+
 function bloccaAdmin(){
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
   adminOk = false;
   chiudiAdmin();
 }
 
-// ── PANNELLO ADMIN ──
+// ── PANNELLO ADMIN: FISARMONICA A FASI ──
+// Prima erano tredici card sempre tutte aperte, nell'ordine in cui erano state scritte:
+// in piena raccolta ordini si scorreva sopra la quadratura dello scontrino, che serve
+// due settimane dopo. La fase si DEDUCE dai dati — nessuna colonna, nessuna migrazione,
+// niente stato da tenere allineato: se i dati dicono che i prezzi reali ci sono tutti e
+// non c'è più nulla da incassare, la fase È 6, comunque ci si sia arrivati.
+// Le fasi passate restano toccabili e si riaprono (la spedizione si corregge, i prezzi si
+// ritoccano, gli ordini si riaprono); le future sono visibili ma chiuse.
+function faseCorrente(){
+  var conRighe   = righe.length > 0;
+  var reali      = righe.filter(function(r){ return r.prezzo_reale != null; }).length;
+  var tuttiReali = conRighe && reali === righe.length;
+  var daIncassare = persone.some(function(p){ return !p.pagato && righeDi(p.id).length; });
+  if(tuttiReali && !daIncassare) return 6;   // chiudo
+  if(tuttiReali)                 return 5;   // incasso
+  if(reali > 0)                  return 4;   // consegno
+  if(arrivoSegnalato())          return 4;
+  if(ordiniChiusi())             return 3;   // aspetto il negoziante
+  if(conRighe)                   return 2;   // raccolgo
+  return 1;                                  // preparo
+}
+
+var FASI = [
+  { n: 1, titolo: "Preparo il gruppo",
+    tocca: "Metti i prezzi al kg e la spedizione, poi gira il link e la password sul gruppo WhatsApp." },
+  { n: 2, titolo: "Raccolgo gli ordini",
+    tocca: "Lascia ordinare i topini. Quando sei pronto, copia l'ordine e mandalo al negoziante." },
+  { n: 3, titolo: "Aspetto il negoziante",
+    tocca: "Scrivi il totale della fattura appena il negoziante te lo manda." },
+  { n: 4, titolo: "Consegno",
+    tocca: "Apri un sacchetto per volta e batti gli importi letti dalle etichette." },
+  { n: 5, titolo: "Incasso",
+    tocca: "Conferma i pagamenti man mano che arrivano, e ricorda a chi manca." },
+  { n: 6, titolo: "Chiudo",
+    tocca: "Manda il PDF di riepilogo al gruppo e archivia questo giro." }
+];
+var CERCHIATI = ["①","②","③","④","⑤","⑥"];
+
+// `null` = "segui i dati". Appena l'admin tocca una fase a mano comanda la sua scelta,
+// altrimenti a ogni ridisegno si riaprirebbe da sola quella dedotta e non si potrebbe
+// tornare indietro a correggere qualcosa.
+var _faseAperta = null;
+function faseAperta(){ return _faseAperta != null ? _faseAperta : faseCorrente(); }
+function toggleFase(n){
+  vibra(10);
+  _faseAperta = (faseAperta() === n) ? 0 : n;   // 0 = tutte chiuse, e resta una scelta esplicita
+  renderAdmin();
+}
+// Rimanda a una card che vive in un'altra fase: la apre e ci porta sopra, invece di
+// duplicare il campo in due posti (due input sulla stessa colonna si desincronizzano
+// al primo salvataggio parziale).
+function vaiAFase(n, cardId){
+  _faseAperta = n;
+  renderAdmin();
+  setTimeout(function(){
+    var c = document.getElementById(cardId);
+    if(!c) return;
+    c.scrollIntoView({ behavior: "smooth", block: "center" });
+    c.classList.add("evidenzia");
+  }, 60);
+}
+function vaiAiPrezzi(){ vaiAFase(1, "card-prezzi"); }
+function vaiAlloScontrino(){ vaiAFase(3, "card-scontrino"); }
+
 function renderAdmin(){
   var el = document.getElementById("admin-content");
   if(!gruppo){
     el.innerHTML = '<div class="card"><div class="card-titolo">Nessun gruppo attivo</div>'
       + '<p style="font-family:\'Nunito\',sans-serif;font-size:.85rem;color:var(--dim);margin-bottom:12px;">Crea il primo gruppo d\'acquisto per iniziare.</p>'
-      + '<button class="btn btn-cheese" onclick="apriNuovoGruppo()">\uD83E\uDDC0 Crea nuovo gruppo</button></div>'
+      + '<button class="btn btn-cheese" onclick="apriNuovoGruppo()">🧀 Crea nuovo gruppo</button></div>'
       + renderArchivioHtml();
     return;
   }
-  var haPassword = !!passwordGruppoHash();
-  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-    + '<h2 style="color:var(--cheese-txt);">\uD83E\uDDC0 Admin</h2>'
-    + '<button class="btn-pill" onclick="bloccaAdmin()">\uD83D\uDD12 Blocca</button></div>';
 
-  // Gruppo + spedizione
-  html += '<div class="card"><div class="card-titolo">Gruppo attivo</div>'
+  var corrente = faseCorrente();
+  var aperta = faseAperta();
+  var corpi = {
+    1: cardGruppoHtml() + cardPrezziHtml() + cardScadenzaHtml(),
+    2: cardKgPerTipoHtml() + renderNegozianteHtml() + cardChiusuraHtml(),
+    3: renderScontrinoHtml() + cardArrivoHtml(),
+    4: cardConsegnaHtml() + renderQuadraturaHtml(),
+    5: renderDaConfermareHtml() + renderRiepilogoHtml() + cardTopoliniHtml() + cardCoordinateHtml(),
+    6: cardPdfHtml() + cardArchiviaHtml()
+  };
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    + '<h2 style="color:var(--cheese-txt);">🧀 Admin</h2>'
+    + '<button class="btn-pill" onclick="bloccaAdmin()">🔒 Blocca</button></div>';
+
+  html += fasiTestaHtml(corrente, aperta);
+
+  html += FASI.map(function(f){
+    var cls = "fase" + (f.n === aperta ? " aperta" : "") + (f.n === corrente ? " corrente" : "");
+    return '<div class="' + cls + '">'
+      + '<button class="fase-testa" onclick="toggleFase(' + f.n + ')" aria-expanded="' + (f.n === aperta) + '">'
+      +   '<span class="fase-num">' + f.n + '</span>'
+      +   '<span>' + escapeHtml(f.titolo) + '</span>'
+      +   '<span class="fase-freccia">›</span>'
+      + '</button>'
+      + '<div class="fase-corpo">' + corpi[f.n] + '</div>'
+      + '</div>';
+  }).join("");
+
+  // Fuori dalla fisarmonica: non appartengono a nessuna fase del giro.
+  html += cardSicurezzaHtml();
+  html += renderArchivioHtml();
+
+  el.innerHTML = html;
+  // La textarea si misura sul contenuto, e una misura presa mentre è chiusa vale zero.
+  if(aperta === 2) notaAuto(document.getElementById("inp-note-negoziante"));
+}
+
+// La riga che dice cosa tocca adesso. È la cosa che si guarda ogni volta che si apre
+// l'admin: la striscia dice a che punto è il giro, la frase dice cosa fare oggi.
+function fasiTestaHtml(corrente, aperta){
+  var h = '<div class="fasi-testa"><div class="fasi-striscia">';
+  FASI.forEach(function(f, i){
+    if(i) h += '<span class="fs-linea"></span>';
+    var cls = "fs-passo" + (f.n === corrente ? " ora" : (f.n < corrente ? " fatto" : ""));
+    h += '<button class="' + cls + '" onclick="toggleFase(' + f.n + ')" title="' + escapeHtml(f.titolo) + '"'
+      + ' aria-label="Fase ' + f.n + ': ' + escapeHtml(f.titolo) + '">' + CERCHIATI[i] + '</button>';
+  });
+  h += '</div>';
+
+  var f = FASI[corrente - 1];
+  h += '<div class="fasi-tocca"><b>Tocca a te</b>' + escapeHtml(f.tocca);
+
+  // Una segnalazione di pagamento è urgente in qualunque fase, e sepolta dentro la ⑤
+  // chiusa non la vedrebbe nessuno: qui sopra invece è la prima cosa che si legge.
+  var attesa = persone.filter(function(p){ return p.pagamento_segnalato && !p.pagato; }).length;
+  if(attesa && aperta !== 5){
+    h += '<br>⏳ ' + attesa + (attesa === 1 ? ' topino dice' : ' topini dicono')
+      + ' di aver pagato: '
+      + '<button class="sc-mod" style="padding-left:0;" onclick="toggleFase(5)">conferma nella fase ⑤</button>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+// ── FASE 1: preparo il gruppo ──
+function cardGruppoHtml(){
+  var haPassword = !!passwordGruppoHash();
+  return '<div class="card"><div class="card-titolo">Gruppo attivo</div>'
     + '<div class="m-row"><label>Titolo</label><div style="font-weight:800;">' + escapeHtml(gruppo.titolo) + '</div></div>'
-    + '<div class="m-row"><label>Spedizione totale (\u20ac)</label>'
-    + '<input class="inp" type="number" min="0" step="0.01" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
-    + '<button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button>'
-    + '<div class="m-row" style="margin-top:14px;"><label>Password d\'accesso</label>'
+    + '<div class="m-row"><label>Password d\'accesso</label>'
     + '<input class="inp" id="inp-password" type="text" autocapitalize="none" autocorrect="off"'
     +   ' spellcheck="false" autocomplete="off" placeholder="'
     +   (haPassword ? "scrivi qui la nuova password" : "es. topogrigio26") + '"></div>'
     + '<div class="hint">' + (haPassword
-        ? '\uD83D\uDD12 Una password c\'\u00e8 gi\u00e0. <b>Non posso mostrartela</b>: a DB ne resta solo l\'impronta, non il testo. Per cambiarla, scrivine una nuova.'
-        : '\uD83D\uDD13 Nessuna password: chiunque abbia il link entra. Scrivine una e girala sul gruppo WhatsApp.')
-      + ' Cambiandola, tutti i dispositivi gi\u00e0 entrati dovranno reinserirla.</div>'
+        ? '🔒 Una password c\'è già. <b>Non posso mostrartela</b>: a DB ne resta solo l\'impronta, non il testo. Per cambiarla, scrivine una nuova.'
+        : '🔓 Nessuna password: chiunque abbia il link entra. Scrivine una e girala sul gruppo WhatsApp.')
+      + ' Cambiandola, tutti i dispositivi già entrati dovranno reinserirla.</div>'
     + '<div class="ar-actions">'
     +   '<button class="btn btn-cheese btn-mini" onclick="salvaPasswordGruppoAdmin()">Salva password</button>'
     +   (haPassword ? '<button class="btn btn-ghost btn-mini" onclick="rimuoviPasswordGruppoAdmin()">Togli la password</button>' : '')
-    + '</div>'
-    + '<div class="m-row" style="margin-top:14px;"><label>Chiusura ordini</label>'
-    + '<input class="inp" type="datetime-local" id="inp-chiusura" value="' + isoToInputLocale(gruppo.chiusura_ordini) + '"></div>'
-    + '<div class="hint">' + (ordiniChiusi()
-        ? '\uD83D\uDD12 Ordini <b>chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '. I topini non possono più modificare.'
-        : (gruppo.chiusura_ordini
-            ? '\u23F0 Si chiudono il ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '.'
-            : 'Nessuna scadenza: gli ordini restano aperti.')) + '</div>'
-    + '<div class="ar-actions">'
-    +   '<button class="btn btn-cheese btn-mini" onclick="salvaChiusuraOrdini()">Salva scadenza</button>'
-    +   (gruppo.chiusura_ordini ? '<button class="btn btn-ghost btn-mini" onclick="riapriOrdini()">Riapri gli ordini</button>' : '')
-    + '</div>'
-    + '<div style="margin-top:14px;"><button class="btn btn-danger" onclick="confermaArchiviaGruppo()">\uD83D\uDCE6 Archivia e chiudi questo gruppo</button></div>'
-    + '</div>';
+    + '</div></div>';
+}
 
-  html += renderRiepilogoHtml();
-  html += renderQuadraturaHtml();
-  html += renderDaConfermareHtml();
-
-  // Prezzi tipi
-  html += '<div class="card"><div class="card-titolo">Prezzi al kg</div>'
+// Prezzi al kg e spedizione stanno insieme: sono i numeri che fanno il conto di tutti, e
+// `gruppo.spedizione_totale` ha QUI la sua unica fonte di verità — lo scontrino della
+// fase ③ la mostra e basta, con un rimando a questa card.
+function cardPrezziHtml(){
+  return '<div class="card" id="card-prezzi"><div class="card-titolo">Prezzi al kg e spedizione</div>'
     + tipi.map(function(t){
         return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(t.nome) + '</span>'
           + '<div class="ar-actions"><input class="inp" style="width:110px;height:38px;" type="number" min="0" step="0.01" id="prezzo-' + t.id + '" value="' + t.prezzo_kg + '">'
           + '<button class="btn btn-cheese btn-mini" onclick="salvaPrezzoTipo(\'' + t.id + '\')">Salva</button></div></div>';
       }).join("")
+    + '<div class="m-row" style="margin-top:14px;"><label>Spedizione totale (€)</label>'
+    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
+    + '<div class="hint">Si divide tra i topini che partecipano. Cambia con i kg totali, quindi è normale ritoccarla in corso d\'opera: se qualcuno ha già pagato te lo dico prima di salvare.</div>'
+    + '<button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button>'
     + '</div>';
+}
 
-  // Persone
-  html += '<div class="card"><div class="card-titolo">Topolini registrati (' + persone.length + ')</div>'
-    + (persone.length ? persone.map(function(p){
-        return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
-          + (p.pagamento_segnalato ? ' <span class="ar-flag">\u23F3 dice di aver pagato</span>' : '') + '</span>'
+function cardScadenzaHtml(){
+  return '<div class="card"><div class="card-titolo">Scadenza degli ordini</div>'
+    + '<div class="m-row"><label>Chiusura ordini</label>'
+    + '<input class="inp" type="datetime-local" id="inp-chiusura" value="' + isoToInputLocale(gruppo.chiusura_ordini) + '"></div>'
+    + '<div class="hint">' + (ordiniChiusi()
+        ? '🔒 Ordini <b>chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '. I topini non possono più modificare.'
+        : (gruppo.chiusura_ordini
+            ? '⏰ Si chiudono il ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '.'
+            : 'Nessuna scadenza: gli ordini restano aperti finché non li chiudi tu.')) + '</div>'
+    + '<div class="ar-actions">'
+    +   '<button class="btn btn-cheese btn-mini" onclick="salvaChiusuraOrdini()">Salva scadenza</button>'
+    +   (gruppo.chiusura_ordini ? '<button class="btn btn-ghost btn-mini" onclick="riapriOrdini()">Togli la scadenza</button>' : '')
+    + '</div></div>';
+}
+
+// ── FASE 2: raccolgo gli ordini ──
+function cardKgPerTipoHtml(){
+  var dati = kgPerTipo();
+  var tot = dati.reduce(function(a, d){ return a + d.kg; }, 0);
+  var quanti = persone.filter(function(p){ return righeDi(p.id).length; }).length;
+  var h = '<div class="card"><div class="card-titolo">Kg per tipo</div>';
+  if(!tot){
+    h += '<div class="empty">Nessun kg ordinato ancora.</div>';
+  } else {
+    h += '<div class="pc-conti" style="border-top:none;padding-top:0;">';
+    dati.forEach(function(d){
+      h += '<div class="pc-riga"><span>' + escapeHtml(d.nome) + '</span><span>'
+        + kgFmt(d.kg) + (d.kg > 0 ? ' · ' + pezziDa(d.kg) + ' pz' : '') + '</span></div>';
+    });
+    h += '<div class="pc-riga grande"><span>Totale</span><span>' + kgFmt(tot) + '</span></div></div>';
+    h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + quanti + ' topini su '
+      + persone.length + ' hanno già ordinato.</div>';
+  }
+  return h + '</div>';
+}
+
+// Impostare la scadenza (fase ①) e chiudere adesso sono due gesti diversi: il primo si fa
+// all'inizio e si dimentica, il secondo si fa quando si guarda l'ordine e si decide che
+// basta così. Scrivono la stessa colonna, ma nel momento in cui servono sono lontanissimi.
+function cardChiusuraHtml(){
+  var chiusi = ordiniChiusi();
+  var h = '<div class="card"><div class="card-titolo">Chiudi gli ordini</div>';
+  h += '<div class="hint">' + (chiusi
+      ? '🔒 <b>Chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '.'
+      : (gruppo.chiusura_ordini
+          ? '⏰ Si chiudono da soli il ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + ', ma puoi chiuderli adesso.'
+          : 'Nessuna scadenza impostata: restano aperti finché non li chiudi tu.')) + '</div>';
+  h += '<div class="ar-actions">'
+    + (chiusi ? '' : '<button class="btn btn-cheese btn-mini" onclick="chiudiOrdiniAdesso()">🔒 Chiudi adesso</button>')
+    + (gruppo.chiusura_ordini ? '<button class="btn btn-ghost btn-mini" onclick="riapriOrdini()">Riapri gli ordini</button>' : '')
+    + '</div>';
+  return h + '</div>';
+}
+async function chiudiOrdiniAdesso(){
+  if(!confirm("Chiudo gli ordini adesso? I topini non potranno più toccare i loro kg.")) return;
+  try{ await aggiornaChiusuraOrdini(new Date().toISOString()); await caricaTutto(); renderAdmin(); dot("ok", "Ordini chiusi 🔒"); }
+  catch(e){ alert("Errore: " + e.message); }
+}
+
+// ── FASE 3: aspetto il negoziante ──
+function cardArrivoHtml(){
+  var arrivo = arrivoSegnalato();
+  return '<div class="card"><div class="card-titolo">Arrivo del pacco</div>'
+    + (arrivo
+        ? '<div class="hint">🧀 Segnalato come <b>arrivato il '
+          + escapeHtml(fmtData(arrivo)) + '</b>. Il banner verde è acceso in cima alla tab Ordina '
+          + 'per tutti i topini.</div>'
           + '<div class="ar-actions">'
-          + '<button class="btn-pill" onclick="apriRinomina(\'' + p.id + '\')">\u270F\uFE0F</button>'
-          + '<button class="btn-pill" onclick="toggleSpedizionePersona(\'' + p.id + '\',' + !p.partecipa_spedizione + ')">' + (p.partecipa_spedizione ? "\uD83D\uDE9A no sped." : "\uD83D\uDE9A includi sped.") + '</button>'
-          + '<button class="btn-pill" onclick="togglePagatoPersona(\'' + p.id + '\',' + !p.pagato + ')">' + (p.pagato ? "\u2705 pagato" : "\u274C non pagato") + '</button>'
-          + '<button class="btn-pill" onclick="confermaEliminaPersona(\'' + p.id + '\')">\uD83D\uDDD1\uFE0F</button>'
-          + '</div></div>';
-      }).join("") : '<div class="empty">Nessun topolino ancora.</div>')
+          +   '<button class="btn btn-ghost btn-mini" onclick="rimandaMessaggioArrivo()">📤 Rimanda il messaggio</button>'
+          +   '<button class="btn btn-ghost btn-mini" onclick="annullaSegnalazioneArrivo()">↩️ Annulla la segnalazione</button>'
+          + '</div>'
+        : '<button class="btn btn-cheese" onclick="segnalaArrivoAlGruppo()">'
+          + '<span class="svg-inv svg-formaggio-arrivato btn-ico-svg"></span> Segnala l\'arrivo al gruppo</button>'
+          + '<div class="hint" style="margin-bottom:0;">Accende il banner nell\'app per tutti e prepara il messaggio '
+          + 'WhatsApp con i totali: la chat e l\'invio li scegli tu.</div>')
     + '</div>';
+}
 
-  // Consegna: si apre un sacchetto per persona, non si spulcia una lista di tutte le righe
-  html += '<div class="card"><div class="card-titolo">Consegna — prezzi reali</div>';
+// ── FASE 4: consegno ──
+function cardConsegnaHtml(){
+  var h = '<div class="card"><div class="card-titolo">Consegna — prezzi reali</div>';
   var conOrdine = persone.filter(function(p){ return righeDi(p.id).length; });
   if(!conOrdine.length){
-    html += '<div class="empty">Nessun ordine ancora.</div>';
+    h += '<div class="empty">Nessun ordine ancora.</div>';
   } else {
-    html += '<div class="hint">Tocca un nome per inserire gli importi letti dalle etichette.</div>';
-    html += conOrdine.map(function(p){
+    h += '<div class="hint">Tocca un nome per inserire gli importi letti dalle etichette.</div>';
+    h += conOrdine.map(function(p){
       var mie = righeDi(p.id);
       var fatte = mie.filter(function(r){ return r.prezzo_reale != null; }).length;
       var completa = fatte === mie.length;
@@ -193,55 +399,86 @@ function renderAdmin(){
         + '<span class="ar-nome">' + escapeHtml(p.nome) + '</span>'
         + '<div class="ar-actions">'
         +   '<span class="badge ' + (completa ? "ok" : "no") + '">' + fatte + ' su ' + mie.length + '</span>'
-        +   '<span class="ar-freccia">\u203A</span>'
+        +   '<span class="ar-freccia">›</span>'
         + '</div></div>';
     }).join("");
   }
-  html += '</div>';
+  return h + '</div>';
+}
 
-  // Coordinate pagamento
-  html += '<div class="card"><div class="card-titolo">Coordinate di pagamento</div>'
+// ── FASE 5: incasso ──
+function cardCoordinateHtml(){
+  return '<div class="card"><div class="card-titolo">Coordinate di pagamento</div>'
     + '<div class="m-row"><label>IBAN</label><input class="inp" id="inp-iban" value="' + escapeHtml(impostazioni.iban || "") + '"></div>'
     + '<div class="m-row"><label>Link PayPal (es. paypal.me/tuonome)</label><input class="inp" id="inp-paypal" value="' + escapeHtml(impostazioni.paypal_link || "") + '"></div>'
     + '<div class="m-row"><label>Satispay (numero o tag, es. @topolino)</label><input class="inp" id="inp-satispay" value="' + escapeHtml(impostazioni.satispay_link || "") + '"></div>'
     + '<div class="hint">Con un account personale non esiste un link con importo preimpostato: i topini digitano la cifra a mano.</div>'
     + '<button class="btn btn-cheese btn-mini" onclick="salvaPagamenti()">Salva coordinate</button>'
     + '</div>';
+}
 
-  // Documento A: l'ordine da mandare al negoziante
-  html += renderNegozianteHtml();
+// Prima erano due pillole con convenzioni opposte nella stessa riga: `🚚 no sped.` diceva
+// l'AZIONE, `❌ non pagato` diceva lo STATO. Affiancate, una era un comando e l'altra una
+// constatazione — non un'etichetta infelice, grammatica incoerente. Due interruttori veri,
+// etichettati sempre con lo stato.
+function cardTopoliniHtml(){
+  var h = '<div class="card"><div class="card-titolo">Topolini registrati (' + persone.length + ')</div>';
+  if(!persone.length){
+    h += '<div class="empty">Nessun topolino ancora.</div>';
+  } else {
+    h += persone.map(function(p){
+      return '<div class="persona-blocco">'
+        + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
+        +   (p.pagamento_segnalato ? ' <span class="ar-flag">⏳ dice di aver pagato</span>' : '') + '</span>'
+        +   '<div class="ar-actions">'
+        +     '<button class="btn-pill" title="Rinomina" onclick="apriRinomina(\'' + p.id + '\')">✏️</button>'
+        +     '<button class="btn-pill" title="Elimina" onclick="confermaEliminaPersona(\'' + p.id + '\')">🗑️</button>'
+        +   '</div></div>'
+        + swRigaHtml("Spedizione", "sw-sped-" + p.id, p.partecipa_spedizione,
+                     "toggleSpedizionePersona('" + p.id + "', this)",
+                     p.partecipa_spedizione ? "inclusa" : "esclusa")
+        + swRigaHtml("Pagato", "sw-pag-" + p.id, p.pagato,
+                     "togglePagatoPersona('" + p.id + "', this)",
+                     p.pagato ? "sì" : "no")
+        + swRigaHtml("Admin", "sw-adm-" + p.id, p.is_admin,
+                     "toggleAdminPersona('" + p.id + "', this)",
+                     p.is_admin ? "sì" : "no")
+        + '</div>';
+    }).join("");
+  }
+  return h + '</div>';
+}
+function swRigaHtml(nome, id, acceso, handler, stato){
+  return '<div class="sw-riga"><span class="sw-nome">' + nome + '</span>'
+    + '<button class="sw' + (acceso ? " on" : "") + '" id="' + id + '" type="button" role="switch"'
+    +   ' aria-checked="' + (acceso ? "true" : "false") + '" aria-label="' + nome + '"'
+    +   ' onclick="' + handler + '"></button>'
+    + '<span class="sw-stato' + (acceso ? "" : " spento") + '" id="' + id + '-lab">' + stato + '</span></div>';
+}
 
-  // Documento B + avvisi
-  html += '<div class="card"><div class="card-titolo">Riepilogo per il clan</div>'
-    + '<button class="btn btn-cheese" onclick="esportaPDF()">\uD83D\uDCC4 Riepilogo PDF per il gruppo</button>'
-    + '<div class="hint">Un PDF per persona con ordine, conti e coordinate di pagamento, da girare su WhatsApp. '
+// ── FASE 6: chiudo ──
+function cardPdfHtml(){
+  return '<div class="card"><div class="card-titolo">Riepilogo per il clan</div>'
+    + '<button class="btn btn-cheese" onclick="esportaPDF()">📄 Riepilogo PDF per il gruppo</button>'
+    + '<div class="hint" style="margin-bottom:0;">Un PDF per persona con ordine, conti e coordinate di pagamento, da girare su WhatsApp. '
     + 'Si adatta da solo: prima della consegna mostra gli importi attesi, dopo anche quelli reali.</div>'
     + '</div>';
-
-  // Arrivo del pacco: flag + avviso, un'azione sola (vedi `segnalaArrivoAlGruppo`)
-  var arrivo = arrivoSegnalato();
-  html += '<div class="card"><div class="card-titolo">Arrivo del pacco</div>'
-    + (arrivo
-        ? '<div class="hint">\uD83E\uDDC0 Segnalato come <b>arrivato il '
-          + escapeHtml(fmtData(arrivo)) + '</b>. Il banner verde \u00e8 acceso in cima alla tab Ordina '
-          + 'per tutti i topini.</div>'
-          + '<div class="ar-actions">'
-          +   '<button class="btn btn-ghost btn-mini" onclick="rimandaMessaggioArrivo()">\uD83D\uDCE4 Rimanda il messaggio</button>'
-          +   '<button class="btn btn-ghost btn-mini" onclick="annullaSegnalazioneArrivo()">\u21A9\uFE0F Annulla la segnalazione</button>'
-          + '</div>'
-        : '<button class="btn btn-cheese" onclick="segnalaArrivoAlGruppo()">'
-          + '<span class="svg-inv svg-formaggio-arrivato btn-ico-svg"></span> Segnala l\'arrivo al gruppo</button>'
-          + '<div class="hint" style="margin-bottom:0;">Accende il banner nell\'app per tutti e prepara il messaggio '
-          + 'WhatsApp con i totali: la chat e l\'invio li scegli tu.</div>')
+}
+// Il bottone rosso distruttivo stava in cima all'admin, a due dita dal campo spedizione
+// che si tocca di continuo. Adesso sta in fondo all'ultima fase, che è il momento in cui
+// archiviare è la cosa giusta da fare.
+function cardArchiviaHtml(){
+  return '<div class="card"><div class="card-titolo">Archivia il gruppo</div>'
+    + '<div class="hint">Il gruppo diventa di sola lettura e finisce nell\'archivio qui sotto. '
+    + 'I topini vedranno "nessun gruppo attivo" finché non ne crei un altro.</div>'
+    + '<button class="btn btn-danger" onclick="confermaArchiviaGruppo()">📦 Archivia e chiudi questo gruppo</button>'
     + '</div>';
+}
 
-  html += '<div class="card"><div class="card-titolo">Sicurezza</div>'
-    + '<button class="btn btn-ghost" onclick="apriCambioPin()">\uD83D\uDD10 Cambia il PIN admin</button></div>';
-
-  html += renderArchivioHtml();
-
-  el.innerHTML = html;
-  notaAuto(document.getElementById("inp-note-negoziante"));   // altezza iniziale sul contenuto
+// ── FUORI DALLE FASI ──
+function cardSicurezzaHtml(){
+  return '<div class="card"><div class="card-titolo">Sicurezza</div>'
+    + '<button class="btn btn-ghost" onclick="apriCambioPin()">🔐 Cambia il PIN admin</button></div>';
 }
 
 // Richieste in attesa: il topino segnala, qui l'admin verifica e conferma.
@@ -308,47 +545,110 @@ function renderRiepilogoHtml(){
   return h;
 }
 
-// ── QUADRATURA SULLO SCONTRINO ──
-// Sta accanto al Riepilogo ma resta un blocco a sé, perché risponde a un'altra domanda:
-// il Riepilogo dice CHI ha pagato, questo dice se gli importi battuti fanno il totale
-// che l'admin ha effettivamente anticipato. Mescolarli renderebbe illeggibili entrambi.
+// ── LO SCONTRINO E LA QUADRATURA ──
+// Sono due cose, e stanno in due fasi diverse perché si fanno in due momenti diversi:
+// in ③ si scrive il totale della fattura appena il negoziante lo manda, in ④ si guarda se
+// gli importi delle etichette lo ricompongono.
+//
+// Principio: **l'admin digita solo numeri che ha davanti agli occhi.** La fattura che paga
+// è UNA CIFRA SOLA, spedizione inclusa; chiedergli lo scorporo a mano significherebbe
+// chiedergli una sottrazione su un numero che poi fa da checksum a TUTTE le etichette —
+// e se sbaglia lì, la quadratura denuncia uno scarto inesistente e lo manda a ricontrollare
+// etichette giuste. Le sottrazioni le fa l'app.
+//
+// Lo schema NON cambia: `costo_reale_totale` resta "solo formaggio", ed è giusto così —
+// le etichette non contengono spedizione, inquinarlo romperebbe `quadratura()`.
+function renderScontrinoHtml(){
+  var sped = parseFloat(gruppo.spedizione_totale) || 0;
+  var conSped = sped > 0;
+  var scontrino = gruppo.costo_reale_totale != null ? parseFloat(gruppo.costo_reale_totale) : null;
+  if(scontrino != null && isNaN(scontrino)) scontrino = null;
+  // Il campo mostra la FATTURA, cioè il numero che l'admin ha davanti; a DB va il formaggio.
+  var valore = scontrino == null ? "" : (Math.round((scontrino + (conSped ? sped : 0)) * 100) / 100);
+
+  var h = '<div class="card" id="card-scontrino"><div class="card-titolo">🧾 Lo scontrino del negoziante</div>';
+  h += '<div class="m-row"><label>' + (conSped
+        ? 'Totale pagato al negoziante (€) — la fattura, così com\'è'
+        : 'Scontrino parmigiano (€)') + '</label>'
+    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" id="inp-costo-reale"'
+    + ' placeholder="quanto hai pagato tu" value="' + valore + '"></div>';
+  h += '<div class="ar-actions">'
+    +   '<button class="btn btn-cheese btn-mini" onclick="salvaCostoRealeTotale()">Salva scontrino</button>'
+    +   (scontrino != null
+          ? '<button class="btn btn-ghost btn-mini" onclick="azzeraCostoRealeTotale()">Togli</button>' : '')
+    + '</div>';
+
+  // La spedizione è MOSTRATA, non ri-digitata: unica fonte di verità `gruppo.spedizione_totale`,
+  // che si modifica nella fase ①. Due input sulla stessa colonna in due card diverse si
+  // desincronizzano al primo salvataggio parziale.
+  if(conSped){
+    h += '<div class="scontrino-calc">'
+      + '<div class="sc-riga"><span>Totale pagato al negoziante</span><span>'
+      +   (scontrino == null ? "—" : eur(scontrino + sped)) + '</span></div>'
+      + '<div class="sc-riga"><span>− Spedizione'
+      +   '<button class="sc-mod" onclick="vaiAiPrezzi()">modifica</button></span><span>'
+      +   eur(sped) + '</span></div>'
+      + '<div class="sc-riga risultato"><span>= Scontrino parmigiano</span><span>'
+      +   (scontrino == null ? "—" : eur(scontrino)) + '</span></div>'
+      + '</div>';
+  }
+
+  h += '<div class="hint" style="margin-top:12px;margin-bottom:0;">' + (conSped
+      ? 'Scrivi il totale della fattura così com\'è. La spedizione la scorporo io: quello che resta è il formaggio, e diventa il controllo automatico su tutte le etichette.'
+      : 'La spesa l\'hai anticipata tu, quindi il totale del parmigiano lo conosci già. Scrivilo qui e diventa un controllo automatico su tutti gli importi delle etichette.')
+    + '</div>';
+  return h + '</div>';
+}
+
+// La quadratura risponde a un'altra domanda del Riepilogo: quello dice CHI ha pagato,
+// questa dice se gli importi battuti fanno il totale che l'admin ha anticipato. Se non
+// torna, un'etichetta è stata battuta male — e si scopre subito, non quando un topino
+// ha già pagato 12 € di troppo.
 function renderQuadraturaHtml(){
   var q = quadratura();
   var assegnato = sommaPrezziReali();
-  var h = '<div class="card"><div class="card-titolo">\uD83E\uDDFE Quadratura sullo scontrino</div>';
-  h += '<div class="m-row"><label>Scontrino parmigiano (\u20ac) \u2014 solo formaggio, spedizione esclusa</label>'
-    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" id="inp-costo-reale"'
-    + ' placeholder="quanto hai pagato tu" value="'
-    + (gruppo.costo_reale_totale != null ? gruppo.costo_reale_totale : "") + '"></div>';
-  h += '<div class="ar-actions">'
-    +   '<button class="btn btn-cheese btn-mini" onclick="salvaCostoRealeTotale()">Salva scontrino</button>'
-    +   (gruppo.costo_reale_totale != null
-          ? '<button class="btn btn-ghost btn-mini" onclick="azzeraCostoRealeTotale()">Togli</button>' : '')
-    + '</div>';
-  h += '<div class="pc-conti" style="margin-top:14px;">';
+  var h = '<div class="card"><div class="card-titolo">🧾 Quadratura sullo scontrino</div>';
+  h += '<div class="pc-conti" style="border-top:none;padding-top:0;">';
   if(q) h += '<div class="pc-riga"><span>Scontrino parmigiano</span><span>' + eur(q.scontrino) + '</span></div>';
   h += '<div class="pc-riga reale"><span>Assegnato ai topini</span><span>' + eur(assegnato) + '</span></div>';
   if(q){
     var quadra = Math.abs(q.residuo) < 0.005;
     h += '<div class="pc-riga grande' + (quadra ? '' : ' non-quadra') + '"><span>'
-      + (quadra ? 'Tutto quadra \u2705'
-                : (q.residuo > 0 ? 'Ancora da assegnare \u26A0\uFE0F' : 'Assegnato in pi\u00f9 \u26A0\uFE0F'))
+      + (quadra ? 'Tutto quadra ✅'
+                : (q.residuo > 0 ? 'Ancora da assegnare ⚠️' : 'Assegnato in più ⚠️'))
       + '</span><span>' + (quadra ? '' : eur(Math.abs(q.residuo))) + '</span></div>';
   }
   h += '</div>';
   h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + (q
-      ? 'La somma degli importi letti dalle etichette deve fare lo scontrino. Se non torna, una l\'hai battuta male: meglio accorgersene adesso che quando qualcuno ha gi\u00e0 pagato di pi\u00f9.'
-      : 'La spesa l\'hai anticipata tu, quindi il totale del parmigiano lo conosci gi\u00e0. Scrivilo qui e diventa un controllo automatico su tutti gli importi delle etichette.')
+      ? 'La somma degli importi letti dalle etichette deve fare lo scontrino. Se non torna, una l\'hai battuta male: meglio accorgersene adesso che quando qualcuno ha già pagato di più.'
+      : 'Manca il totale della fattura del negoziante: <button class="sc-mod" style="padding-left:0;" onclick="vaiAlloScontrino()">scrivilo nella fase ③</button> e questo diventa un controllo automatico su tutte le etichette.')
     + '</div>';
-  h += '</div>';
-  return h;
+  return h + '</div>';
 }
+
+// L'admin scrive la FATTURA; a DB finisce il solo formaggio. La validazione serve al caso
+// in cui i due numeri siano incompatibili: una fattura più bassa della sola spedizione
+// vuol dire che uno dei due è sbagliato, e salvare produrrebbe uno scontrino negativo
+// che poi denuncerebbe uno scarto inesistente su etichette giuste.
 async function salvaCostoRealeTotale(){
   var raw = document.getElementById("inp-costo-reale").value.trim();
-  if(raw === ""){ alert("Scrivi il totale dello scontrino, oppure usa \"Togli\"."); return; }
+  var sped = parseFloat(gruppo.spedizione_totale) || 0;
+  if(raw === ""){
+    alert(sped > 0 ? "Scrivi il totale della fattura, oppure usa \"Togli\"."
+                   : "Scrivi il totale dello scontrino, oppure usa \"Togli\".");
+    return;
+  }
   var v = parseFloat(raw);
   if(isNaN(v) || v < 0){ alert("Importo non valido."); return; }
-  try{ await aggiornaCostoRealeTotale(v); await caricaTutto(); renderAdmin(); dot("ok", "Scontrino salvato \uD83E\uDDFE"); }
+  if(sped > 0){
+    if(v < sped - 0.005){
+      alert("Il totale della fattura (" + eurTesto(v) + ") è più basso della sola spedizione ("
+        + eurTesto(sped) + "). Uno dei due numeri è sbagliato: controlla prima di salvare.");
+      return;
+    }
+    v = Math.round((v - sped) * 100) / 100;
+  }
+  try{ await aggiornaCostoRealeTotale(v); await caricaTutto(); renderAdmin(); dot("ok", "Scontrino salvato 🧾"); }
   catch(e){ alert("Errore: " + e.message); }
 }
 async function azzeraCostoRealeTotale(){
@@ -410,10 +710,54 @@ function renderArchivioHtml(){
 }
 
 // ── AZIONI ADMIN: spedizione / prezzi / pagamenti ──
+// La spedizione varia con i kg totali, quindi si tocca in corso d'opera: non si impedisce,
+// ma si dice. Due effetti da dichiarare prima di salvare, non dopo:
+//  1. chi ha già pagato l'ha fatto sulla vecchia quota, e i suoi conti non tornano più;
+//  2. la fattura del negoziante è UN FATTO e non cambia, quindi cambiando la spedizione
+//     cambia lo scorporo: `costo_reale_totale` va ricalcolato tenendo ferma la fattura,
+//     altrimenti il numero che l'admin ha digitato si muoverebbe da solo sotto ai suoi occhi.
 async function salvaSpedizione(){
-  var v = parseFloat(document.getElementById("inp-spedizione").value) || 0;
-  try{ await aggiornaSpedizione(v); await caricaTutto(); renderAdmin(); dot("ok", "Salvato \uD83E\uDDC0"); }
-  catch(e){ alert("Errore: " + e.message); }
+  var raw = document.getElementById("inp-spedizione").value.trim();
+  var v = raw === "" ? 0 : parseFloat(raw);
+  if(isNaN(v) || v < 0){ alert("Importo non valido."); return; }
+  v = Math.round(v * 100) / 100;
+  var vecchia = parseFloat(gruppo.spedizione_totale) || 0;
+  if(Math.abs(v - vecchia) < 0.005){ dot("ok", "Già così 🧀"); return; }
+
+  var avvisi = [];
+  var n = numeroPartecipantiSpedizione();
+  var pagati = persone.filter(function(p){ return p.pagato && p.partecipa_spedizione; }).length;
+  if(pagati && n){
+    avvisi.push("⚠️ " + pagati + (pagati === 1 ? " topino ha" : " topini hanno")
+      + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " a testa → "
+      + eurTesto(v / n) + "). Cambiandola i loro conti non tornano più.");
+  }
+  // Senza fattura registrata non c'è nulla da tenere fermo e nulla da ricalcolare: in fase ①
+  // la spedizione si tocca di continuo, e un avviso a ogni salvataggio è il modo in cui gli
+  // avvisi muoiono. Il secondo blocco resta muto, e se anche il primo tace non si chiede niente.
+  var scontrinoNuovo = null;
+  if(gruppo.costo_reale_totale != null){
+    var fattura = parseFloat(gruppo.costo_reale_totale) + vecchia;
+    scontrinoNuovo = Math.round((fattura - v) * 100) / 100;
+    // Uno scontrino negativo farebbe dire assurdità alla quadratura. Si rifiuta il salvataggio,
+    // non si corregge in silenzio: dei due numeri uno è sbagliato, e deve deciderlo l'admin.
+    if(scontrinoNuovo < 0){
+      alert("La spedizione (" + eurTesto(v) + ") supera la fattura registrata ("
+        + eurTesto(fattura) + "): resterebbe un formaggio da \u2212"
+        + eurTesto(Math.abs(scontrinoNuovo)) + ". Controlla l'una o l'altra.");
+      return;
+    }
+    avvisi.push("🧾 La fattura resta " + eurTesto(fattura) + ": lo scontrino del solo parmigiano"
+      + " passa da " + eurTesto(parseFloat(gruppo.costo_reale_totale)) + " a " + eurTesto(scontrinoNuovo)
+      + ", e con lui la quadratura sulle etichette.");
+  }
+  if(avvisi.length && !confirm(avvisi.join("\n\n") + "\n\nContinuo?")) return;
+
+  try{
+    await aggiornaSpedizione(v);
+    if(scontrinoNuovo != null) await aggiornaCostoRealeTotale(scontrinoNuovo);
+    await caricaTutto(); renderAdmin(); dot("ok", "Salvato 🧀");
+  }catch(e){ alert("Errore: " + e.message); }
 }
 // La password non torna più indietro dal DB: il campo parte sempre vuoto, e vuoto
 // significa "non cambiare nulla", non "togli la password" — per quello c'è un bottone
@@ -459,17 +803,68 @@ function apriRinomina(id){
   var nuovo = prompt("Nuovo nome per " + p.nome + ":", p.nome);
   if(nuovo && nuovo.trim()) eseguiRinomina(id, nuovo.trim());
 }
+// Non tocca i permessi — l'admin resta il PIN. Accende solo la pillola che dice al gruppo
+// a chi chiedere, ed è per questo che si può accendere su più di una persona senza danno.
+async function toggleAdminPersona(id, el){
+  vibra(10);
+  var val = !el.classList.contains("on");
+  _swSposta(el, val, val ? "s\u00ec" : "no");
+  try{
+    await setIsAdmin(id, val);
+    await caricaTutto(); renderAdmin();
+  }catch(e){
+    _swSposta(el, !val, !val ? "s\u00ec" : "no");
+    dot("err", "Errore");
+    alert("Errore: " + e.message);
+  }
+}
 async function eseguiRinomina(id, nome){
   try{ await rinominaPersona(id, nome); await caricaTutto(); renderAdmin(); }
   catch(e){ alert("Errore: " + e.message); }
 }
-async function toggleSpedizionePersona(id, val){
-  try{ await setPartecipaSpedizione(id, val); await caricaTutto(); renderAdmin(); }
-  catch(e){ alert("Errore: " + e.message); }
+// Aggiornamento ottimistico con rollback, come lo stepper dei kg: l'interruttore si muove
+// sotto il dito e torna indietro solo se il server rifiuta.
+function _swSposta(el, acceso, stato){
+  if(!el) return;
+  el.classList.toggle("on", acceso);
+  el.setAttribute("aria-checked", acceso ? "true" : "false");
+  var lab = document.getElementById(el.id + "-lab");
+  if(lab){ lab.textContent = stato; lab.classList.toggle("spento", !acceso); }
 }
-async function togglePagatoPersona(id, val){
-  try{ await setPagato(id, val); await caricaTutto(); renderAdmin(); }
-  catch(e){ alert("Errore: " + e.message); }
+async function toggleSpedizionePersona(id, el){
+  vibra(10);   // PRIMA di qualunque await: dopo, l'attivazione utente è già scaduta
+  var val = !el.classList.contains("on");
+  _swSposta(el, val, val ? "inclusa" : "esclusa");
+  try{
+    await setPartecipaSpedizione(id, val);
+    await caricaTutto(); renderAdmin();
+  }catch(e){
+    _swSposta(el, !val, !val ? "inclusa" : "esclusa");
+    dot("err", "Errore");
+    alert("Errore: " + e.message);
+  }
+}
+// "Pagato" ON deve passare da `confermaPagamentoAdmin`, non dalla `setPagato` grezza:
+// altrimenti resta appeso un `pagamento_segnalato` a true su chi è già marcato pagato,
+// e la persona ricompare nella coda "da confermare". Era un bug latente finché il gesto
+// costava due tocchi; con l'interruttore diventerebbe frequente.
+async function togglePagatoPersona(id, el){
+  vibra(10);
+  var val = !el.classList.contains("on");
+  var p = persone.find(function(x){ return x.id === id; });
+  // Spegnerlo è una smentita e va confermato; accenderlo no.
+  if(!val && p && p.pagato
+     && !confirm("Tolgo il \"pagato\" a " + p.nome + "? Torna nell'elenco di chi deve ancora saldare.")) return;
+  _swSposta(el, val, val ? "sì" : "no");
+  try{
+    if(val) await confermaPagamentoAdmin(id);
+    else    await setPagato(id, false);
+    await caricaTutto(); renderAdmin();
+  }catch(e){
+    _swSposta(el, !val, !val ? "sì" : "no");
+    dot("err", "Errore");
+    alert("Errore: " + e.message);
+  }
 }
 function confermaEliminaPersona(id){
   var p = persone.find(function(x){ return x.id === id; });
@@ -485,9 +880,9 @@ function apriNuovoGruppo(){
   document.getElementById("ng-titolo").value = "";
   document.getElementById("ng-password").value = "";
   document.getElementById("ng-errore").textContent = "";
-  document.getElementById("modal-nuovo-gruppo").classList.add("open");
+  openModal("modal-nuovo-gruppo");
 }
-function chiudiNuovoGruppo(){ document.getElementById("modal-nuovo-gruppo").classList.remove("open"); }
+function chiudiNuovoGruppo(){ closeModal("modal-nuovo-gruppo"); }
 async function confermaNuovoGruppo(){
   var titolo = document.getElementById("ng-titolo").value.trim();
   var password = document.getElementById("ng-password").value.trim();
@@ -536,12 +931,12 @@ function apriEliminaGruppo(id){
   inp.value = "";
   document.getElementById("eg-errore").textContent = "";
   document.getElementById("eg-conferma").disabled = true;
-  document.getElementById("modal-elimina-gruppo").classList.add("open");
+  openModal("modal-elimina-gruppo");
   setTimeout(function(){ inp.focus(); }, 60);
 }
 function chiudiEliminaGruppo(){
   _gruppoDaEliminare = null;
-  document.getElementById("modal-elimina-gruppo").classList.remove("open");
+  closeModal("modal-elimina-gruppo");
 }
 function titoloEliminaCombacia(){
   if(!_gruppoDaEliminare) return false;
@@ -609,10 +1004,15 @@ function openCalc(targetId){
   _calcAcc = 0; _calcOp = null;
   _calcCur = (v && !isNaN(parseFloat(v))) ? String(parseFloat(v)) : "0";
   _calcFresh = true;
+  _calcErrore("");
   calcRender();
-  document.getElementById("modal-calc").classList.add("open");
+  openModal("modal-calc");
 }
-function closeCalc(){ document.getElementById("modal-calc").classList.remove("open"); }
+function closeCalc(){ closeModal("modal-calc"); }
+function _calcErrore(t){
+  var e = document.getElementById("calc-errore");
+  if(e) e.textContent = t || "";
+}
 
 function calcDigit(d){
   if(_calcFresh){ _calcCur = (d === "." ? "0." : d); _calcFresh = false; }
@@ -642,15 +1042,24 @@ function calcOp(op){
   calcRender(true);
 }
 function calcClear(){ _calcAcc = 0; _calcOp = null; _calcCur = "0"; _calcFresh = true; calcRender(); }
+// Se il campo bersaglio non c'è più (il modale che lo conteneva è stato chiuso, o
+// rigenerato sotto), NON si chiude: il risultato resta a schermo e si dice perché.
+// Un numero perso in silenzio è il difetto peggiore che questa app possa avere.
 function calcConferma(){
   _calcApplica();
   var ris = Math.round(_calcAcc * 100) / 100;
   if(ris < 0) ris = 0;   // un importo negativo non ha senso in un campo prezzo
-  var campo = document.getElementById(_calcTarget);
-  if(campo){
-    campo.value = ris;
-    campo.dispatchEvent(new Event("input"));
+  var campo = _calcTarget ? document.getElementById(_calcTarget) : null;
+  if(!campo){
+    _calcErrore("Il campo di destinazione non c'\u00e8 pi\u00f9: riapri la riga e ridigita il totale. Il risultato resta qui.");
+    dot("err", "Campo sparito");
+    return;
   }
+  campo.value = ris;
+  // Senza `bubbles` l'handler `oninput` inline non scatta e la riga "ricevuti X kg (\u221216,2%)"
+  // resterebbe ferma sul valore vecchio.
+  campo.dispatchEvent(new Event("input", { bubbles: true }));
+  _calcErrore("");
   closeCalc();
 }
 function calcRender(mostraAcc){
@@ -689,7 +1098,7 @@ function apriReali(personaId){
       +   '<button type="button" class="btn-calc-icon" onclick="openCalc(\'mr-' + r.id + '\')" title="Somma le etichette">\uD83E\uDDEE</button>'
       + '</div></div>';
   }).join("") : '<div class="empty">Questa persona non ha ordinato nulla.</div>';
-  document.getElementById("modal-reali").classList.add("open");
+  openModal("modal-reali");
 }
 // I kg ricevuti si DERIVANO dall'importo (prezzo_kg è fisso e concordato): niente pesi
 // da registrare. Il confronto si ricalcola mentre l'admin digita, perché è lì che un typo
@@ -710,7 +1119,7 @@ function aggiornaScartoRiga(rigaId){
 }
 function chiudiReali(){
   _realiPersona = null;
-  document.getElementById("modal-reali").classList.remove("open");
+  closeModal("modal-reali");
 }
 async function salvaRealiPersona(){
   if(!_realiPersona) return;
@@ -737,9 +1146,9 @@ async function salvaRealiPersona(){
 function apriCambioPin(){
   ["cp-vecchio","cp-nuovo","cp-conferma"].forEach(function(id){ document.getElementById(id).value = ""; });
   document.getElementById("cp-errore").textContent = "";
-  document.getElementById("modal-pin").classList.add("open");
+  openModal("modal-pin");
 }
-function chiudiCambioPin(){ document.getElementById("modal-pin").classList.remove("open"); }
+function chiudiCambioPin(){ closeModal("modal-pin"); }
 async function confermaCambioPin(){
   var err = document.getElementById("cp-errore");
   var vecchio = document.getElementById("cp-vecchio").value.trim();
@@ -1012,7 +1421,7 @@ function _generaPDF(){
   if(impostazioni.paypal_link) coordinate.push("PayPal: " + impostazioni.paypal_link);
   if(impostazioni.satispay_link) coordinate.push("Satispay: " + impostazioni.satispay_link);
   coordinate.push("Oppure in contanti, di persona.");
-  if(y + coordinate.length * 4.6 + 14 > 285){ doc.addPage(); y = margin + 4; }
+  if(y + coordinate.length * 4.6 + 20 > 285){ doc.addPage(); y = margin + 4; }
   doc.setFillColor(250, 244, 232);
   doc.rect(margin, y, destra - margin, coordinate.length * 4.6 + 12, "F");
   y += 7;
@@ -1022,6 +1431,15 @@ function _generaPDF(){
   y += 5.5;
   doc.setFontSize(8.5); doc.setFont("helvetica", "normal");
   coordinate.forEach(function(riga){ doc.text(riga, margin + 4, y); y += 4.6; });
+
+  // Un PDF è una fotografia e gira su WhatsApp: quello generato stamattina circola ancora
+  // stasera, quando tre persone hanno già pagato. Lo stato dei pagamenti resta FUORI — sarebbe
+  // un dato vivo dentro un documento morto, e per giunta una lavagna delle inadempienze che
+  // gira sul gruppo. Questa riga fa dichiarare al documento di non essere la fonte, invece di
+  // lasciarlo sembrare tale per omissione.
+  y += 4;
+  doc.setFontSize(7.5); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+  doc.text("Lo stato dei pagamenti è in app, sempre aggiornato.", margin, y);
 
   doc.save("clan-parmigiano-" + gruppo.titolo.replace(/\s+/g, "-").toLowerCase() + ".pdf");
 }

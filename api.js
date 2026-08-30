@@ -13,6 +13,7 @@ function dot(cls, txt){
 async function appStart(){
   initTheme();          // prima del primo render, altrimenti si vede il lampo di tema sbagliato
   initTile();
+  innescaVibrazione();
   dot("", "Annusando il formaggio...");
   await caricaTutto();
   initRealtime();
@@ -82,12 +83,18 @@ function mostraSchermataGiusta(){
 }
 
 // ── REALTIME ──
+// Ridisegnare mentre un modale è aperto è sempre sbagliato: l'admin sta digitando dentro
+// a un form che verrebbe rifatto sotto le dita, e i campi che la calcolatrice ha come
+// bersaglio tornerebbero a puntare nel vuoto. Il ridisegno non si perde: si differisce
+// alla chiusura del modale (`renderAdminDifferito`).
 var _rtTimer = null;
+var _renderAdminInSospeso = false;
 function initRealtime(){
   sb.channel("clan-parmigiano")
     .on("postgres_changes", { event: "*", schema: "public" }, function(){
       clearTimeout(_rtTimer);
       _rtTimer = setTimeout(async function(){
+        if(modaleAperto()){ _renderAdminInSospeso = true; return; }
         await caricaTutto();
         if(document.getElementById("app-screen").classList.contains("attiva")) renderApp();
         if(document.getElementById("auth-screen").classList.contains("attiva")) renderAuth();
@@ -95,6 +102,15 @@ function initRealtime(){
       }, 600);
     })
     .subscribe();
+}
+// Chiamata da `closeModal` quando lo stack si svuota: recupera il ridisegno saltato.
+async function renderAdminDifferito(){
+  if(!_renderAdminInSospeso) return;
+  _renderAdminInSospeso = false;
+  await caricaTutto();
+  if(document.getElementById("app-screen").classList.contains("attiva")) renderApp();
+  if(document.getElementById("auth-screen").classList.contains("attiva")) renderAuth();
+  if(document.getElementById("admin-screen").classList.contains("attiva")) renderAdmin();
 }
 
 // ── AZIONI: persone / identità ──
@@ -109,6 +125,12 @@ async function rinominaPersona(id, nome){
 }
 async function setPartecipaSpedizione(id, val){
   var r = await sb.from("persone").update({ partecipa_spedizione: val }).eq("id", id);
+  if(r.error) throw r.error;
+}
+// §5: chi è l'admin. Prima era un PIN e basta — nessuna colonna lo diceva, e non era
+// deducibile da nulla.
+async function setIsAdmin(id, val){
+  var r = await sb.from("persone").update({ is_admin: val }).eq("id", id);
   if(r.error) throw r.error;
 }
 async function setPagato(id, val){

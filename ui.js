@@ -61,12 +61,12 @@ function apriIngresso(pend, titolo){
   document.getElementById("mi-pwd-row").style.display = serve ? "" : "none";
   document.getElementById("mi-pwd").value = "";
   document.getElementById("mi-errore").textContent = "";
-  document.getElementById("modal-ingresso").classList.add("open");
+  openModal("modal-ingresso");
   if(serve) setTimeout(function(){ document.getElementById("mi-pwd").focus(); }, 60);
 }
 function chiudiIngresso(){
   _ingressoPend = null;
-  document.getElementById("modal-ingresso").classList.remove("open");
+  closeModal("modal-ingresso");
 }
 async function confermaIngresso(){
   if(!_ingressoPend) return;
@@ -113,6 +113,7 @@ function switchTab(tab){
   if(tab === "tabella") renderTabella();
   if(tab === "bacheca"){ renderBacheca(); renderStatistiche(); }
   if(tab === "pagamenti") renderPagamenti();
+  aggiornaPallinoPagamenti();
   var main = document.querySelector("#app-screen .body");
   if(main){
     main.classList.remove("tab-switching");
@@ -346,9 +347,7 @@ function renderMioTotale(){
     +   '<div class="mt-v reale forte">' + eur(reale + sped) + '</div>'
     + '</div>'
     + (cKg ? '<div class="mt-scarto">' + escapeHtml(testoConfrontoKg(cKg)) + '</div>' : '')
-    + '<div class="mt-nota">Il "reale" viene dalle etichette dei pezzi: lo inserisce l\'admin alla consegna.'
-    + (cKg ? ' I kg ricevuti non sono pesati: si ricavano dall\'importo, perché il prezzo al kg è fisso.' : '')
-    + '</div>';
+    + '<div class="mt-nota">Il "reale" viene dalle etichette dei pezzi: lo inserisce l\'admin alla consegna.</div>';
 }
 
 // Riquadro spedizione: stesso conto per tutti, con la divisione in chiaro.
@@ -375,6 +374,14 @@ function renderSpedizione(){
             ? "Uguale per tutti quelli che partecipano, te compreso."
             : "Tu non partecipi alla spedizione, quindi non la paghi.")
       ) + '</div>';
+  // Finché gli ordini sono aperti la quota a testa è provvisoria per due ragioni insieme:
+  // la spedizione dipende dai kg totali, e il numero di chi partecipa può ancora cambiare.
+  // A ordini chiusi sparisce: lì il numero è definitivo e ripeterlo sarebbe rumore.
+  if(!ordiniChiusi()){
+    h += '<div class="sped-nota">\u2139\uFE0F La spedizione dipende dai kg totali del gruppo: '
+      + 'finch\u00e9 l\'ordine \u00e8 aperto la quota a testa pu\u00f2 ancora cambiare. '
+      + 'Pi\u00f9 formaggio si ordina, meno pesa su ciascuno.</div>';
+  }
   el.innerHTML = h;
 }
 
@@ -412,8 +419,12 @@ function renderTabella(){
       ? ' <span class="badge-grasso' + (archiviato ? " incoronato" : "") + '" title="Ha ordinato più kg di tutti">'
         + (archiviato ? "\uD83D\uDC51" : '<span class="svg-inv svg-topino topino-ico"></span>\uD83D\uDC51') + '</span>'
       : '';
+    // Pillola e non un topo diverso: il topino è già il badge del "topino grasso", e due
+    // topi diversi nella stessa colonna diventerebbero un rebus. La vedono TUTTI, che è
+    // il punto: sapere a chi chiedere.
+    var adminBadge = p.is_admin ? ' <span class="pill-admin">admin</span>' : '';
     c += '<div class="pc-testa">'
-       +   '<span class="pc-nome">\uD83D\uDC2D ' + escapeHtml(p.nome) + grasso + (io_ ? ' <span class="pc-tu">sei tu</span>' : '') + '</span>'
+       +   '<span class="pc-nome">\uD83D\uDC2D ' + escapeHtml(p.nome) + adminBadge + grasso + (io_ ? ' <span class="pc-tu">sei tu</span>' : '') + '</span>'
        +   (p.pagato ? '<span class="badge ok">pagato</span>' : '<span class="badge no">da pagare</span>')
        + '</div>';
     c += '<div class="pc-voci">' + voci + '</div>';
@@ -645,9 +656,11 @@ function renderPagamenti(){
   // Quanto devo: reale dove l'admin l'ha inserito, ipotetico altrove, spedizione inclusa.
   var dovuto = mia ? totaleDovuto(mia) : 0;
   if(mia){
+    // Prima il caso opposto non diceva nulla, e il passaggio a definitivo è proprio ciò
+    // che vale la pena vedere: stesso verde della colonna "reale" altrove nell'app.
     var stima = !haPrezziReali(mia.id);
-    html += '<div class="pay-tot">'
-      +   '<div class="pt-label">Il tuo totale' + (stima ? " (stimato)" : "") + '</div>'
+    html += '<div class="pay-tot' + (stima ? "" : " reale") + '">'
+      +   '<div class="pt-label">Il tuo totale' + (stima ? " (stimato)" : " \u00b7 reale") + '</div>'
       +   '<div class="pt-val">' + eur(dovuto) + '</div>'
       +   '<div class="pt-sub">parmigiano + spedizione</div>'
       + '</div>';
@@ -707,16 +720,53 @@ function renderSegnalazioneHtml(mia){
   return '<button class="btn btn-cheese" style="margin-top:14px;" onclick="apriSegnalaPagamento()">\u2705 Ho pagato</button>';
 }
 
+// Pallino sull'icona 💳 finché il totale è stimato. Un pallino e non una parola: a 320px
+// la tab bar non ha spazio per un'etichetta in più.
+function aggiornaPallinoPagamenti(){
+  var d = document.getElementById("tab-dot-pagamenti");
+  if(!d) return;
+  var stima = mioId && righeDi(mioId).length && !haPrezziReali(mioId);
+  d.style.display = stima ? "" : "none";
+}
+
+// Chi paga su un totale ancora stimato paga una cifra che cambierà: i pezzi non sono
+// stati tagliati, quindi non si sa quanto pesano. NON si blocca — chi paga in contanti
+// alla consegna deve poter procedere — ma glielo si dice prima, non dopo.
 function apriSegnalaPagamento(){
-  var el = document.getElementById("sp-metodi");
-  el.innerHTML = METODI.map(function(m){
+  document.getElementById("sp-errore").textContent = "";
+  if(!haPrezziReali(mioId)) mostraAvvisoStima();
+  else mostraMetodiPagamento();
+  openModal("modal-segnala");
+}
+function mostraAvvisoStima(){
+  document.getElementById("sp-titolo").textContent = "\uD83E\uDDC0 Aspetta un attimo";
+  document.getElementById("sp-sub").textContent = "";
+  document.getElementById("sp-metodi").innerHTML = "";
+  document.getElementById("sp-avviso").innerHTML =
+    '<div class="avviso-stima">Il tuo totale \u00e8 ancora <b>stimato</b>: i pezzi non sono stati '
+    + 'tagliati, quindi non si sa quanto pesano davvero. L\'importo cambier\u00e0, di solito di '
+    + 'qualche euro in su o in gi\u00f9. Meglio aspettare che l\'admin inserisca gli importi '
+    + 'delle etichette.</div>'
+    + '<div class="m-btns" style="margin-bottom:4px;">'
+    +   '<button class="btn btn-ghost" onclick="mostraMetodiPagamento()">Pago lo stesso</button>'
+    +   '<button class="btn btn-cheese" onclick="chiudiSegnalaPagamento()">Aspetto</button>'
+    + '</div>';
+  // "Aspetto" è già l'uscita: lasciare anche l'"Annulla" del modale darebbe due bottoni
+  // che fanno la stessa cosa accanto all'unico che ne fa un'altra.
+  document.getElementById("sp-btns").style.display = "none";
+}
+function mostraMetodiPagamento(){
+  document.getElementById("sp-titolo").textContent = "\u2705 Come hai pagato?";
+  document.getElementById("sp-sub").textContent =
+    "Segnali solo che hai pagato: l'admin conferma dopo aver verificato.";
+  document.getElementById("sp-avviso").innerHTML = "";
+  document.getElementById("sp-btns").style.display = "";
+  document.getElementById("sp-metodi").innerHTML = METODI.map(function(m){
     return '<button class="metodo-btn" onclick="confermaSegnalazione(\'' + m.id + '\')">'
       + '<span class="mb-ico">' + m.ico + '</span><span>' + escapeHtml(m.nome) + '</span></button>';
   }).join("");
-  document.getElementById("sp-errore").textContent = "";
-  document.getElementById("modal-segnala").classList.add("open");
 }
-function chiudiSegnalaPagamento(){ document.getElementById("modal-segnala").classList.remove("open"); }
+function chiudiSegnalaPagamento(){ closeModal("modal-segnala"); }
 
 async function confermaSegnalazione(metodo){
   try{
@@ -763,26 +813,42 @@ function initInvitoInstalla(){
   if(_promptInstall || isIOS()) mostraInvitoInstalla();
 }
 
+// Due posti, un solo stato: in cima alla schermata d'accesso, dove non compete con nessun
+// banner operativo ed è dove serve davvero (chi è al primo ingresso non ha ancora superato
+// l'attrito), e in coda alla tab Ordina per chi il nome l'ha già scelto. `INSTALLA_KEY` è
+// unico, quindi la × chiude entrambi per sempre.
+var INVITI_INSTALLA = [
+  { box: "installa-box",      testo: "installa-testo",      btn: "installa-btn" },
+  { box: "installa-box-auth", testo: "installa-testo-auth", btn: "installa-btn-auth" }
+];
 function mostraInvitoInstalla(){
-  var box = document.getElementById("installa-box");
-  if(!box || appGiaInstallata() || invitoRifiutato()) return;
-  var t = document.getElementById("installa-testo");
-  var b = document.getElementById("installa-btn");
+  if(appGiaInstallata() || invitoRifiutato()) return;
+  var html, conBottone;
   if(_promptInstall){
-    t.innerHTML = '<b>Tienila a portata di zampa.</b><br>Installala sul telefono: si apre come '
+    html = '<b>Tienila a portata di zampa.</b><br>Installala sul telefono: si apre come '
       + 'un\'app vera, senza ricercare il link su WhatsApp ogni volta.';
-    b.style.display = "";
+    conBottone = true;
   } else if(isIOS()){
-    t.innerHTML = '<b>Tienila a portata di zampa.</b><br>Tocca <b>Condividi</b> \u2B06\uFE0F qui sotto, '
+    html = '<b>Tienila a portata di zampa.</b><br>Tocca <b>Condividi</b> \u2B06\uFE0F qui sotto, '
       + 'poi <b>Aggiungi a Home</b>: si apre come un\'app vera, senza ricercare il link '
       + 'su WhatsApp ogni volta.';
-    b.style.display = "none";
+    conBottone = false;
   } else return;
-  box.style.display = "";
+  INVITI_INSTALLA.forEach(function(inv){
+    var box = document.getElementById(inv.box);
+    if(!box) return;
+    var t = document.getElementById(inv.testo);
+    var b = document.getElementById(inv.btn);
+    if(t) t.innerHTML = html;
+    if(b) b.style.display = conBottone ? "" : "none";
+    box.style.display = "";
+  });
 }
 function nascondiInvitoInstalla(){
-  var box = document.getElementById("installa-box");
-  if(box) box.style.display = "none";
+  INVITI_INSTALLA.forEach(function(inv){
+    var box = document.getElementById(inv.box);
+    if(box) box.style.display = "none";
+  });
 }
 // La × va ricordata: un banner che ricompare a ogni apertura, dalla seconda volta in poi
 // viene chiuso senza leggerlo, e a quel punto tanto vale non averlo.
