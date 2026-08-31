@@ -121,13 +121,12 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
   color:var(--text); font-family:'Baloo 2',cursive; font-size:1rem; font-weight:600; padding:0 14px; outline:none;}
 .inp:focus{border-color:var(--cheese-brd);}
-/* Campi PIN: pallini senza `type="password"`.
-   Un solo campo password nella pagina basta perché il browser la tratti come pagina di
-   login e offra salvataggio e riempimento su tutti gli altri input. Il PIN sono sei cifre,
-   non una password: qui i pallini li disegna il CSS, e il campo resta un `type="text"`.
-   `text-security` senza prefisso non è ancora standard e oggi non fa nulla in nessun
-   browser: sta qui per il giorno in cui lo diventerà, la resa la dà la riga -webkit-. */
-.pin{-webkit-text-security:disc; text-security:disc; letter-spacing:.18em;}
+/* Codice usa e getta dell'accesso admin: sei cifre, centrate e spaziate, perché si
+   legge mentre lo si ricopia dalla mail. Nato il 01/09/2026 al posto della regola `.pin`,
+   che aveva nascosto le cifre del PIN — vissuta e morta nel giro di due giorni, ma era
+   giusta quando è stata scritta. Qui il codice NON si maschera: è usa e getta, nasconderlo
+   servirebbe solo a farlo sbagliare. */
+.codice{text-align:center; letter-spacing:.35em; font-size:1.25rem; font-weight:800;}
 .btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:1rem;
   font-weight:800; cursor:pointer; transition:transform .12s;}
 .btn:active{transform:scale(.98);}
@@ -373,14 +372,7 @@ table.tb tr:last-child td{border-bottom:none;}
 .pay-link .pl-nome{font-weight:700;}
 .pay-link .pl-val{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; overflow:hidden; text-overflow:ellipsis;}
 
-/* ── ADMIN / PIN ── */
-.pin-dots{display:flex; justify-content:center; gap:14px; margin:18px 0 8px;}
-.pin-dot{width:14px; height:14px; border-radius:50%; border:2px solid var(--cheese-brd); transition:all .15s;}
-.pin-dot.filled{background:var(--cheese); border-color:var(--cheese);}
-.pin-pad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:260px; margin:0 auto;}
-.pin-key{height:56px; border-radius:14px; border:1.5px solid var(--line); background:var(--card2); color:var(--text);
-  font-family:'Baloo 2',cursive; font-size:1.3rem; font-weight:700; cursor:pointer;}
-
+/* ── ADMIN ── */
 .admin-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
 .admin-row:last-child{border-bottom:none;}
 .admin-row .ar-nome{font-weight:700;}

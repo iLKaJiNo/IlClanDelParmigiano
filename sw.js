@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clan-parmigiano-v8';
+const CACHE_NAME = 'clan-parmigiano-v9';
 // `logo-icona.svg` e `genera-icone.sh` NON stanno qui: sono sorgenti di build, non
 // roba che il browser chiede. Nemmeno `serve-locale.py` e `.claude/launch.json`, che
 // servono solo al collaudo in locale.

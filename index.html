@@ -299,33 +299,6 @@ if("serviceWorker" in navigator){
   </div>
 </div>
 
-<!-- MODALE CAMBIO PIN ADMIN
-     I tre campi NON sono `type="password"`: sono sei cifre. Basta un solo campo password
-     nella pagina perché il browser la classifichi come pagina di login e offra salvataggio
-     e riempimento automatico su TUTTI gli altri input — il nome del topino, il titolo del
-     gruppo, l'IBAN. Qui i pallini li disegna `.pin` in CSS (`-webkit-text-security`), così
-     si vedono esattamente come prima ma il campo resta fuori dal radar del gestore.
-     L'unico `type="password"` rimasto è `#mi-pwd`, dove il salvataggio serve davvero. -->
-<div class="modal-overlay" id="modal-pin" onclick="if(event.target===this&&topModal()==='modal-pin')chiudiCambioPin()">
-  <div class="modal">
-    <h2>🔐 Cambia il PIN admin</h2>
-    <div class="m-row"><label>PIN attuale</label>
-      <input class="inp pin" id="cp-vecchio" name="pin-attuale" type="text" inputmode="numeric"
-             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
-    <div class="m-row"><label>Nuovo PIN (6 cifre)</label>
-      <input class="inp pin" id="cp-nuovo" name="pin-nuovo" type="text" inputmode="numeric"
-             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
-    <div class="m-row"><label>Ripeti il nuovo PIN</label>
-      <input class="inp pin" id="cp-conferma" name="pin-ripeti" type="text" inputmode="numeric"
-             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
-    <div class="errore" id="cp-errore"></div>
-    <div class="m-btns">
-      <button class="btn btn-ghost" onclick="chiudiCambioPin()">Annulla</button>
-      <button class="btn btn-cheese" onclick="confermaCambioPin()">Cambia PIN</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODALE NUOVO GRUPPO -->
 <div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this&&topModal()==='modal-nuovo-gruppo')chiudiNuovoGruppo()">
   <div class="modal">

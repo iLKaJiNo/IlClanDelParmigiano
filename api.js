@@ -17,6 +17,7 @@ async function appStart(){
   // listener registrato in una funzione `async` non c'è ancora quando arriva il primo
   // swipe ad app appena aperta. Vedi il commento accanto a `vibra()` in utils.js.
   dot("", "Annusando il formaggio...");
+  await initAuth();     // la sessione admin, se su questo device c'è, PRIMA del primo render
   await caricaTutto();
   initRealtime();
   initTabSwipe();
@@ -56,6 +57,11 @@ async function caricaTutto(){
     var ra = await sb.from("gruppi_acquisto").select("id,titolo,chiuso_at,created_at").eq("stato", "archiviato").order("chiuso_at", { ascending: false });
     archivioGruppi = ra.data || [];
 
+    // Solo per chi è admin: per tutti gli altri la tabella non esiste nemmeno in lettura.
+    // Sta qui e non dentro `aggiornaEAdmin()` perché così il realtime la tiene fresca come
+    // tutto il resto — un admin tolto da un altro dispositivo sparisce dall'elenco da solo.
+    if(eAdmin) await caricaAdminAutorizzati();
+
     dot("ok", "Sincronizzato \uD83E\uDDC0");
   }catch(e){
     console.error(e);
@@ -82,6 +88,68 @@ function mostraSchermataGiusta(){
     mostraSchermata("auth-screen");
     renderAuth();
   }
+}
+
+// ── AUTENTICAZIONE ADMIN: email + codice usa e getta ──
+// Nessun `signInAnonymously`: ci si appoggia ai due ruoli che Supabase già distingue —
+// `anon` per i topini, `authenticated` per chi ha fatto l'accesso. Un pezzo in meno da
+// costruire e da mantenere.
+// `signInWithOtp` CREA l'utente se non esiste, e va bene: essere autenticati non significa
+// essere admin. L'autorità è la tabella `admin_autorizzati`, non l'aver ricevuto un'email.
+async function initAuth(){
+  try{
+    var s = await sb.auth.getSession();
+    authUser = (s.data && s.data.session && s.data.session.user) || null;
+  }catch(e){ authUser = null; }
+  await aggiornaEAdmin();
+  // Autenticato ma NON autorizzato: una sessione così non serve a niente e fa danno.
+  // Le policy trattano `authenticated` come "o sei admin, o non scrivi" — perché
+  // autenticarsi non costa nulla, `signInWithOtp` crea l'utente a chiunque abbia una
+  // casella. Quindi restare firmati senza essere admin toglierebbe al topino perfino
+  // il proprio ordine, e con un messaggio d'errore che non spiegherebbe niente.
+  // Si esce e si torna `anon`, che è il ruolo giusto per lui.
+  if(authUser && !eAdmin) await esciDaAdmin();
+}
+// Il permesso non si deduce dal client: si CHIEDE al database, che è l'unico posto in cui
+// vale qualcosa. Qui serve solo a decidere cosa disegnare — se questa riga mentisse, le
+// policy direbbero di no lo stesso.
+async function aggiornaEAdmin(){
+  if(!authUser){ eAdmin = false; adminAutorizzati = []; return false; }
+  try{
+    var r = await sb.rpc("e_admin");
+    eAdmin = !r.error && r.data === true;
+  }catch(e){ eAdmin = false; }
+  if(!eAdmin) adminAutorizzati = [];
+  return eAdmin;
+}
+async function caricaAdminAutorizzati(){
+  var r = await sb.from("admin_autorizzati").select("*").order("creato_il", { ascending: true });
+  adminAutorizzati = r.error ? [] : (r.data || []);
+}
+async function inviaCodiceAccesso(email){
+  var r = await sb.auth.signInWithOtp({ email: email });
+  if(r.error) throw r.error;
+}
+async function verificaCodiceAccesso(email, codice){
+  var r = await sb.auth.verifyOtp({ email: email, token: codice, type: "email" });
+  if(r.error) throw r.error;
+  authUser = (r.data && r.data.user) || null;
+  return authUser;
+}
+// La sessione se ne va da `localStorage` e il client torna a parlare col database come
+// chiunque altro. Non è più un lucchetto da riaprire a costo zero: per rientrare serve
+// un'altra email, ed è la ragione per cui l'uscita si conferma.
+async function esciDaAdmin(){
+  try{ await sb.auth.signOut(); }catch(e){}
+  authUser = null; eAdmin = false; adminAutorizzati = [];
+}
+async function autorizzaAdmin(email, etichetta){
+  var r = await sb.from("admin_autorizzati").insert({ email: email, etichetta: etichetta || null });
+  if(r.error) throw r.error;
+}
+async function revocaAdmin(email){
+  var r = await sb.from("admin_autorizzati").delete().eq("email", email);
+  if(r.error) throw r.error;
 }
 
 // ── REALTIME ──
@@ -129,8 +197,8 @@ async function setPartecipaSpedizione(id, val){
   var r = await sb.from("persone").update({ partecipa_spedizione: val }).eq("id", id);
   if(r.error) throw r.error;
 }
-// §5: chi è l'admin. Prima era un PIN e basta — nessuna colonna lo diceva, e non era
-// deducibile da nulla.
+// §5: il flag PUBBLICO del gruppo, quello che dice ai topini a chi chiedere. Non è il
+// permesso — quello è `e_admin()` a DB, e non passa da questa colonna.
 async function setIsAdmin(id, val){
   var r = await sb.from("persone").update({ is_admin: val }).eq("id", id);
   if(r.error) throw r.error;

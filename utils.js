@@ -12,12 +12,20 @@ var gruppo = null;          // gruppo_acquisto attivo
 var tipi = [];               // tipi_parmigiano del gruppo attivo
 var persone = [];            // persone del gruppo attivo
 var righe = [];               // righe_ordine (di tutte le persone, per la tabella)
-var impostazioni = { pin_hash: null, iban: "", paypal_link: "", satispay_link: "" };
+var impostazioni = { iban: "", paypal_link: "", satispay_link: "" };
 var archivioGruppi = [];     // gruppi archiviati (solo id/titolo/date, per la lista)
 var note = [];               // bacheca del gruppo attivo, dalla più recente
 
 var mioId = null;            // persona.id scelta su questo device (per il gruppo corrente)
-var adminOk = false;         // sbloccato in questa sessione di tab (sessionStorage)
+
+// ── AUTENTICAZIONE ADMIN ──
+// L'autorizzazione sta sull'EMAIL, non sul dispositivo. È la scelta che fa funzionare
+// tutto il resto: si può autorizzare qualcuno PRIMA che entri, e la sua identità lo segue
+// su telefono e computer senza righe da gestire. Chi non è admin non si autentica affatto
+// e continua con la chiave anonima, esattamente come prima, senza accorgersi di nulla.
+var authUser = null;         // utente Supabase autenticato su questo device, o null
+var eAdmin = false;          // risposta di e_admin(): l'autorità è la TABELLA, non l'accesso
+var adminAutorizzati = [];   // le email autorizzate — la lista non è leggibile da `anon`
 
 var currentTab = "ordina";
 var TABS = ["ordina", "tabella", "bacheca", "pagamenti"]; // + "admin" sempre visibile a parte
@@ -122,11 +130,22 @@ function fmtData(iso){
   return isNaN(d) ? "" : d.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
 }
 
-// ── HASH PIN (SHA-256) ──
+// ── HASH (SHA-256) ──
+// Nata per il PIN admin, che dal 01/09/2026 non esiste più: l'accesso all'amministrazione
+// è l'email. Resta perché serve ancora alla password di gruppo — NON si tocca.
 async function sha256(str){
   var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2, "0"); }).join("");
 }
+
+// ── EMAIL DELL'ADMIN ──
+// Normalizzazione a monte, come per la password di gruppo. `admin_autorizzati.email` è una
+// chiave primaria, quindi "Kajino@Gmail.com" e "kajino@gmail.com" sarebbero due righe
+// diverse; `e_admin()` confronta con `lower()` sui due lati e le tratterebbe come la stessa.
+// Il disallineamento non darebbe errori: darebbe un doppione nell'elenco che nessuno sa
+// spiegare. Meglio che a DB ci arrivi una forma sola.
+function normalizzaEmail(s){ return String(s == null ? "" : s).trim().toLowerCase(); }
+function emailValida(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizzaEmail(s)); }
 
 // ── PEZZATURA E PASSO DELL'ORDINE ──
 // PEZZATURA_KG e KG_STEP sono ACCOPPIATE: lo stepper si muove di un pezzo per volta.
@@ -327,8 +346,10 @@ function chiaveIdentita(){ return "clan_parm_persona_" + (gruppo ? gruppo.id : "
 function getMiaIdentita(){ try{ return localStorage.getItem(chiaveIdentita()); }catch(e){ return null; } }
 function setMiaIdentita(id){ try{ localStorage.setItem(chiaveIdentita(), id); }catch(e){} }
 function clearMiaIdentita(){ try{ localStorage.removeItem(chiaveIdentita()); }catch(e){} }
-// `persone.is_admin` è il flag pubblico del gruppo, non il PIN: dice a tutti a chi
+// `persone.is_admin` è il flag pubblico del gruppo, non il permesso: dice a tutti a chi
 // chiedere, e qui serve a decidere chi deve vedere la coda delle segnalazioni.
+// Il permesso vero è `e_admin()` a DB, e con questa colonna non ha niente a che vedere:
+// accenderla su cinque persone non dà a nessuna di loro un potere in più.
 // Chi non è admin non deve vedere nulla, nemmeno il pallino.
 function sonoAdmin(){
   var io = mioId && persone.find(function(p){ return p.id === mioId; });
@@ -379,7 +400,7 @@ function isoToInputLocale(iso){
 function arrivoSegnalato(){ return (gruppo && gruppo.arrivo_segnalato_at) || null; }
 
 // ── PASSWORD DI GRUPPO (per-device, chiesta al primo ingresso) ──
-// A DB c'è solo l'impronta SHA-256, mai il testo: stesso trattamento del PIN admin.
+// A DB c'è solo l'impronta SHA-256, mai il testo.
 // NON è sicurezza vera — chi ha la anon key legge l'hash e può provare a forzarlo — ma
 // toglie l'unica credenziale che stava in chiaro nel database, e conserva la proprietà
 // utile: il device ricorda l'hash, quindi cambiando password decadono tutti gli sblocchi.

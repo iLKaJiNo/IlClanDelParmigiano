@@ -488,11 +488,13 @@ function renderTabella(){
 
 // ── TAB BACHECA ──
 // Permessi: autore + admin (decisione §6.2). Il controllo è COSMETICO — nasconde i bottoni,
-// non protegge i dati: con RLS aperta chiunque apra la console può cancellare qualunque nota.
-// Coerente con il resto dell'app, da rivedere se un giorno arriva l'auth anonima.
+// non protegge i dati, e resta così anche dopo la chiusura di RLS del 01/09/2026: la
+// bacheca è deliberatamente fuori da quel giro. Verificare l'autore vorrebbe dire legare
+// ogni topino a un'identità, che è il pezzo caro che si sta evitando; e una nota cancellata
+// per dispetto fra amici è una seccatura, non un danno.
 var _notaInModifica = null;
 
-function puoiToccareNota(n){ return n.persona_id === mioId || adminOk; }
+function puoiToccareNota(n){ return n.persona_id === mioId || eAdmin; }
 function nomeAutore(personaId){
   var p = persone.find(function(x){ return x.id === personaId; });
   return p ? p.nome : "un topino sparito";

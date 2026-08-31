@@ -1,111 +1,154 @@
 // ════════════════════════════════════════════════════════
 //  Il Clan del Parmigiano — admin.js
-//  PIN gate, pannello di amministrazione, archivio, PDF.
+//  Accesso admin via email, pannello di amministrazione, archivio, PDF.
 // ════════════════════════════════════════════════════════
-
-var ADMIN_SESSION_KEY = "clan_parm_admin_ok";
-var _pinBuffer = "";
 
 function apriAdmin(){
   mostraSchermata("admin-screen");
   _faseAperta = null;   // riparte dalla fase dedotta dai dati, non da dove si era rimasti ieri
-  if(sessionStorage.getItem(ADMIN_SESSION_KEY) === "1"){
-    adminOk = true;
-    renderAdmin();
-  } else {
-    adminOk = false;
-    renderPinGate();
-  }
+  if(eAdmin) renderAdmin();
+  else       renderAccessoAdmin();
 }
 function chiudiAdmin(){
   mostraSchermataGiusta();
 }
 
-// ── PIN GATE ──
-function renderPinGate(){
+// ── ACCESSO ADMIN: EMAIL + CODICE USA E GETTA ──
+// Ha preso il posto del PIN, che non è diventato un secondo lucchetto: è stato smontato.
+// Il PIN stava su UN dispositivo e chi lo sapeva lo sapeva per sempre; l'email autorizza
+// una PERSONA, la segue su telefono e computer, e si toglie da un elenco.
+// Due passi e due schermate: prima l'indirizzo, poi il codice che arriva per posta.
+// `_emailAccesso` sopravvive fra i due perché `verifyOtp` vuole di nuovo l'email, e
+// ridigitarla sarebbe l'unico modo per sbagliarla dopo averla già scritta giusta.
+var _emailAccesso = "";
+var _codiceInviato = false;
+
+function renderAccessoAdmin(){
   var el = document.getElementById("admin-content");
-  var primoAccesso = !impostazioni.pin_hash;
-  el.innerHTML =
-    '<div style="text-align:center;">'
-    + '<div style="font-size:3rem;">\uD83E\uDDC0</div>'
-    + '<h2 style="margin:8px 0 4px;">' + (primoAccesso ? "Imposta il PIN admin" : "PIN admin") + '</h2>'
-    + '<p style="color:var(--dim);font-family:\'Nunito\',sans-serif;font-weight:600;font-size:.85rem;" id="pin-sub">'
-    + (primoAccesso ? "Scegli un PIN di 6 cifre per proteggere le modifiche." : "Inserisci il PIN per sbloccare l'amministrazione.") + '</p>'
-    + '<div class="pin-dots" id="pin-dots"></div>'
-    + '<div class="errore" id="pin-errore"></div>'
-    + '<div class="pin-pad">'
-    + [1,2,3,4,5,6,7,8,9].map(function(n){ return '<button class="pin-key" onclick="pinDigit(' + n + ')">' + n + '</button>'; }).join("")
-    + '<button class="pin-key" onclick="pinBack()">\u2190</button>'
-    + '<button class="pin-key" onclick="pinDigit(0)">0</button>'
-    + '<button class="pin-key" onclick="chiudiAdmin()">\u2715</button>'
-    + '</div></div>';
-  _pinBuffer = "";
-  _pinNuovo = null;
-  renderPinDots();
+  el.innerHTML = _codiceInviato ? htmlPassoCodice() : htmlPassoEmail();
+  var campo = document.getElementById(_codiceInviato ? "acc-codice" : "acc-email");
+  if(campo) campo.focus();
 }
-var _pinNuovo = null;
-function renderPinDots(){
-  var d = document.getElementById("pin-dots");
-  var s = "";
-  for(var i = 0; i < 6; i++) s += '<div class="pin-dot' + (i < _pinBuffer.length ? " filled" : "") + '"></div>';
-  d.innerHTML = s;
+function htmlPassoEmail(){
+  return '<div class="card">'
+    + '<div style="text-align:center;font-size:3rem;">\uD83E\uDDC0</div>'
+    + '<div class="card-titolo" style="text-align:center;">Area amministrazione</div>'
+    + '<div class="hint">Scrivi la tua email: ti mando un codice di sei cifre. '
+    +   'Se il tuo indirizzo non è fra quelli autorizzati non entri, e va bene così.</div>'
+    + '<div class="m-row"><label>La tua email</label>'
+    +   '<input class="inp" id="acc-email" name="email-admin" type="email" inputmode="email"'
+    +   ' autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false"'
+    +   ' value="' + escapeHtml(_emailAccesso) + '"'
+    +   ' onkeydown="if(event.key===\'Enter\')chiediCodiceAdmin()"></div>'
+    + '<div class="errore" id="acc-errore"></div>'
+    + '<button class="btn btn-cheese" id="acc-invia" onclick="chiediCodiceAdmin()">\uD83D\uDCEC Mandami il codice</button>'
+    + '<button class="btn btn-ghost" style="margin-top:8px;" onclick="chiudiAdmin()">\u2190 Torna indietro</button>'
+    + '</div>';
 }
-function pinBack(){ _pinBuffer = _pinBuffer.slice(0, -1); renderPinDots(); }
-async function pinDigit(n){
-  if(_pinBuffer.length >= 6) return;
-  _pinBuffer += n;
-  renderPinDots();
-  if(_pinBuffer.length === 6){
-    var pin = _pinBuffer;
-    setTimeout(function(){ verificaPin(pin); }, 150);
+function htmlPassoCodice(){
+  return '<div class="card">'
+    + '<div style="text-align:center;font-size:3rem;">\uD83D\uDCEC</div>'
+    + '<div class="card-titolo" style="text-align:center;">Controlla la posta</div>'
+    + '<div class="hint">Ho mandato un codice a <b>' + escapeHtml(_emailAccesso) + '</b>. '
+    +   'Se non lo trovi, guarda nello spam: la posta di Supabase ci finisce spesso.</div>'
+    + '<div class="m-row"><label>Codice di sei cifre</label>'
+    +   '<input class="inp codice" id="acc-codice" name="codice-accesso" type="text"'
+    +   ' inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"'
+    +   ' onkeydown="if(event.key===\'Enter\')entraConCodice()"></div>'
+    + '<div class="errore" id="acc-errore"></div>'
+    + '<button class="btn btn-cheese" id="acc-entra" onclick="entraConCodice()">\uD83E\uDDC0 Entra</button>'
+    + '<button class="btn btn-ghost" style="margin-top:8px;" onclick="tornaAllEmail()">\u2190 Cambia indirizzo</button>'
+    + '</div>';
+}
+function tornaAllEmail(){ _codiceInviato = false; renderAccessoAdmin(); }
+
+async function chiediCodiceAdmin(){
+  var err = document.getElementById("acc-errore");
+  var email = normalizzaEmail(document.getElementById("acc-email").value);
+  if(!emailValida(email)){ err.textContent = "Questo non sembra un indirizzo email."; return; }
+  var btn = document.getElementById("acc-invia");
+  err.textContent = "";
+  if(btn){ btn.disabled = true; btn.textContent = "Mando il codice\u2026"; }
+  try{
+    await inviaCodiceAccesso(email);
+    _emailAccesso = email;
+    _codiceInviato = true;
+    renderAccessoAdmin();
+  }catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = "\uD83D\uDCEC Mandami il codice"; }
+    err.textContent = messaggioAuth(e);
   }
 }
-async function verificaPin(pin){
-  var hash = await sha256(pin);
-  var primoAccesso = !impostazioni.pin_hash;
-  if(primoAccesso){
-    if(_pinNuovo === null){
-      _pinNuovo = hash;
-      _pinBuffer = "";
-      document.getElementById("pin-sub").textContent = "Ripeti il PIN per confermare.";
-      renderPinDots();
-      return;
-    }
-    if(hash !== _pinNuovo){
-      _pinNuovo = null; _pinBuffer = "";
-      document.getElementById("pin-sub").textContent = "Scegli un PIN di 6 cifre per proteggere le modifiche.";
-      document.getElementById("pin-errore").textContent = "I PIN non coincidono, riprova.";
-      renderPinDots();
-      return;
-    }
-    try{
-      await aggiornaImpostazioni({ pin_hash: hash });
-      impostazioni.pin_hash = hash;
-      adminOk = true;
-      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-      renderAdmin();
-      proponiFlagAdmin();
-    }catch(e){
-      document.getElementById("pin-errore").textContent = "Errore salvataggio: " + e.message;
-    }
-  } else {
-    if(hash === impostazioni.pin_hash){
-      adminOk = true;
-      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-      renderAdmin();
-      proponiFlagAdmin();
-    } else {
-      document.getElementById("pin-errore").textContent = "PIN errato.";
-      _pinBuffer = "";
-      renderPinDots();
-    }
+
+// Il codice giusto apre la PORTA, non la stanza: `signInWithOtp` autentica chiunque abbia
+// una casella, quindi subito dopo si chiede al database se quell'email è fra gli admin.
+// Se non lo è si esce di nuovo, perché lasciare in giro una sessione autenticata che non
+// serve a niente è solo un modo per confondersi fra sei mesi.
+async function entraConCodice(){
+  var err = document.getElementById("acc-errore");
+  var codice = document.getElementById("acc-codice").value.replace(/\D/g, "");
+  if(codice.length !== 6){ err.textContent = "Il codice è di sei cifre."; return; }
+  var btn = document.getElementById("acc-entra");
+  err.textContent = "";
+  if(btn){ btn.disabled = true; btn.textContent = "Verifico\u2026"; }
+  try{
+    await verificaCodiceAccesso(_emailAccesso, codice);
+  }catch(e){
+    if(btn){ btn.disabled = false; btn.textContent = "\uD83E\uDDC0 Entra"; }
+    err.textContent = messaggioAuth(e);
+    return;
   }
+  await aggiornaEAdmin();
+  if(!eAdmin){
+    var rifiutata = _emailAccesso;
+    await esciDaAdmin();
+    _codiceInviato = false;
+    renderAccessoAdmin();
+    document.getElementById("acc-errore").textContent =
+      "L'accesso è riuscito, ma " + rifiutata + " non è fra gli amministratori. "
+      + "Fatti autorizzare da chi lo è già.";
+    return;
+  }
+  _codiceInviato = false;
+  await caricaTutto();
+  renderAdmin();
+  dot("ok", "Sei dentro \uD83D\uDD10");
+  proponiFlagAdmin();
 }
+
+// I messaggi di Supabase Auth arrivano in inglese e parlano di token e di rate limit. Le
+// due cose che capitano davvero sono il limite d'invio e il codice sbagliato: quelle valgono
+// una frase in italiano. Il resto passa com'è invece di essere mascherato da un generico,
+// che è il modo migliore per non capire più niente al primo caso non previsto.
+function messaggioAuth(e){
+  var m = (e && e.message) ? String(e.message) : "Errore sconosciuto";
+  if(/rate|too many|seconds/i.test(m))
+    return "Troppe richieste ravvicinate: Supabase limita le email in uscita. "
+         + "Aspetta un minuto e riprova.";
+  if(/invalid|expired|token|otp/i.test(m))
+    return "Codice sbagliato o scaduto. Fattene mandare un altro.";
+  return m;
+}
+
+// Uscire non è più il "blocca" di prima, che costava un tocco e si riapriva col PIN:
+// qui la sessione se ne va davvero, e per rientrare serve un'altra email. Per questo si
+// conferma — e per questo il bottone dice "Esci" e non "Blocca".
+async function esciAdmin(){
+  if(!confirm("Esco dall'amministrazione su questo dispositivo?\n\n"
+      + "Per rientrare ti servirà un nuovo codice via email.")) return;
+  await esciDaAdmin();
+  _codiceInviato = false;
+  _emailAccesso = "";
+  chiudiAdmin();
+}
+
 // `persone` è per-gruppo, quindi il flag va rimesso a ogni nuovo giro: un passaggio manuale
 // da rifare ogni volta è un passaggio da dimenticare. Si propone da solo qui, che è l'unico
-// momento in cui l'app sa con certezza che chi ha in mano il telefono è l'admin.
+// momento in cui l'app sa con certezza che chi ha in mano il telefono è l'admin — prima era
+// lo sblocco del PIN, adesso è il primo accesso con l'email. È l'unico pezzo del PIN che non
+// si butta.
 // Il "no" si ricorda per gruppo, come la × dell'invito all'installazione: una domanda che
-// ritorna a ogni sblocco viene chiusa senza leggerla.
+// ritorna a ogni accesso viene chiusa senza leggerla.
 function chiaveNoAdmin(){ return "clan_parm_no_admin_" + (gruppo ? gruppo.id : "none"); }
 async function proponiFlagAdmin(){
   if(!gruppo || !mioId) return;
@@ -122,12 +165,6 @@ async function proponiFlagAdmin(){
     await caricaTutto(); renderAdmin();
     dot("ok", "Segnato come admin \uD83D\uDC2D");
   }catch(e){ alert("Errore: " + e.message); }
-}
-
-function bloccaAdmin(){
-  sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  adminOk = false;
-  chiudiAdmin();
 }
 
 // ── PANNELLO ADMIN: FISARMONICA A FASI ──
@@ -217,7 +254,7 @@ function renderAdmin(){
 
   var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
     + '<h2 style="color:var(--cheese-txt);">🧀 Admin</h2>'
-    + '<button class="btn-pill" onclick="bloccaAdmin()">🔒 Blocca</button></div>';
+    + '<button class="btn-pill" onclick="esciAdmin()">🚪 Esci</button></div>';
 
   html += bannerSegnalazioniHtml();
   html += fasiTestaHtml(corrente);
@@ -235,7 +272,7 @@ function renderAdmin(){
   }).join("");
 
   // Fuori dalla fisarmonica: non appartengono a nessuna fase del giro.
-  html += cardSicurezzaHtml();
+  html += cardAmministratoriHtml();
   html += renderArchivioHtml();
 
   el.innerHTML = html;
@@ -489,9 +526,79 @@ function cardArchiviaHtml(){
 }
 
 // ── FUORI DALLE FASI ──
-function cardSicurezzaHtml(){
-  return '<div class="card"><div class="card-titolo">Sicurezza</div>'
-    + '<button class="btn btn-ghost" onclick="apriCambioPin()">🔐 Cambia il PIN admin</button></div>';
+// Chi può amministrare. Stava qui il "cambia il PIN": al suo posto c'è l'elenco delle
+// persone autorizzate, che è la stessa domanda posta bene — non "qual è la parola
+// d'ordine" ma "di chi mi fido".
+// Gli indirizzi si passano per INDICE e non per stringa: un'email può contenere un
+// apice, e un apice dentro un `onclick` rompe l'HTML invece di dare un errore leggibile.
+function cardAmministratoriHtml(){
+  var mia = authUser ? normalizzaEmail(authUser.email) : "";
+  var h = '<div class="card"><div class="card-titolo">Amministratori</div>'
+    + '<div class="hint">Chi è in questo elenco amministra da qualunque dispositivo, '
+    +   'entrando con la propria email. Chi non c\'è resta un topino come gli altri, '
+    +   'anche se ha fatto l\'accesso.</div>';
+  h += adminAutorizzati.map(function(a, i){
+    var sonoIo = normalizzaEmail(a.email) === mia;
+    return '<div class="admin-row"><span class="ar-nome">'
+      + escapeHtml(a.etichetta || a.email)
+      + (sonoIo ? ' <span class="ar-flag">sei tu</span>' : '')
+      + (a.etichetta ? '<div class="ar-sub">' + escapeHtml(a.email) + '</div>' : '')
+      + '</span><div class="ar-actions">'
+      +   '<button class="btn-pill" title="Togli l\'autorizzazione" '
+      +   'onclick="confermaRevocaAdmin(' + i + ')">🗑️</button>'
+      + '</div></div>';
+  }).join("");
+  h += '<div class="m-row" style="margin-top:12px;"><label>Autorizza un altro amministratore</label>'
+    +   '<input class="inp" id="aa-email" name="email-nuovo-admin" type="email" inputmode="email"'
+    +   ' autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"'
+    +   ' placeholder="email" style="margin-bottom:8px;"></div>'
+    + '<div class="m-row"><input class="inp" id="aa-etichetta" name="etichetta-admin"'
+    +   ' autocomplete="off" placeholder="nome, per riconoscerla nell\'elenco"></div>'
+    + '<div class="errore" id="aa-errore"></div>'
+    + '<button class="btn btn-cheese btn-mini" onclick="autorizzaNuovoAdmin()">➕ Autorizza</button>'
+    + '<div class="hint" style="margin-bottom:0;">Non serve che abbia già un account: '
+    +   'al primo accesso se lo crea da sola con il codice che le arriva per posta.</div>'
+    + '</div>';
+  return h;
+}
+async function autorizzaNuovoAdmin(){
+  var err = document.getElementById("aa-errore");
+  var email = normalizzaEmail(document.getElementById("aa-email").value);
+  var etichetta = document.getElementById("aa-etichetta").value.trim();
+  if(!emailValida(email)){ err.textContent = "Questo non sembra un indirizzo email."; return; }
+  if(adminAutorizzati.some(function(a){ return normalizzaEmail(a.email) === email; })){
+    err.textContent = "Questo indirizzo è già nell'elenco."; return;
+  }
+  try{
+    await autorizzaAdmin(email, etichetta);
+    await caricaTutto();
+    renderAdmin();
+    dot("ok", "Amministratore autorizzato \uD83D\uDC2D");
+  }catch(e){ err.textContent = "Errore: " + e.message; }
+}
+// L'ultimo non si toglie. Non è una cortesia: senza nessuno in tabella `e_admin()` risponde
+// `false` a chiunque, le policy chiudono tutto, e si rientra solo scrivendo SQL a mano nel
+// pannello di Supabase. Una porta che si chiude da sola con la chiave dentro.
+async function confermaRevocaAdmin(i){
+  var a = adminAutorizzati[i];
+  if(!a) return;
+  if(adminAutorizzati.length <= 1){
+    alert("È l'ultimo amministratore rimasto.\n\nSe lo togli, l'app resta senza nessuno "
+        + "che possa amministrarla e si rientra solo da SQL. Autorizza prima qualcun altro.");
+    return;
+  }
+  var sonoIo = authUser && normalizzaEmail(a.email) === normalizzaEmail(authUser.email);
+  var chi = a.etichetta ? a.etichetta + " (" + a.email + ")" : a.email;
+  if(!confirm("Tolgo " + chi + " dagli amministratori?"
+      + (sonoIo ? "\n\nSei tu: perdi l'accesso a questa schermata subito." : ""))) return;
+  try{
+    await revocaAdmin(a.email);
+    await aggiornaEAdmin();
+    if(!eAdmin){ _codiceInviato = false; renderAccessoAdmin(); return; }
+    await caricaTutto();
+    renderAdmin();
+    dot("ok", "Autorizzazione tolta");
+  }catch(e){ alert("Errore: " + e.message); }
 }
 
 // Richieste in attesa: il topino segnala, qui l'admin verifica e conferma.
@@ -816,8 +923,9 @@ function apriRinomina(id){
   var nuovo = prompt("Nuovo nome per " + p.nome + ":", p.nome);
   if(nuovo && nuovo.trim()) eseguiRinomina(id, nuovo.trim());
 }
-// Non tocca i permessi — l'admin resta il PIN. Accende solo la pillola che dice al gruppo
-// a chi chiedere, ed è per questo che si può accendere su più di una persona senza danno.
+// Non tocca i permessi: quelli stanno in `admin_autorizzati` e li decide `e_admin()`.
+// Accende solo la pillola che dice al gruppo a chi chiedere, ed è per questo che si può
+// accendere su più di una persona senza danno.
 async function toggleAdminPersona(id, el){
   vibra(10);
   var val = !el.classList.contains("on");
@@ -1152,32 +1260,6 @@ async function salvaRealiPersona(){
     await caricaTutto();
     renderAdmin();
     dot("ok", "Prezzi salvati \uD83E\uDDC0");
-  }catch(e){ err.textContent = "Errore: " + e.message; }
-}
-
-// ── CAMBIO PIN ADMIN ──
-function apriCambioPin(){
-  ["cp-vecchio","cp-nuovo","cp-conferma"].forEach(function(id){ document.getElementById(id).value = ""; });
-  document.getElementById("cp-errore").textContent = "";
-  openModal("modal-pin");
-}
-function chiudiCambioPin(){ closeModal("modal-pin"); }
-async function confermaCambioPin(){
-  var err = document.getElementById("cp-errore");
-  var vecchio = document.getElementById("cp-vecchio").value.trim();
-  var nuovo = document.getElementById("cp-nuovo").value.trim();
-  var conferma = document.getElementById("cp-conferma").value.trim();
-  if(!/^\d{6}$/.test(nuovo)){ err.textContent = "Il nuovo PIN deve essere di 6 cifre."; return; }
-  if(nuovo !== conferma){ err.textContent = "I due nuovi PIN non coincidono."; return; }
-  try{
-    if(impostazioni.pin_hash && (await sha256(vecchio)) !== impostazioni.pin_hash){
-      err.textContent = "Il PIN attuale non è corretto."; return;
-    }
-    var hash = await sha256(nuovo);
-    await aggiornaImpostazioni({ pin_hash: hash });
-    impostazioni.pin_hash = hash;
-    chiudiCambioPin();
-    dot("ok", "PIN aggiornato \uD83D\uDD10");
   }catch(e){ err.textContent = "Errore: " + e.message; }
 }
 

@@ -22,7 +22,8 @@ stagionature disponibili (12, 24, 36, 48 mesi). L'app è divisa in quattro sched
 | 📝 **Bacheca** | Note libere del gruppo e comunicazioni del negoziante |
 | 💳 **Pagamenti** | Quanto devi davvero, come pagare (IBAN, PayPal, Satispay) e segnalazione del pagamento |
 
-Chi organizza ha in più un'area di **amministrazione**, protetta da PIN, per aprire e chiudere il
+Chi organizza ha in più un'area di **amministrazione**, in cui si entra con la propria email e un
+codice usa e getta, per aprire e chiudere il
 ciclo d'ordine, fissare i prezzi al chilo, ripartire la spedizione, segnalare l'arrivo del pacco,
 inserire i pesi e i prezzi **reali** pezzo per pezzo (le forme non escono mai esatte) e spuntare
 chi ha pagato.
@@ -86,14 +87,21 @@ python3 serve-locale.py
 
 Poi apri `http://localhost:8777`.
 
-**Prima di ogni collaudo passa da `http://localhost:8777/pulisci`.** Non è un vezzo: un normale
-`python3 -m http.server` lascia che il browser serva i `.js` della sessione precedente, e
-soprattutto il service worker tiene una cache propria, cache-first, che nessun header HTTP
-raggiunge. Il risultato è collaudare codice diverso da quello appena scritto, con errori che non
-hanno alcun rapporto con il file che si sta leggendo. `serve-locale.py` risponde `no-store` su
-tutto, e la pagina `/pulisci` deregistra i service worker e svuota le cache prima di entrare
-nell'app. Lascia intatto `localStorage` — identità, tema e sblocchi restano — perché una pulizia
-che cancella tutto diventa una pulizia che si salta.
+**Passa da `http://localhost:8777/pulisci` dopo ogni modifica, non solo a inizio sessione.** Non
+è un vezzo: un normale `python3 -m http.server` lascia che il browser serva i `.js` della sessione
+precedente, e soprattutto il service worker tiene una cache propria, cache-first, che nessun
+header HTTP raggiunge. Il risultato è collaudare codice diverso da quello appena scritto, con
+errori che non hanno alcun rapporto con il file che si sta leggendo. `serve-locale.py` risponde
+`no-store` su tutto, e la pagina `/pulisci` deregistra i service worker e svuota le cache prima di
+entrare nell'app. Lascia intatto `localStorage` — identità, tema e sblocchi restano — perché una
+pulizia che cancella tutto diventa una pulizia che si salta.
+
+⚠️ **Il punto è "dopo ogni modifica", ed è la parte che si sbaglia.** Il service worker **si
+ri-registra al reload**: appena si ricarica la pagina è di nuovo lì e ricomincia a servire dalla
+sua cache. Quindi non è un rito d'ingresso da fare una volta all'inizio — va rifatto ogni volta
+che si tocca un file. E non c'è **nessun segnale** che avvisi: si modifica, si ricarica, e si sta
+guardando la versione di prima. È esattamente il modo in cui si finisce a diagnosticare il file
+sbagliato.
 
 I dati sono quelli reali su Supabase, quindi occhio a cosa tocchi mentre provi.
 

@@ -15,7 +15,13 @@ rapporto col codice che si sta leggendo.
 Per questo la contromisura non è più solo scritta qui: è una PAGINA.
 
     python3 serve-locale.py                     ->  http://localhost:8777
-    poi, PRIMA di collaudare:                       http://localhost:8777/pulisci
+    poi, DOPO OGNI MODIFICA:                        http://localhost:8777/pulisci
+
+Sì, dopo ogni modifica, non una volta a inizio sessione: il service worker SI
+RI-REGISTRA AL RELOAD. Ricaricata la pagina è di nuovo lì, e riprende a servire
+dalla sua cache. Non c'è nessun segnale che lo dica — si modifica un file, si
+ricarica, e si sta guardando la versione di prima. Misurato il 01/09/2026: un
+`32px` appena scritto continuava a leggersi `0px`.
 
 `/pulisci` deregistra i service worker, svuota le cache e poi passa all'app.
 Non tocca `localStorage`: identità, tema e sblocchi di gruppo restano, perché
