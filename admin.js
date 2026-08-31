@@ -219,6 +219,7 @@ function renderAdmin(){
     + '<h2 style="color:var(--cheese-txt);">🧀 Admin</h2>'
     + '<button class="btn-pill" onclick="bloccaAdmin()">🔒 Blocca</button></div>';
 
+  html += bannerSegnalazioniHtml();
   html += fasiTestaHtml(corrente, aperta);
 
   html += FASI.map(function(f){
@@ -242,6 +243,20 @@ function renderAdmin(){
   if(aperta === 2) notaAuto(document.getElementById("inp-note-negoziante"));
 }
 
+// Banner in cima, SOPRA la fisarmonica. La riga "Tocca a te" già lo dice, ma lo dice in
+// mezzo a una frase da leggere: un banner colorato in cima si vede senza leggere, ed è la
+// prima cosa che incontra chi apre l'admin proprio perché ha visto il pallino sul 🔐.
+// Il numero è lo stesso di `segnalazioniInAttesa()`: quando la coda si svuota sparisce.
+function bannerSegnalazioniHtml(){
+  var n = segnalazioniInAttesa().length;
+  if(!n) return "";
+  return '<button class="banner-segnalazioni" onclick="toggleFase(5)">'
+    + '<span class="bs-ico">⏳</span>'
+    + '<span><b>' + n + (n === 1 ? ' topino ha' : ' topini hanno') + ' segnalato un pagamento</b>'
+    + '<span class="bs-sub">Tocca per verificare e confermare nella fase ⑤</span></span>'
+    + '<span class="bs-freccia">›</span></button>';
+}
+
 // La riga che dice cosa tocca adesso. È la cosa che si guarda ogni volta che si apre
 // l'admin: la striscia dice a che punto è il giro, la frase dice cosa fare oggi.
 function fasiTestaHtml(corrente, aperta){
@@ -259,7 +274,7 @@ function fasiTestaHtml(corrente, aperta){
 
   // Una segnalazione di pagamento è urgente in qualunque fase, e sepolta dentro la ⑤
   // chiusa non la vedrebbe nessuno: qui sopra invece è la prima cosa che si legge.
-  var attesa = persone.filter(function(p){ return p.pagamento_segnalato && !p.pagato; }).length;
+  var attesa = segnalazioniInAttesa().length;
   if(attesa && aperta !== 5){
     h += '<br>⏳ ' + attesa + (attesa === 1 ? ' topino dice' : ' topini dicono')
       + ' di aver pagato: '
@@ -275,7 +290,8 @@ function cardGruppoHtml(){
   return '<div class="card"><div class="card-titolo">Gruppo attivo</div>'
     + '<div class="m-row"><label>Titolo</label><div style="font-weight:800;">' + escapeHtml(gruppo.titolo) + '</div></div>'
     + '<div class="m-row"><label>Password d\'accesso</label>'
-    + '<input class="inp" id="inp-password" type="text" autocapitalize="none" autocorrect="off"'
+    + '<input class="inp" id="inp-password" name="chiave-gruppo-admin" type="text"'
+    +   ' autocapitalize="none" autocorrect="off"'
     +   ' spellcheck="false" autocomplete="off" placeholder="'
     +   (haPassword ? "scrivi qui la nuova password" : "es. topogrigio26") + '"></div>'
     + '<div class="hint">' + (haPassword
@@ -295,11 +311,11 @@ function cardPrezziHtml(){
   return '<div class="card" id="card-prezzi"><div class="card-titolo">Prezzi al kg e spedizione</div>'
     + tipi.map(function(t){
         return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(t.nome) + '</span>'
-          + '<div class="ar-actions"><input class="inp" style="width:110px;height:38px;" type="number" min="0" step="0.01" id="prezzo-' + t.id + '" value="' + t.prezzo_kg + '">'
+          + '<div class="ar-actions"><input class="inp" style="width:110px;height:38px;" type="number" min="0" step="0.01" name="prezzo-kg" autocomplete="off" id="prezzo-' + t.id + '" value="' + t.prezzo_kg + '">'
           + '<button class="btn btn-cheese btn-mini" onclick="salvaPrezzoTipo(\'' + t.id + '\')">Salva</button></div></div>';
       }).join("")
     + '<div class="m-row" style="margin-top:14px;"><label>Spedizione totale (€)</label>'
-    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
+    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="spedizione-totale" autocomplete="off" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
     + '<div class="hint">Si divide tra i topini che partecipano. Cambia con i kg totali, quindi è normale ritoccarla in corso d\'opera: se qualcuno ha già pagato te lo dico prima di salvare.</div>'
     + '<button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button>'
     + '</div>';
@@ -308,7 +324,7 @@ function cardPrezziHtml(){
 function cardScadenzaHtml(){
   return '<div class="card"><div class="card-titolo">Scadenza degli ordini</div>'
     + '<div class="m-row"><label>Chiusura ordini</label>'
-    + '<input class="inp" type="datetime-local" id="inp-chiusura" value="' + isoToInputLocale(gruppo.chiusura_ordini) + '"></div>'
+    + '<input class="inp" type="datetime-local" name="chiusura-ordini" autocomplete="off" id="inp-chiusura" value="' + isoToInputLocale(gruppo.chiusura_ordini) + '"></div>'
     + '<div class="hint">' + (ordiniChiusi()
         ? '🔒 Ordini <b>chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '. I topini non possono più modificare.'
         : (gruppo.chiusura_ordini
@@ -409,9 +425,9 @@ function cardConsegnaHtml(){
 // ── FASE 5: incasso ──
 function cardCoordinateHtml(){
   return '<div class="card"><div class="card-titolo">Coordinate di pagamento</div>'
-    + '<div class="m-row"><label>IBAN</label><input class="inp" id="inp-iban" value="' + escapeHtml(impostazioni.iban || "") + '"></div>'
-    + '<div class="m-row"><label>Link PayPal (es. paypal.me/tuonome)</label><input class="inp" id="inp-paypal" value="' + escapeHtml(impostazioni.paypal_link || "") + '"></div>'
-    + '<div class="m-row"><label>Satispay (numero o tag, es. @topolino)</label><input class="inp" id="inp-satispay" value="' + escapeHtml(impostazioni.satispay_link || "") + '"></div>'
+    + '<div class="m-row"><label>IBAN</label><input class="inp" id="inp-iban" name="iban-gruppo" autocomplete="off" value="' + escapeHtml(impostazioni.iban || "") + '"></div>'
+    + '<div class="m-row"><label>Link PayPal (es. paypal.me/tuonome)</label><input class="inp" id="inp-paypal" name="link-paypal" autocomplete="off" value="' + escapeHtml(impostazioni.paypal_link || "") + '"></div>'
+    + '<div class="m-row"><label>Satispay (numero o tag, es. @topolino)</label><input class="inp" id="inp-satispay" name="tag-satispay" autocomplete="off" value="' + escapeHtml(impostazioni.satispay_link || "") + '"></div>'
     + '<div class="hint">Con un account personale non esiste un link con importo preimpostato: i topini digitano la cifra a mano.</div>'
     + '<button class="btn btn-cheese btn-mini" onclick="salvaPagamenti()">Salva coordinate</button>'
     + '</div>';
@@ -422,9 +438,9 @@ function cardCoordinateHtml(){
 // constatazione — non un'etichetta infelice, grammatica incoerente. Due interruttori veri,
 // etichettati sempre con lo stato.
 function cardTopoliniHtml(){
-  var h = '<div class="card"><div class="card-titolo">Topolini registrati (' + persone.length + ')</div>';
+  var h = '<div class="card"><div class="card-titolo">Topini registrati (' + persone.length + ')</div>';
   if(!persone.length){
-    h += '<div class="empty">Nessun topolino ancora.</div>';
+    h += '<div class="empty">Nessun topino ancora.</div>';
   } else {
     h += persone.map(function(p){
       return '<div class="persona-blocco">'
@@ -483,7 +499,7 @@ function cardSicurezzaHtml(){
 
 // Richieste in attesa: il topino segnala, qui l'admin verifica e conferma.
 function renderDaConfermareHtml(){
-  var attesa = persone.filter(function(p){ return p.pagamento_segnalato && !p.pagato; });
+  var attesa = segnalazioniInAttesa();
   if(!attesa.length) return "";
   var h = '<div class="card card-attesa"><div class="card-titolo">\u23F3 Pagamenti da confermare ('
     + attesa.length + ')</div>';
@@ -570,7 +586,7 @@ function renderScontrinoHtml(){
   h += '<div class="m-row"><label>' + (conSped
         ? 'Totale pagato al negoziante (€) — la fattura, così com\'è'
         : 'Scontrino parmigiano (€)') + '</label>'
-    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" id="inp-costo-reale"'
+    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="costo-fattura" autocomplete="off" id="inp-costo-reale"'
     + ' placeholder="quanto hai pagato tu" value="' + valore + '"></div>';
   h += '<div class="ar-actions">'
     +   '<button class="btn btn-cheese btn-mini" onclick="salvaCostoRealeTotale()">Salva scontrino</button>'
@@ -925,7 +941,7 @@ function apriEliminaGruppo(id){
   if(!g) return;
   _gruppoDaEliminare = g;
   document.getElementById("eg-sub").innerHTML =
-    'Spariscono per sempre <b>' + escapeHtml(g.titolo) + '</b>, i suoi topolini, i loro ordini '
+    'Spariscono per sempre <b>' + escapeHtml(g.titolo) + '</b>, i suoi topini, i loro ordini '
     + 'e le note della bacheca. Non c\'\u00e8 modo di recuperarli.';
   var inp = document.getElementById("eg-titolo");
   inp.value = "";
@@ -1092,7 +1108,7 @@ function apriReali(personaId){
       +   '<div class="mr-scarto" id="mr-scarto-' + r.id + '">' + testoScartoRiga(r, r.prezzo_reale) + '</div>'
       + '</div>'
       + '<div class="mr-campo inp-euro-wrap">'
-      +   '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" placeholder="\u20ac reale"'
+      +   '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="prezzo-reale" autocomplete="off" placeholder="\u20ac reale"'
       +     ' id="mr-' + r.id + '" oninput="aggiornaScartoRiga(\'' + r.id + '\')"'
       +     ' value="' + (r.prezzo_reale != null ? r.prezzo_reale : "") + '">'
       +   '<button type="button" class="btn-calc-icon" onclick="openCalc(\'mr-' + r.id + '\')" title="Somma le etichette">\uD83E\uDDEE</button>'
@@ -1203,6 +1219,11 @@ function testoPaccoArrivato(){
     + "Spedizione: " + eur(gruppo.spedizione_totale).replace("\u00a0", " ")
     + " divisa tra " + numeroPartecipantiSpedizione() + " topini = " + eur(quota).replace("\u00a0", " ") + " a testa.\n"
     + (impostazioni.iban ? "\nIBAN: " + impostazioni.iban : "")
+    // Il link PayPal va NUDO, senza importo: `linkPayPalConImporto` esiste per la tab
+    // Pagamenti, dove il link si costruisce per persona. Qui il messaggio è uno solo per
+    // tutti, e un paypal.me con l'importo dentro sarebbe l'importo sbagliato per chiunque
+    // tranne uno. L'ordine IBAN → PayPal → Satispay è lo stesso del PDF e della tab.
+    + (impostazioni.paypal_link ? "\nPayPal: " + impostazioni.paypal_link : "")
     + (impostazioni.satispay_link ? "\nSatispay: " + impostazioni.satispay_link : "")
     + "\n\nControllate il vostro totale nell'app prima di pagare!";
   return t;
@@ -1432,14 +1453,16 @@ function _generaPDF(){
   doc.setFontSize(8.5); doc.setFont("helvetica", "normal");
   coordinate.forEach(function(riga){ doc.text(riga, margin + 4, y); y += 4.6; });
 
-  // Un PDF è una fotografia e gira su WhatsApp: quello generato stamattina circola ancora
-  // stasera, quando tre persone hanno già pagato. Lo stato dei pagamenti resta FUORI — sarebbe
-  // un dato vivo dentro un documento morto, e per giunta una lavagna delle inadempienze che
-  // gira sul gruppo. Questa riga fa dichiarare al documento di non essere la fonte, invece di
-  // lasciarlo sembrare tale per omissione.
+  // La colonna "Stato" nel PDF RESTA: è decisione dell'utente, che conosce il gruppo.
+  // Quello che resta vero comunque è il supporto: un PDF è una fotografia e gira su WhatsApp,
+  // quello generato alle 18 circola ancora alle 21, quando tre persone hanno già pagato. La
+  // riga qui sotto è DATATA di proposito — senza data contraddirebbe la colonna, con la data
+  // ne diventa la didascalia e fa dichiarare al file la propria età. L'ora è quella di
+  // generazione del PDF, nel formato già in uso nell'app.
   y += 4;
   doc.setFontSize(7.5); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-  doc.text("Lo stato dei pagamenti è in app, sempre aggiornato.", margin, y);
+  doc.text("Stato dei pagamenti aggiornato al " + fmtDataOra(new Date().toISOString())
+    + ". In app è sempre aggiornato.", margin, y);
 
   doc.save("clan-parmigiano-" + gruppo.titolo.replace(/\s+/g, "-").toLowerCase() + ".pdf");
 }

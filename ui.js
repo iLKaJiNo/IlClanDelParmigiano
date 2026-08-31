@@ -13,8 +13,12 @@
 function renderAuth(){
   document.getElementById("auth-gruppo-titolo").textContent = gruppo.titolo;
   var el = document.getElementById("lista-persone");
+  // L'intestazione sparisce a lista vuota: "I topini già nel Clan" sopra "nessuno si è
+  // ancora registrato" sono due frasi che si contraddicono a due righe di distanza.
+  var titoloLista = document.getElementById("auth-lista-titolo");
+  if(titoloLista) titoloLista.style.display = persone.length ? "" : "none";
   if(!persone.length){
-    el.innerHTML = '<div class="empty">Nessuno si è ancora registrato.<br>Sii il primo topolino! \uD83D\uDC2D</div>';
+    el.innerHTML = '<div class="empty">Nessuno si è ancora registrato.<br>Sii il primo topino! \uD83D\uDC2D</div>';
   } else {
     el.innerHTML = persone.map(function(p){
       var badge = p.pagato ? '<span class="pp-badge pagato">pagato</span>' : '<span class="pp-badge attesa">in attesa</span>';
@@ -44,7 +48,7 @@ function confermaNuovoNome(){
   var err = document.getElementById("auth-errore");
   if(!nome){ err.textContent = "Scrivi un nome."; return; }
   if(persone.some(function(p){ return p.nome.toLowerCase() === nome.toLowerCase(); })){
-    err.textContent = "C'è già un topolino con questo nome — sceglilo dalla lista, o aggiungi un'iniziale.";
+    err.textContent = "C'è già un topino con questo nome — sceglilo dalla lista, o aggiungi un'iniziale.";
     return;
   }
   err.textContent = "";
@@ -103,7 +107,24 @@ function renderApp(){
   var mia = persone.find(function(p){ return p.id === mioId; });
   document.getElementById("app-gruppo-titolo").textContent = gruppo ? gruppo.titolo : "";
   document.getElementById("app-mio-nome").textContent = mia ? mia.nome : "";
+  aggiornaBadgeAdmin();
   switchTab(currentTab);
+}
+
+// Pallino col numero sul 🔐 della barra in alto. Sta in `renderApp` e non in `switchTab`
+// perché appartiene all'header, non alla tab: si aggiorna a ogni ridisegno dell'app,
+// realtime compreso, e si spegne da solo quando la coda si svuota.
+// Solo per chi ha `is_admin` acceso: chi non è admin non deve vedere nulla.
+function aggiornaBadgeAdmin(){
+  var b = document.getElementById("admin-badge");
+  if(!b) return;
+  var n = sonoAdmin() ? segnalazioniInAttesa().length : 0;
+  b.textContent = n > 9 ? "9+" : String(n);
+  b.style.display = n ? "" : "none";
+  var btn = document.getElementById("btn-admin");
+  if(btn) btn.title = n
+    ? n + (n === 1 ? " topino ha" : " topini hanno") + " segnalato un pagamento"
+    : "Area admin";
 }
 function switchTab(tab){
   currentTab = tab;
@@ -391,7 +412,7 @@ function renderSpedizione(){
 function renderTabella(){
   var el = document.getElementById("tabella-body");
   if(!persone.length){
-    el.innerHTML = '<div class="empty">Ancora nessun topolino registrato.</div>';
+    el.innerHTML = '<div class="empty">Ancora nessun topino registrato.</div>';
     return;
   }
 

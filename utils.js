@@ -31,15 +31,36 @@ var TILE_KEY  = "clan_parm_tile";
 // Chrome ignora `navigator.vibrate()` finché l'utente non ha interagito col documento
 // (*sticky user activation*); su iOS Safari `navigator.vibrate` non esiste proprio.
 // Non è un difetto dell'app: è una regola della piattaforma. Due conseguenze operative:
-//  1. un `vibrate(0)` al primo `pointerdown` attiva il documento senza far vibrare nulla,
-//     così la prima vibrazione vera parte al primo colpo invece che al secondo;
+//  1. l'innesco vive nel <head> di index.html, non qui — ma è una SONDA, non una cura:
+//     chiamare `vibrate()` NON produce attivazione (misurato: `hasBeenActive` resta false).
+//     La concede solo il browser, dispatchando un evento di gesto;
 //  2. `vibra()` va chiamata come PRIMA istruzione di un handler, mai dopo un `await`:
 //     l'attivazione utente scade, e dopo l'await il browser non la riconosce più.
-function vibra(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
-function innescaVibrazione(){
-  document.addEventListener("pointerdown", function(){
-    try{ navigator.vibrate(0); }catch(e){}
-  }, { once: true, passive: true });
+//
+// ⚠️ COLLAUDO TEMPORANEO (§7.2 handoff 01/09) — DA TOGLIERE una volta letto il valore.
+// `navigator.vibrate()` restituisce un booleano, ed è l'unico modo per sapere in quale
+// dei due mondi siamo invece di continuare a indovinare:
+//  · ritorna `false` → il browser sta rifiutando: manca l'attivazione utente. Attenzione,
+//    NON vuol dire che manchi un innesco migliore — vuol dire che Chrome non considera
+//    lo swipe un gesto sufficiente (il suo messaggio parla di *tap*). Da accettare;
+//  · ritorna `true` ma il telefono non vibra → la chiamata passa e l'hardware non
+//    risponde: è il sistema operativo, non noi. Si accetta e si documenta.
+// Il `console.log` su un telefono si legge solo col cavo: aprendo l'app con `?vibra`
+// nell'URL il valore arriva anche in un alert, che si legge senza attrezzatura.
+var _vibraLoggata = false;
+function vibra(ms){
+  try{
+    if(!navigator.vibrate) return;
+    var ok = navigator.vibrate(ms);
+    if(!_vibraLoggata){
+      _vibraLoggata = true;
+      window._vibraRitorno = ok;
+      console.log("[vibra] prima chiamata dopo l'apertura:", ms, "ms → ritorno:", ok);
+      if(location.search.indexOf("vibra") >= 0){
+        setTimeout(function(){ alert("navigator.vibrate(" + ms + ") ha restituito: " + ok); }, 0);
+      }
+    }
+  }catch(e){}
 }
 
 function applyTheme(chiaro){
@@ -320,6 +341,22 @@ function chiaveIdentita(){ return "clan_parm_persona_" + (gruppo ? gruppo.id : "
 function getMiaIdentita(){ try{ return localStorage.getItem(chiaveIdentita()); }catch(e){ return null; } }
 function setMiaIdentita(id){ try{ localStorage.setItem(chiaveIdentita(), id); }catch(e){} }
 function clearMiaIdentita(){ try{ localStorage.removeItem(chiaveIdentita()); }catch(e){} }
+// `persone.is_admin` è il flag pubblico del gruppo, non il PIN: dice a tutti a chi
+// chiedere, e qui serve a decidere chi deve vedere la coda delle segnalazioni.
+// Chi non è admin non deve vedere nulla, nemmeno il pallino.
+function sonoAdmin(){
+  var io = mioId && persone.find(function(p){ return p.id === mioId; });
+  return !!(io && io.is_admin);
+}
+
+// ── SEGNALAZIONI DI PAGAMENTO IN ATTESA ──
+// Nessuno stato nuovo a DB: la coda si conta da `pagamento_segnalato`, e si svuota da sola
+// quando l'admin conferma (`pagato` a true azzera anche il flag). Una sola funzione perché
+// il numero compare in quattro posti — pallino, banner, riga "Tocca a te", card della ⑤ —
+// e quattro filtri copiati sono quattro occasioni di divergere.
+function segnalazioniInAttesa(){
+  return persone.filter(function(p){ return p.pagamento_segnalato && !p.pagato; });
+}
 
 // ── CHIUSURA ORDINI ──
 // Vincolo lato client, come tutto il resto dell'app: serve a non far pasticciare

@@ -75,6 +75,15 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
   cursor:pointer; padding:0; line-height:1; transition:transform .1s, opacity .15s; -webkit-appearance:none;}
 .btn-ico:active{transform:scale(.9);}
 .btn-ico.spento{opacity:.4; filter:grayscale(1);}
+/* Pallino col numero sul 🔐: la coda delle segnalazioni di pagamento, visibile dall'app
+   normale e da qualunque tab. Rosso e non color formaggio — il formaggio è il colore di
+   tutto qui dentro, e un avviso che chiede un'azione deve staccare dal fondo. Il bordo
+   dello stesso colore dell'header lo stacca dall'icona sotto. */
+#btn-admin{position:relative; overflow:visible;}
+.ico-badge{position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px;
+  border-radius:999px; background:#E05A4A; color:#fff; border:1.5px solid var(--bg2);
+  font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:800; line-height:13px;
+  display:flex; align-items:center; justify-content:center; box-sizing:border-box;}
 .sync-dot{width:8px; height:8px; border-radius:50%; background:var(--cheese); flex-shrink:0;}
 .sync-dot:not(.ok):not(.err){animation:pulse 1s ease-in-out infinite;}
 .sync-dot.ok{background:#6FCF5A;} .sync-dot.err{background:#E05A4A;}
@@ -91,13 +100,20 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .auth-title{font-size:1.7rem; font-weight:800; color:var(--cheese-txt); text-align:center;}
 .auth-sub{font-size:.85rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; margin:6px 0 22px; text-align:center;}
 .auth-box{width:100%; max-width:360px;}
-#lista-persone{display:flex; flex-direction:column; gap:8px; margin-bottom:16px; max-height:260px; overflow-y:auto;}
-.persona-pick{display:flex; align-items:center; gap:10px; background:var(--card2); border:1px solid var(--line);
-  border-radius:14px; padding:12px 14px; cursor:pointer; transition:border-color .15s;}
+.auth-sezione{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.7rem;
+  text-transform:uppercase; letter-spacing:.5px; margin:20px 0 8px;}
+/* CHIP affiancati, non righe piene. Il blocco "entra come nuovo" sta sopra la lista, e chi
+   torna — la maggioranza dei casi — non deve scorrere per trovarsi: a righe piene otto
+   topini riempiono da soli la schermata, a chip ci stanno in tre file. La max-height è la
+   valvola per quando i topini diventano venti. */
+#lista-persone{display:flex; flex-flow:row wrap; gap:8px; max-height:240px; overflow-y:auto;}
+#lista-persone .empty{flex:1 1 100%; padding:14px 10px;}
+.persona-pick{display:inline-flex; align-items:center; gap:6px; background:var(--card2); border:1px solid var(--line);
+  border-radius:999px; padding:7px 11px; cursor:pointer; transition:border-color .15s;}
 .persona-pick:hover{border-color:var(--cheese-brd);}
-.persona-pick .pp-emoji{font-size:1.3rem;}
-.persona-pick .pp-nome{flex:1; font-weight:700;}
-.persona-pick .pp-badge{font-size:.65rem; padding:2px 8px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
+.persona-pick .pp-emoji{font-size:1rem; line-height:1;}
+.persona-pick .pp-nome{font-weight:700; font-size:.92rem;}
+.persona-pick .pp-badge{font-size:.58rem; padding:1px 6px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
 .pp-badge.pagato{background:var(--moss-bg); color:var(--moss); border:1px solid var(--moss-brd);}
 .pp-badge.attesa{background:var(--berry-bg); color:var(--berry); border:1px solid var(--berry-brd);}
 
@@ -105,6 +121,13 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
   color:var(--text); font-family:'Baloo 2',cursive; font-size:1rem; font-weight:600; padding:0 14px; outline:none;}
 .inp:focus{border-color:var(--cheese-brd);}
+/* Campi PIN: pallini senza `type="password"`.
+   Un solo campo password nella pagina basta perché il browser la tratti come pagina di
+   login e offra salvataggio e riempimento su tutti gli altri input. Il PIN sono sei cifre,
+   non una password: qui i pallini li disegna il CSS, e il campo resta un `type="text"`.
+   `text-security` senza prefisso non è ancora standard e oggi non fa nulla in nessun
+   browser: sta qui per il giorno in cui lo diventerà, la resa la dà la riga -webkit-. */
+.pin{-webkit-text-security:disc; text-security:disc; letter-spacing:.18em;}
 .btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:1rem;
   font-weight:800; cursor:pointer; transition:transform .12s;}
 .btn:active{transform:scale(.98);}
@@ -511,6 +534,21 @@ body.modal-aperto{overflow:hidden;}
 .tab-btn .ti{position:relative; display:inline-block;}
 .tab-dot{position:absolute; top:-1px; right:-4px; width:8px; height:8px; border-radius:50%;
   background:var(--cheese); border:1.5px solid var(--bg2);}
+
+/* ── BANNER SEGNALAZIONI (in cima all'admin, sopra la fisarmonica) ──
+   `--cheese` come la card ⑤ a cui porta, e non `--moss`/`--berry`: non è una buona
+   notizia né un allarme, è una cosa da sbrigare. Tutto il banner è il bersaglio, non
+   solo un link dentro: è la prima cosa che si tocca dopo aver visto il pallino sul 🔐. */
+.banner-segnalazioni{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  color:var(--cheese-txt); background:var(--cheese-bg); border:1px solid var(--cheese-brd);
+  border-radius:var(--r-lg); padding:12px 14px; margin-bottom:12px; cursor:pointer;
+  font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4;}
+.banner-segnalazioni .bs-ico{font-size:1.35rem; line-height:1; flex-shrink:0;}
+.banner-segnalazioni > span:nth-child(2){flex:1; min-width:0;}
+.banner-segnalazioni b{font-family:'Baloo 2',cursive; font-weight:800; font-size:.98rem;
+  display:block; margin-bottom:1px;}
+.bs-sub{color:var(--dim); display:block;}
+.bs-freccia{color:var(--dim); font-size:1.2rem; line-height:1; flex-shrink:0;}
 
 /* ── FISARMONICA A FASI (admin) ──
    Tredici card sempre aperte costringevano a scorrere sopra la quadratura dello scontrino

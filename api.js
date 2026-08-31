@@ -13,7 +13,9 @@ function dot(cls, txt){
 async function appStart(){
   initTheme();          // prima del primo render, altrimenti si vede il lampo di tema sbagliato
   initTile();
-  innescaVibrazione();
+  // L'innesco della vibrazione NON sta più qui: è nel <head> di index.html, perché un
+  // listener registrato in una funzione `async` non c'è ancora quando arriva il primo
+  // swipe ad app appena aperta. Vedi il commento accanto a `vibra()` in utils.js.
   dot("", "Annusando il formaggio...");
   await caricaTutto();
   initRealtime();

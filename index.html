@@ -34,6 +34,34 @@ window.addEventListener("appinstalled", function(){
   _promptInstall = null;
   if(typeof nascondiInvitoInstalla === "function") nascondiInvitoInstalla();
 });
+// L'innesco della vibrazione sta QUI per la stessa ragione di `beforeinstallprompt`:
+// `appStart()` è `async` e il primo swipe fra tab arriva mentre la rete sta ancora
+// rispondendo — cioè proprio all'apertura dell'app, che è il caso segnalato. Registrato
+// nel <head> il listener c'è già al primo tocco, prima che gli script in fondo al body
+// siano stati anche solo scaricati.
+// Due dettagli che sembrano pedanteria e non lo sono:
+//  · `vibrate(1)` e non `vibrate(0)`: uno zero è un ANNULLAMENTO, non una vibrazione, e
+//    potrebbe non contare come chiamata riuscita — cioè non attivare niente.
+//  · si ascolta anche `pointerup`/`touchend`, non solo `pointerdown`: su touchscreen il
+//    `pointerdown` NON è un evento che dà attivazione utente (lo sono `pointerup` e
+//    `touchend`), quindi un innesco `{once:true}` solo su `pointerdown` si consuma fallendo
+//    e non riprova mai.
+//
+// ⚠️ ONESTÀ SU COSA FA QUESTO BLOCCO: è una SONDA, non una cura. Il commento che stava qui
+// prima diceva che un `vibrate(0)` «attiva il documento»: è falso, e misurato — chiamare
+// `vibrate()` lascia `navigator.userActivation.hasBeenActive` a false. L'attivazione la
+// concede solo il browser dispatchando un evento di gesto. Se il primo swipe continuerà a
+// non vibrare, la causa non è qui: è che Chrome pretende un *tap* e non un gesto qualsiasi,
+// e a quel punto è una regola della piattaforma da accettare, non un difetto da inseguire.
+(function(){
+  if(!navigator.vibrate) return;   // iOS Safari: non esiste proprio, niente da innescare
+  var eventi = ["pointerdown", "pointerup", "touchend", "keydown"];
+  function innesca(){
+    eventi.forEach(function(ev){ document.removeEventListener(ev, innesca, true); });
+    try{ navigator.vibrate(1); }catch(e){}
+  }
+  eventi.forEach(function(ev){ document.addEventListener(ev, innesca, { capture: true, passive: true }); });
+})();
 if("serviceWorker" in navigator){
   window.addEventListener("load", function(){
     navigator.serviceWorker.register("./sw.js").catch(function(e){ console.log("Errore SW:", e); });
@@ -62,12 +90,21 @@ if("serviceWorker" in navigator){
     <button class="btn btn-cheese btn-mini" id="installa-btn-auth" style="display:none;"
             onclick="installaApp()">📲 Installa l'app</button>
   </div>
+  <!-- Ordine: prima si entra come nuovo, poi la lista di chi c'è già, in fondo l'admin.
+       ⚠️ È un compromesso, e va tenuto d'occhio: chi torna è la maggioranza dei casi e ora
+       scorre sopra il blocco "nuovo" ogni volta, mentre chi entra la prima volta lo fa una
+       volta sola. La contromisura è la lista a CHIP affiancati invece che a righe piene
+       (vedi #lista-persone in style.css): con otto topini ci sta comunque tutto sotto al
+       campo del nome, senza scorrere. Se un giorno i topini diventano venti e la lista
+       scende sotto la piega, è questo il punto da rimettere in discussione. -->
   <div class="auth-box">
     <div class="auth-lucchetto" id="auth-lucchetto" style="display:none;">🔒 Questo gruppo è protetto da password: te la chiedo appena scegli il tuo nome.</div>
-    <div id="lista-persone"></div>
-    <input class="inp" id="nuovo-nome" placeholder="Il tuo nome" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')confermaNuovoNome()">
+    <input class="inp" id="nuovo-nome" name="nome-topino" autocomplete="name"
+           placeholder="Il tuo nome" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')confermaNuovoNome()">
     <div class="errore" id="auth-errore"></div>
-    <button class="btn btn-cheese" onclick="confermaNuovoNome()">🐭 Entra come nuovo topolino</button>
+    <button class="btn btn-cheese" onclick="confermaNuovoNome()">🐭 Entra come nuovo topino</button>
+    <div class="auth-sezione" id="auth-lista-titolo">I topini già nel Clan</div>
+    <div id="lista-persone"></div>
     <button class="btn btn-ghost" style="margin-top:10px;" onclick="apriAdmin()">🔐 Sono l'admin</button>
   </div>
 </div>
@@ -84,7 +121,11 @@ if("serviceWorker" in navigator){
       <span class="sync-dot" id="dot"></span>
       <button class="btn-ico" id="btn-tema" onclick="toggleTema()" title="Cambia tema">☀️</button>
       <button class="btn-ico" id="btn-tile" onclick="toggleTile()" title="Sfondo a formaggio">🧀</button>
-      <button class="btn-ico" onclick="apriAdmin()" title="Area admin">🔐</button>
+      <!-- Il pallino con le segnalazioni in attesa sta QUI e non solo dentro l'admin:
+           l'admin nel 90% del tempo sta nell'app normale come tutti, e un avviso che si
+           vede solo da chi è già entrato non avvisa nessuno. Acceso solo se `is_admin`. -->
+      <button class="btn-ico" id="btn-admin" onclick="apriAdmin()" title="Area admin">🔐<span
+              class="ico-badge" id="admin-badge" style="display:none;"></span></button>
     </div>
   </div>
 
@@ -168,8 +209,9 @@ if("serviceWorker" in navigator){
     <p class="modal-sub" id="mi-sub">Se hai toccato il nome sbagliato, annulla e riprova.</p>
     <div class="m-row" id="mi-pwd-row" style="display:none;">
       <label>Password del gruppo</label>
-      <input class="inp" id="mi-pwd" type="password" autocapitalize="none" autocorrect="off"
-             spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter')confermaIngresso()">
+      <input class="inp" id="mi-pwd" name="clan-password" type="password" autocapitalize="none"
+             autocorrect="off" spellcheck="false" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')confermaIngresso()">
     </div>
     <div class="errore" id="mi-errore"></div>
     <div class="m-btns">
@@ -243,8 +285,8 @@ if("serviceWorker" in navigator){
     <p class="modal-sub" id="eg-sub">—</p>
     <div class="m-row">
       <label>Per confermare, riscrivi il titolo del gruppo</label>
-      <input class="inp" id="eg-titolo" autocapitalize="none" autocorrect="off" spellcheck="false"
-             autocomplete="off" oninput="verificaTitoloElimina()"
+      <input class="inp" id="eg-titolo" name="conferma-titolo" autocapitalize="none" autocorrect="off"
+             spellcheck="false" autocomplete="off" oninput="verificaTitoloElimina()"
              onkeydown="if(event.key==='Enter')confermaEliminaGruppo()">
     </div>
     <div class="errore" id="eg-errore"></div>
@@ -255,16 +297,25 @@ if("serviceWorker" in navigator){
   </div>
 </div>
 
-<!-- MODALE CAMBIO PIN ADMIN -->
+<!-- MODALE CAMBIO PIN ADMIN
+     I tre campi NON sono `type="password"`: sono sei cifre. Basta un solo campo password
+     nella pagina perché il browser la classifichi come pagina di login e offra salvataggio
+     e riempimento automatico su TUTTI gli altri input — il nome del topino, il titolo del
+     gruppo, l'IBAN. Qui i pallini li disegna `.pin` in CSS (`-webkit-text-security`), così
+     si vedono esattamente come prima ma il campo resta fuori dal radar del gestore.
+     L'unico `type="password"` rimasto è `#mi-pwd`, dove il salvataggio serve davvero. -->
 <div class="modal-overlay" id="modal-pin" onclick="if(event.target===this&&topModal()==='modal-pin')chiudiCambioPin()">
   <div class="modal">
     <h2>🔐 Cambia il PIN admin</h2>
     <div class="m-row"><label>PIN attuale</label>
-      <input class="inp" id="cp-vecchio" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      <input class="inp pin" id="cp-vecchio" name="pin-attuale" type="text" inputmode="numeric"
+             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
     <div class="m-row"><label>Nuovo PIN (6 cifre)</label>
-      <input class="inp" id="cp-nuovo" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      <input class="inp pin" id="cp-nuovo" name="pin-nuovo" type="text" inputmode="numeric"
+             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
     <div class="m-row"><label>Ripeti il nuovo PIN</label>
-      <input class="inp" id="cp-conferma" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      <input class="inp pin" id="cp-conferma" name="pin-ripeti" type="text" inputmode="numeric"
+             maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"></div>
     <div class="errore" id="cp-errore"></div>
     <div class="m-btns">
       <button class="btn btn-ghost" onclick="chiudiCambioPin()">Annulla</button>
@@ -277,9 +328,10 @@ if("serviceWorker" in navigator){
 <div class="modal-overlay" id="modal-nuovo-gruppo" onclick="if(event.target===this&&topModal()==='modal-nuovo-gruppo')chiudiNuovoGruppo()">
   <div class="modal">
     <h2>🧀 Nuovo gruppo d'acquisto</h2>
-    <div class="m-row"><label>Titolo (es. Ottobre 2026)</label><input class="inp" id="ng-titolo"></div>
+    <div class="m-row"><label>Titolo (es. Ottobre 2026)</label><input class="inp" id="ng-titolo" name="titolo-gruppo" autocomplete="off"></div>
     <div class="m-row"><label>Password d'accesso (lasciala vuota per non metterla)</label>
-      <input class="inp" id="ng-password" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="es. topogrigio26"></div>
+      <input class="inp" id="ng-password" name="chiave-gruppo" autocapitalize="none" autocorrect="off"
+             spellcheck="false" autocomplete="off" placeholder="es. topogrigio26"></div>
     <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);">Parte con i 4 tipi standard (12/24/36/48 mesi) a prezzo di default — li modifichi subito dopo dall'admin. La password va girata sul gruppo WhatsApp: serve una volta sola per dispositivo.</p>
     <div class="errore" id="ng-errore"></div>
     <div class="m-btns">
