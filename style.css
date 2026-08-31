@@ -121,12 +121,12 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
   color:var(--text); font-family:'Baloo 2',cursive; font-size:1rem; font-weight:600; padding:0 14px; outline:none;}
 .inp:focus{border-color:var(--cheese-brd);}
-/* Codice usa e getta dell'accesso admin: sei cifre, centrate e spaziate, perché si
-   legge mentre lo si ricopia dalla mail. Nato il 01/09/2026 al posto della regola `.pin`,
-   che aveva nascosto le cifre del PIN — vissuta e morta nel giro di due giorni, ma era
-   giusta quando è stata scritta. Qui il codice NON si maschera: è usa e getta, nasconderlo
-   servirebbe solo a farlo sbagliare. */
-.codice{text-align:center; letter-spacing:.35em; font-size:1.25rem; font-weight:800;}
+/* L'accesso admin usa un `type="password"` vero, quindi qui non serve nessuna regola:
+   i pallini li disegna il browser e il gestore delle password può salvarla. Era il
+   contrario col PIN — sei cifre non sono una password, e la regola `.pin` li mascherava
+   in CSS apposta per tenere il campo fuori dal radar del gestore. Quella regola è morta
+   col PIN, e la `.codice` che l'aveva sostituita è morta col codice via email: due giorni
+   in tutto, ed erano giuste tutte e due quando sono state scritte. */
 .btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:1rem;
   font-weight:800; cursor:pointer; transition:transform .12s;}
 .btn:active{transform:scale(.98);}

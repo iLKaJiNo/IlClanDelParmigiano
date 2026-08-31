@@ -13,120 +13,110 @@ function chiudiAdmin(){
   mostraSchermataGiusta();
 }
 
-// ── ACCESSO ADMIN: EMAIL + CODICE USA E GETTA ──
+// ── ACCESSO ADMIN: EMAIL + PASSWORD ──
 // Ha preso il posto del PIN, che non è diventato un secondo lucchetto: è stato smontato.
 // Il PIN stava su UN dispositivo e chi lo sapeva lo sapeva per sempre; l'email autorizza
 // una PERSONA, la segue su telefono e computer, e si toglie da un elenco.
-// Due passi e due schermate: prima l'indirizzo, poi il codice che arriva per posta.
-// `_emailAccesso` sopravvive fra i due perché `verifyOtp` vuole di nuovo l'email, e
-// ridigitarla sarebbe l'unico modo per sbagliarla dopo averla già scritta giusta.
+// Una schermata sola, perché non c'è più niente da aspettare: la variante col codice via
+// email è stata abbandonata quando si è visto che senza un SMTP proprio Supabase quel
+// codice lo manda solo al proprietario del progetto (vedi `accediConPassword` in api.js).
+// `_emailAccesso` sopravvive a un tentativo fallito perché ridigitare l'indirizzo è
+// l'unico modo per sbagliarlo dopo averlo già scritto giusto.
 var _emailAccesso = "";
-var _codiceInviato = false;
 
 function renderAccessoAdmin(){
   var el = document.getElementById("admin-content");
-  el.innerHTML = _codiceInviato ? htmlPassoCodice() : htmlPassoEmail();
-  var campo = document.getElementById(_codiceInviato ? "acc-codice" : "acc-email");
-  if(campo) campo.focus();
-}
-function htmlPassoEmail(){
-  return '<div class="card">'
+  el.innerHTML = '<div class="card">'
     + '<div style="text-align:center;font-size:3rem;">\uD83E\uDDC0</div>'
     + '<div class="card-titolo" style="text-align:center;">Area amministrazione</div>'
-    + '<div class="hint">Scrivi la tua email: ti mando un codice di sei cifre. '
-    +   'Se il tuo indirizzo non è fra quelli autorizzati non entri, e va bene così.</div>'
-    + '<div class="m-row"><label>La tua email</label>'
+    + '<div class="hint">Email e password di amministratore. Non è una cosa che puoi darti '
+    +   'da solo: te le crea chi amministra già.</div>'
+    + '<div class="m-row"><label>Email</label>'
     +   '<input class="inp" id="acc-email" name="email-admin" type="email" inputmode="email"'
-    +   ' autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false"'
+    +   ' autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"'
     +   ' value="' + escapeHtml(_emailAccesso) + '"'
-    +   ' onkeydown="if(event.key===\'Enter\')chiediCodiceAdmin()"></div>'
+    +   ' onkeydown="if(event.key===\'Enter\')document.getElementById(\'acc-password\').focus()"></div>'
+    + '<div class="m-row"><label>Password</label>'
+    +   '<input class="inp" id="acc-password" name="password-admin" type="password"'
+    +   ' autocomplete="current-password"'
+    +   ' onkeydown="if(event.key===\'Enter\')entraDaAdmin()"></div>'
     + '<div class="errore" id="acc-errore"></div>'
-    + '<button class="btn btn-cheese" id="acc-invia" onclick="chiediCodiceAdmin()">\uD83D\uDCEC Mandami il codice</button>'
+    + '<button class="btn btn-cheese" id="acc-entra" onclick="entraDaAdmin()">\uD83D\uDD10 Entra</button>'
     + '<button class="btn btn-ghost" style="margin-top:8px;" onclick="chiudiAdmin()">\u2190 Torna indietro</button>'
     + '</div>';
+  var campo = document.getElementById(_emailAccesso ? "acc-password" : "acc-email");
+  if(campo) campo.focus();
 }
-function htmlPassoCodice(){
-  return '<div class="card">'
-    + '<div style="text-align:center;font-size:3rem;">\uD83D\uDCEC</div>'
-    + '<div class="card-titolo" style="text-align:center;">Controlla la posta</div>'
-    + '<div class="hint">Ho mandato un codice a <b>' + escapeHtml(_emailAccesso) + '</b>. '
-    +   'Se non lo trovi, guarda nello spam: la posta di Supabase ci finisce spesso.</div>'
-    + '<div class="m-row"><label>Codice di sei cifre</label>'
-    +   '<input class="inp codice" id="acc-codice" name="codice-accesso" type="text"'
-    +   ' inputmode="numeric" maxlength="6" pattern="[0-9]*" autocomplete="one-time-code"'
-    +   ' onkeydown="if(event.key===\'Enter\')entraConCodice()"></div>'
-    + '<div class="errore" id="acc-errore"></div>'
-    + '<button class="btn btn-cheese" id="acc-entra" onclick="entraConCodice()">\uD83E\uDDC0 Entra</button>'
-    + '<button class="btn btn-ghost" style="margin-top:8px;" onclick="tornaAllEmail()">\u2190 Cambia indirizzo</button>'
-    + '</div>';
-}
-function tornaAllEmail(){ _codiceInviato = false; renderAccessoAdmin(); }
 
-async function chiediCodiceAdmin(){
+// La password giusta apre la PORTA, non la stanza: l'utente Supabase e l'autorizzazione ad
+// amministrare sono due cose distinte, e la seconda vive in `admin_autorizzati`. Chi entra
+// senza esserci dentro viene fatto uscire subito — ma DOPO avergli detto perché, altrimenti
+// un accesso riuscito che rimbalza in silenzio si legge come "l'app è rotta" e non come
+// "non sei autorizzato". È il caso che capiterà davvero la prima volta che qualcuno prova
+// prima di essere stato aggiunto.
+async function entraDaAdmin(){
   var err = document.getElementById("acc-errore");
   var email = normalizzaEmail(document.getElementById("acc-email").value);
+  var password = document.getElementById("acc-password").value;
   if(!emailValida(email)){ err.textContent = "Questo non sembra un indirizzo email."; return; }
-  var btn = document.getElementById("acc-invia");
-  err.textContent = "";
-  if(btn){ btn.disabled = true; btn.textContent = "Mando il codice\u2026"; }
-  try{
-    await inviaCodiceAccesso(email);
-    _emailAccesso = email;
-    _codiceInviato = true;
-    renderAccessoAdmin();
-  }catch(e){
-    if(btn){ btn.disabled = false; btn.textContent = "\uD83D\uDCEC Mandami il codice"; }
-    err.textContent = messaggioAuth(e);
-  }
-}
-
-// Il codice giusto apre la PORTA, non la stanza: `signInWithOtp` autentica chiunque abbia
-// una casella, quindi subito dopo si chiede al database se quell'email è fra gli admin.
-// Se non lo è si esce di nuovo, perché lasciare in giro una sessione autenticata che non
-// serve a niente è solo un modo per confondersi fra sei mesi.
-async function entraConCodice(){
-  var err = document.getElementById("acc-errore");
-  var codice = document.getElementById("acc-codice").value.replace(/\D/g, "");
-  if(codice.length !== 6){ err.textContent = "Il codice è di sei cifre."; return; }
+  if(!password){ err.textContent = "Manca la password."; return; }
   var btn = document.getElementById("acc-entra");
   err.textContent = "";
   if(btn){ btn.disabled = true; btn.textContent = "Verifico\u2026"; }
   try{
-    await verificaCodiceAccesso(_emailAccesso, codice);
+    await accediConPassword(email, password);
   }catch(e){
-    if(btn){ btn.disabled = false; btn.textContent = "\uD83E\uDDC0 Entra"; }
+    if(btn){ btn.disabled = false; btn.textContent = "\uD83D\uDD10 Entra"; }
+    _emailAccesso = email;
     err.textContent = messaggioAuth(e);
     return;
   }
   await aggiornaEAdmin();
   if(!eAdmin){
-    var rifiutata = _emailAccesso;
     await esciDaAdmin();
-    _codiceInviato = false;
+    _emailAccesso = email;
     renderAccessoAdmin();
     document.getElementById("acc-errore").textContent =
-      "L'accesso è riuscito, ma " + rifiutata + " non è fra gli amministratori. "
-      + "Fatti autorizzare da chi lo è già.";
+      "Questa email non è fra quelle autorizzate. Chiedi a un admin di aggiungerla.";
     return;
   }
-  _codiceInviato = false;
+  _emailAccesso = "";
   await caricaTutto();
   renderAdmin();
   dot("ok", "Sei dentro \uD83D\uDD10");
   proponiFlagAdmin();
 }
 
-// I messaggi di Supabase Auth arrivano in inglese e parlano di token e di rate limit. Le
-// due cose che capitano davvero sono il limite d'invio e il codice sbagliato: quelle valgono
-// una frase in italiano. Il resto passa com'è invece di essere mascherato da un generico,
-// che è il modo migliore per non capire più niente al primo caso non previsto.
+// UN messaggio solo per "email sconosciuta" e "password sbagliata": sono la stessa
+// credenziale vista da due lati, e distinguerle direbbe a chi prova quali indirizzi
+// esistono. Supabase le restituisce già indistinguibili, e questa riga lo mantiene.
+//
+// "Email non confermata" resta invece DISTINTO, e si può perché è stato MISURATO — non
+// dedotto. Prova del 01/09/2026 su un utente non confermato creato apposta e poi
+// eliminato, chiamando `/auth/v1/token?grant_type=password`:
+//
+//   password sbagliata  -> invalid_credentials   (identico a un'email inesistente)
+//   password giusta     -> email_not_confirmed
+//
+// Cioè quel messaggio lo vede SOLO chi ha già dimostrato di conoscere la password: non
+// rivela niente che chi lo legge non sappia già, e non serve a enumerare gli indirizzi.
+// La regola che ne esce, buona oltre questo caso: un messaggio d'errore può essere
+// distinto quando compare solo a chi ha già superato la verifica; se compare prima,
+// distingue per chi non ha diritto di sapere.
+//
+// E vale la pena tenerlo, perché è esattamente ciò che succede dimenticando l'`auto
+// confirm` in dashboard: senza una frase che lo dica si passa un'ora a ridigitare una
+// password che era giusta dall'inizio.
 function messaggioAuth(e){
   var m = (e && e.message) ? String(e.message) : "Errore sconosciuto";
+  if(/not confirmed/i.test(m))
+    return "L'utente esiste ma la sua email non è confermata. In dashboard Supabase, "
+         + "Authentication \u2192 Users: confermala, oppure ricrea l'utente con "
+         + "\u201cauto confirm\u201d acceso.";
+  if(/invalid login|invalid credentials|bad_credentials/i.test(m))
+    return "Email o password non corrette.";
   if(/rate|too many|seconds/i.test(m))
-    return "Troppe richieste ravvicinate: Supabase limita le email in uscita. "
-         + "Aspetta un minuto e riprova.";
-  if(/invalid|expired|token|otp/i.test(m))
-    return "Codice sbagliato o scaduto. Fattene mandare un altro.";
+    return "Troppi tentativi ravvicinati. Aspetta un minuto e riprova.";
   return m;
 }
 
@@ -137,7 +127,6 @@ async function esciAdmin(){
   if(!confirm("Esco dall'amministrazione su questo dispositivo?\n\n"
       + "Per rientrare ti servirà un nuovo codice via email.")) return;
   await esciDaAdmin();
-  _codiceInviato = false;
   _emailAccesso = "";
   chiudiAdmin();
 }
@@ -534,9 +523,12 @@ function cardArchiviaHtml(){
 function cardAmministratoriHtml(){
   var mia = authUser ? normalizzaEmail(authUser.email) : "";
   var h = '<div class="card"><div class="card-titolo">Amministratori</div>'
-    + '<div class="hint">Chi è in questo elenco amministra da qualunque dispositivo, '
-    +   'entrando con la propria email. Chi non c\'è resta un topino come gli altri, '
-    +   'anche se ha fatto l\'accesso.</div>';
+    + '<div class="hint">Chi è in questo elenco amministra da qualunque dispositivo. '
+    +   'Chi non c\'è resta un topino come gli altri, <b>anche se ha fatto l\'accesso</b>.'
+    +   '<br><br>Aggiungerne uno sono <b>due gesti</b>, e il secondo da solo non basta:'
+    +   '<br>1. in <b>dashboard Supabase → Authentication → Users → Add user</b>, con email, '
+    +   'password e <i>auto confirm</i> acceso;'
+    +   '<br>2. la stessa email qui sotto.</div>';
   h += adminAutorizzati.map(function(a, i){
     var sonoIo = normalizzaEmail(a.email) === mia;
     return '<div class="admin-row"><span class="ar-nome">'
@@ -556,8 +548,9 @@ function cardAmministratoriHtml(){
     +   ' autocomplete="off" placeholder="nome, per riconoscerla nell\'elenco"></div>'
     + '<div class="errore" id="aa-errore"></div>'
     + '<button class="btn btn-cheese btn-mini" onclick="autorizzaNuovoAdmin()">➕ Autorizza</button>'
-    + '<div class="hint" style="margin-bottom:0;">Non serve che abbia già un account: '
-    +   'al primo accesso se lo crea da sola con il codice che le arriva per posta.</div>'
+    + '<div class="hint" style="margin-bottom:0;">Scriverla qui senza aver fatto il primo '
+    +   'gesto non serve a niente: senza utente in dashboard non esiste nessuna password '
+    +   'con cui entrare.</div>'
     + '</div>';
   return h;
 }
@@ -594,7 +587,7 @@ async function confermaRevocaAdmin(i){
   try{
     await revocaAdmin(a.email);
     await aggiornaEAdmin();
-    if(!eAdmin){ _codiceInviato = false; renderAccessoAdmin(); return; }
+    if(!eAdmin){ _emailAccesso = ""; renderAccessoAdmin(); return; }
     await caricaTutto();
     renderAdmin();
     dot("ok", "Autorizzazione tolta");

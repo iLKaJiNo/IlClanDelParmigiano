@@ -22,8 +22,8 @@ stagionature disponibili (12, 24, 36, 48 mesi). L'app è divisa in quattro sched
 | 📝 **Bacheca** | Note libere del gruppo e comunicazioni del negoziante |
 | 💳 **Pagamenti** | Quanto devi davvero, come pagare (IBAN, PayPal, Satispay) e segnalazione del pagamento |
 
-Chi organizza ha in più un'area di **amministrazione**, in cui si entra con la propria email e un
-codice usa e getta, per aprire e chiudere il
+Chi organizza ha in più un'area di **amministrazione**, in cui si entra con email e password, per
+aprire e chiudere il
 ciclo d'ordine, fissare i prezzi al chilo, ripartire la spedizione, segnalare l'arrivo del pacco,
 inserire i pesi e i prezzi **reali** pezzo per pezzo (le forme non escono mai esatte) e spuntare
 chi ha pagato.
@@ -104,6 +104,24 @@ guardando la versione di prima. È esattamente il modo in cui si finisce a diagn
 sbagliato.
 
 I dati sono quelli reali su Supabase, quindi occhio a cosa tocchi mentre provi.
+
+## Pubblicare
+
+L'hosting è GitHub Pages e non c'è nessun passaggio di build: si caricano i file.
+
+**Prima di pubblicare, alza `CACHE_NAME` in `sw.js`** (`clan-parmigiano-v9` → `v10`, e così via).
+È la riga che dice al service worker che quello che ha in cache è vecchio. Senza, chi ha l'app
+installata in home continua a vedere la versione di prima, e non per qualche minuto.
+
+**Dopo aver pubblicato, apri l'app due volte prima di concludere qualcosa.** Non è scaramanzia:
+il service worker serve dalla cache e aggiorna in sottofondo (`return r || n` in `sw.js`). Alla
+prima apertura la pagina è già stata servita dalla cache vecchia mentre il worker nuovo si
+installava dietro; alla seconda il worker nuovo è al suo posto e i file sono quelli appena
+pubblicati.
+
+Non è un difetto da riparare — è il compromesso che fa funzionare l'app senza rete — ma è una
+**procedura da sapere, non un sintomo da scoprire**: se dopo un deploy vedi ancora la schermata di
+ieri, quasi sempre è questo e non la cosa che hai appena cambiato.
 
 ## Icone
 

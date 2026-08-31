@@ -90,12 +90,12 @@ function mostraSchermataGiusta(){
   }
 }
 
-// ── AUTENTICAZIONE ADMIN: email + codice usa e getta ──
+// ── AUTENTICAZIONE ADMIN: email + password ──
 // Nessun `signInAnonymously`: ci si appoggia ai due ruoli che Supabase già distingue —
 // `anon` per i topini, `authenticated` per chi ha fatto l'accesso. Un pezzo in meno da
 // costruire e da mantenere.
-// `signInWithOtp` CREA l'utente se non esiste, e va bene: essere autenticati non significa
-// essere admin. L'autorità è la tabella `admin_autorizzati`, non l'aver ricevuto un'email.
+// Essere autenticati NON significa essere admin: l'autorità è la tabella
+// `admin_autorizzati`, e la si interroga con `e_admin()` subito dopo ogni accesso.
 async function initAuth(){
   try{
     var s = await sb.auth.getSession();
@@ -103,11 +103,17 @@ async function initAuth(){
   }catch(e){ authUser = null; }
   await aggiornaEAdmin();
   // Autenticato ma NON autorizzato: una sessione così non serve a niente e fa danno.
-  // Le policy trattano `authenticated` come "o sei admin, o non scrivi" — perché
-  // autenticarsi non costa nulla, `signInWithOtp` crea l'utente a chiunque abbia una
-  // casella. Quindi restare firmati senza essere admin toglierebbe al topino perfino
-  // il proprio ordine, e con un messaggio d'errore che non spiegherebbe niente.
-  // Si esce e si torna `anon`, che è il ruolo giusto per lui.
+  // Le policy trattano `authenticated` come "o sei admin, o non scrivi", ed è la sola
+  // cosa che impedisce a un utente creato per errore in dashboard di scrivere ovunque —
+  // il ruolo `authenticated` porta con sé i grant pieni che Supabase concede per default.
+  // Quindi restare firmati senza essere admin toglierebbe al topino perfino il proprio
+  // ordine, con un errore che non spiegherebbe niente. Si esce e si torna `anon`.
+  //
+  // Qui il `signOut()` è MUTO di proposito, ed è l'unico posto in cui lo è: si tratta di
+  // una sessione ripescata da `localStorage` all'avvio, di solito perché a qualcuno è
+  // stata revocata l'autorizzazione. Non c'è nessuna schermata su cui scrivere e nessun
+  // gesto a cui rispondere; l'avviso arriverebbe come un pop-up dal nulla. Chi prova ad
+  // ENTRARE, invece, il perché lo legge — vedi `entraDaAdmin()` in admin.js.
   if(authUser && !eAdmin) await esciDaAdmin();
 }
 // Il permesso non si deduce dal client: si CHIEDE al database, che è l'unico posto in cui
@@ -126,12 +132,18 @@ async function caricaAdminAutorizzati(){
   var r = await sb.from("admin_autorizzati").select("*").order("creato_il", { ascending: true });
   adminAutorizzati = r.error ? [] : (r.data || []);
 }
-async function inviaCodiceAccesso(email){
-  var r = await sb.auth.signInWithOtp({ email: email });
-  if(r.error) throw r.error;
-}
-async function verificaCodiceAccesso(email, codice){
-  var r = await sb.auth.verifyOtp({ email: email, token: codice, type: "email" });
+// PASSWORD e non codice via email, e non è un ripiego. Senza un SMTP proprio Supabase manda
+// le email di autenticazione SOLO agli indirizzi dei membri dell'organizzazione del progetto,
+// due all'ora: il proprietario riceverebbe il codice e chiunque altro no. Il difetto sarebbe
+// comparso al primo accesso di una persona diversa da chi ha creato il progetto — cioè
+// esattamente quando serve, e nel momento peggiore per accorgersene.
+// Gli utenti si creano a mano in dashboard (Authentication → Users → Add user, con
+// `auto confirm` acceso): sono due, e si fa una volta sola.
+// Tutto il resto non cambia di una riga — `admin_autorizzati`, `e_admin()`, le policy, i
+// grant di colonna: `e_admin()` legge `auth.jwt() ->> 'email'`, che in una sessione da
+// password c'è identico a com'era in una da codice.
+async function accediConPassword(email, password){
+  var r = await sb.auth.signInWithPassword({ email: email, password: password });
   if(r.error) throw r.error;
   authUser = (r.data && r.data.user) || null;
   return authUser;
