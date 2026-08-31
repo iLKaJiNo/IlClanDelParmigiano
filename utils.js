@@ -30,37 +30,23 @@ var TILE_KEY  = "clan_parm_tile";
 
 // Chrome ignora `navigator.vibrate()` finché l'utente non ha interagito col documento
 // (*sticky user activation*); su iOS Safari `navigator.vibrate` non esiste proprio.
-// Non è un difetto dell'app: è una regola della piattaforma. Due conseguenze operative:
-//  1. l'innesco vive nel <head> di index.html, non qui — ma è una SONDA, non una cura:
-//     chiamare `vibrate()` NON produce attivazione (misurato: `hasBeenActive` resta false).
-//     La concede solo il browser, dispatchando un evento di gesto;
-//  2. `vibra()` va chiamata come PRIMA istruzione di un handler, mai dopo un `await`:
+// Non è un difetto dell'app: è una regola della piattaforma. Tre cose misurate, non
+// dedotte — la frase che stava qui prima («un `vibrate(0)` attiva il documento») era
+// falsa, ed è costata tre sessioni di giri a vuoto:
+//  1. l'attivazione la concede SOLO il browser, dispatchando un evento di gesto.
+//     Chiamare `vibrate()` non ne concede: dopo `navigator.vibrate(1)`,
+//     `navigator.userActivation.hasBeenActive` resta `false`. Un'API gated non si
+//     scalda chiamandola — l'innesco nel <head> di index.html è una sonda, non una cura;
+//  2. non tutti gli eventi di un gesto danno attivazione. La danno `keydown`,
+//     `mousedown`, `mouseup`, `click`, `pointerup` e `touchend`; `pointerdown` solo se
+//     `pointerType` è `"mouse"`. Su un telefono l'inizio del gesto non conta, ed è per
+//     questo che l'innesco ascolta anche `pointerup`/`touchend`;
+//  3. `vibra()` va chiamata come PRIMA istruzione di un handler, mai dopo un `await`:
 //     l'attivazione utente scade, e dopo l'await il browser non la riconosce più.
-//
-// ⚠️ COLLAUDO TEMPORANEO (§7.2 handoff 01/09) — DA TOGLIERE una volta letto il valore.
-// `navigator.vibrate()` restituisce un booleano, ed è l'unico modo per sapere in quale
-// dei due mondi siamo invece di continuare a indovinare:
-//  · ritorna `false` → il browser sta rifiutando: manca l'attivazione utente. Attenzione,
-//    NON vuol dire che manchi un innesco migliore — vuol dire che Chrome non considera
-//    lo swipe un gesto sufficiente (il suo messaggio parla di *tap*). Da accettare;
-//  · ritorna `true` ma il telefono non vibra → la chiamata passa e l'hardware non
-//    risponde: è il sistema operativo, non noi. Si accetta e si documenta.
-// Il `console.log` su un telefono si legge solo col cavo: aprendo l'app con `?vibra`
-// nell'URL il valore arriva anche in un alert, che si legge senza attrezzatura.
-var _vibraLoggata = false;
+// Collaudo su telefono del 01/09/2026: con queste tre regole rispettate il primo swipe
+// di una sessione vibra. Lo swipe È un gesto sufficiente per Chrome.
 function vibra(ms){
-  try{
-    if(!navigator.vibrate) return;
-    var ok = navigator.vibrate(ms);
-    if(!_vibraLoggata){
-      _vibraLoggata = true;
-      window._vibraRitorno = ok;
-      console.log("[vibra] prima chiamata dopo l'apertura:", ms, "ms → ritorno:", ok);
-      if(location.search.indexOf("vibra") >= 0){
-        setTimeout(function(){ alert("navigator.vibrate(" + ms + ") ha restituito: " + ok); }, 0);
-      }
-    }
-  }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){}
 }
 
 function applyTheme(chiaro){

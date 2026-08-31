@@ -20,10 +20,15 @@ function renderAuth(){
   if(!persone.length){
     el.innerHTML = '<div class="empty">Nessuno si è ancora registrato.<br>Sii il primo topino! \uD83D\uDC2D</div>';
   } else {
+    // Solo nome e topino: NIENTE stato del pagamento. Due ragioni, la prima da sola
+    // basterebbe. (1) Questa schermata si vede una volta sola per dispositivo, quindi
+    // un'informazione messa qui non raggiunge quasi nessuno. (2) Sta PRIMA della
+    // password di gruppo: chiunque abbia il link — anche chi nel clan non c'è — vedrebbe
+    // chi ha pagato e chi no. Non è il caso del PDF, che circola già fra membri.
+    // Lo stato resta dov'era: tab Tabella e area admin.
     el.innerHTML = persone.map(function(p){
-      var badge = p.pagato ? '<span class="pp-badge pagato">pagato</span>' : '<span class="pp-badge attesa">in attesa</span>';
       return '<div class="persona-pick" onclick="sceglioPersona(\'' + p.id + '\')">'
-        + '<span class="pp-emoji">\uD83D\uDC2D</span><span class="pp-nome">' + escapeHtml(p.nome) + '</span>' + badge + '</div>';
+        + '<span class="pp-emoji">\uD83D\uDC2D</span><span class="pp-nome">' + escapeHtml(p.nome) + '</span></div>';
     }).join("");
   }
   var lucchetto = document.getElementById("auth-lucchetto");

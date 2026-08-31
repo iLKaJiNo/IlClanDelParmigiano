@@ -113,9 +113,9 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .persona-pick:hover{border-color:var(--cheese-brd);}
 .persona-pick .pp-emoji{font-size:1rem; line-height:1;}
 .persona-pick .pp-nome{font-weight:700; font-size:.92rem;}
-.persona-pick .pp-badge{font-size:.58rem; padding:1px 6px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
-.pp-badge.pagato{background:var(--moss-bg); color:var(--moss); border:1px solid var(--moss-brd);}
-.pp-badge.attesa{background:var(--berry-bg); color:var(--berry); border:1px solid var(--berry-brd);}
+/* Le pillole `pagato` / `in attesa` stavano qui dentro: tolte il 01/09/2026 con la loro
+   regola CSS. Questa schermata sta prima della password di gruppo — vedi il commento in
+   `renderAuth()`. Lo stato dei pagamenti vive in tab Tabella e nell'area admin. */
 
 /* ── INPUT / BOTTONI ── */
 .inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
@@ -488,9 +488,23 @@ table.tb tr:last-child td{border-bottom:none;}
 
 /* ── INVITO ALL'INSTALLAZIONE ──
    Discreto e chiudibile: un banner che ricompare a ogni apertura, dalla seconda volta
-   in poi viene chiuso senza leggerlo. La × ricorda la scelta in localStorage. */
+   in poi viene chiuso senza leggerlo. La × ricorda la scelta in localStorage.
+
+   Il box è un blocco a sé — un invito, non un elemento dell'elenco — e la spaziatura
+   deve dirlo. Il margine inferiore vive solo sulla schermata d'accesso, ed è l'unico
+   dei due contesti a chiederlo:
+    · #installa-box-auth: sotto c'è subito il campo del nome, che a margine zero sembra
+      la riga successiva di una lista. 32px = il doppio della distanza fra due card
+      (`gap:16px` di `.body`/`.tab-page`), così la separazione si legge come cambio di
+      sezione; sopra ce ne sono 34 (22 di `.auth-sub` + 12 qui), quindi il blocco resta
+      centrato fra le due sezioni invece di appoggiarsi a quella sotto;
+    · #installa-box (coda della tab Ordina): è l'ULTIMO elemento della tab, la distanza
+      dalla card Spedizione la dà già il `gap:16px`, e sotto ci sono i 90px di
+      `padding-bottom` del `.body` che tengono libera la barra delle tab. Un margine
+      inferiore qui sarebbe solo vuoto in più prima della barra. */
 .installa-box{position:relative; background:var(--card2); border:1px dashed var(--cheese-brd);
   border-radius:var(--r-md); padding:14px; margin-top:12px;}
+#installa-box-auth{margin-bottom:32px;}
 .installa-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem;
   line-height:1.5; color:var(--dim); padding-right:26px;}
 .installa-testo b{color:var(--cheese-txt);}

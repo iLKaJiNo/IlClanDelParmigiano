@@ -50,9 +50,11 @@ window.addEventListener("appinstalled", function(){
 // ⚠️ ONESTÀ SU COSA FA QUESTO BLOCCO: è una SONDA, non una cura. Il commento che stava qui
 // prima diceva che un `vibrate(0)` «attiva il documento»: è falso, e misurato — chiamare
 // `vibrate()` lascia `navigator.userActivation.hasBeenActive` a false. L'attivazione la
-// concede solo il browser dispatchando un evento di gesto. Se il primo swipe continuerà a
-// non vibrare, la causa non è qui: è che Chrome pretende un *tap* e non un gesto qualsiasi,
-// e a quel punto è una regola della piattaforma da accettare, non un difetto da inseguire.
+// concede solo il browser dispatchando un evento di gesto: quel che questo blocco fa
+// davvero è esserci PRIMA del primo gesto, così l'attivazione non arriva a documento
+// muto. Collaudo su telefono del 01/09/2026: con questo innesco registrato nel <head> il
+// primo swipe di una sessione vibra. L'ipotesi che Chrome pretendesse un *tap* e non un
+// gesto qualsiasi era sbagliata: lo swipe basta.
 (function(){
   if(!navigator.vibrate) return;   // iOS Safari: non esiste proprio, niente da innescare
   var eventi = ["pointerdown", "pointerup", "touchend", "keydown"];

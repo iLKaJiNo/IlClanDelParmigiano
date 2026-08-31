@@ -220,7 +220,7 @@ function renderAdmin(){
     + '<button class="btn-pill" onclick="bloccaAdmin()">🔒 Blocca</button></div>';
 
   html += bannerSegnalazioniHtml();
-  html += fasiTestaHtml(corrente, aperta);
+  html += fasiTestaHtml(corrente);
 
   html += FASI.map(function(f){
     var cls = "fase" + (f.n === aperta ? " aperta" : "") + (f.n === corrente ? " corrente" : "");
@@ -259,7 +259,7 @@ function bannerSegnalazioniHtml(){
 
 // La riga che dice cosa tocca adesso. È la cosa che si guarda ogni volta che si apre
 // l'admin: la striscia dice a che punto è il giro, la frase dice cosa fare oggi.
-function fasiTestaHtml(corrente, aperta){
+function fasiTestaHtml(corrente){
   var h = '<div class="fasi-testa"><div class="fasi-striscia">';
   FASI.forEach(function(f, i){
     if(i) h += '<span class="fs-linea"></span>';
@@ -269,17 +269,14 @@ function fasiTestaHtml(corrente, aperta){
   });
   h += '</div>';
 
+  // Solo l'azione normale della fase corrente. La riga sulle segnalazioni in attesa
+  // stava qui, ed è stata tolta quando è arrivato il banner qui sopra: due copie della
+  // stessa frase a un centimetro non sono un avviso più forte, sono un avviso che si
+  // legge una volta e la seconda si salta. Quel che resta sono due informazioni
+  // DIVERSE impilate — il banner dice cosa è arrivato, questa riga cosa fare oggi —
+  // e per questo la riga non deve mai restare vuota: `f.tocca` c'è per ogni fase.
   var f = FASI[corrente - 1];
   h += '<div class="fasi-tocca"><b>Tocca a te</b>' + escapeHtml(f.tocca);
-
-  // Una segnalazione di pagamento è urgente in qualunque fase, e sepolta dentro la ⑤
-  // chiusa non la vedrebbe nessuno: qui sopra invece è la prima cosa che si legge.
-  var attesa = segnalazioniInAttesa().length;
-  if(attesa && aperta !== 5){
-    h += '<br>⏳ ' + attesa + (attesa === 1 ? ' topino dice' : ' topini dicono')
-      + ' di aver pagato: '
-      + '<button class="sc-mod" style="padding-left:0;" onclick="toggleFase(5)">conferma nella fase ⑤</button>';
-  }
   h += '</div></div>';
   return h;
 }
