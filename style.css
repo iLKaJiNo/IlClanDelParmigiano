@@ -636,3 +636,13 @@ body.modal-aperto{overflow:hidden;}
   text-transform:uppercase; letter-spacing:.4px; color:var(--cheese-txt);
   background:var(--cheese-bg); border:1px solid var(--cheese-brd);
   border-radius:999px; padding:2px 7px; vertical-align:.12em; white-space:nowrap;}
+
+/* ── LA VERSIONE VIVA (in fondo alla schermata admin) ──
+   Testo piccolo, `--dim`, nessun bordo: non è un'informazione da leggere ogni giorno,
+   è una da poter CERCARE quando una diagnosi comincia da "ma è il codice giusto?".
+   Selezionabile di proposito, così si può copiare in un messaggio. */
+.versione-viva{width:100%; max-width:720px; margin:0 auto;
+  padding:0 16px 16px; padding-bottom:max(16px, env(safe-area-inset-bottom));
+  font-family:'Nunito',sans-serif; font-size:.68rem; font-weight:600;
+  color:var(--dim); text-align:center; line-height:1.4;
+  user-select:text; -webkit-user-select:text;}

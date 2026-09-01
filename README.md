@@ -109,7 +109,7 @@ I dati sono quelli reali su Supabase, quindi occhio a cosa tocchi mentre provi.
 
 L'hosting è GitHub Pages e non c'è nessun passaggio di build: si caricano i file.
 
-**Prima di pubblicare, alza `CACHE_NAME` in `sw.js`** (`clan-parmigiano-v9` → `v10`, e così via).
+**Prima di pubblicare, alza `CACHE_NAME` in `sw.js`** (`clan-parmigiano-v10` → `v11`, e così via).
 È la riga che dice al service worker che quello che ha in cache è vecchio. Senza, chi ha l'app
 installata in home continua a vedere la versione di prima, e non per qualche minuto.
 
@@ -122,6 +122,29 @@ pubblicati.
 Non è un difetto da riparare — è il compromesso che fa funzionare l'app senza rete — ma è una
 **procedura da sapere, non un sintomo da scoprire**: se dopo un deploy vedi ancora la schermata di
 ieri, quasi sempre è questo e non la cosa che hai appena cambiato.
+
+### Quale versione sto guardando: la riga in fondo all'admin
+
+**In fondo alla schermata admin c'è una riga piccola con il nome della cache viva** — per esempio
+`clan-parmigiano-v10`. È il posto dove si guarda quando una diagnosi comincia da *«ma è il codice
+giusto?»*, e si legge senza entrare: c'è anche sulla schermata di accesso, sotto i due campi.
+
+Il valore **non è una costante nel sorgente**: lo legge da `caches.keys()`, cioè dice **cosa il
+service worker sta servendo**, non cosa c'è nei file. Sono due cose diverse ogni volta che si
+pubblica, ed è esattamente la differenza che ha fatto collaudare più di una volta il deploy
+precedente credendolo quello nuovo.
+
+Come si legge:
+
+| la riga dice | vuol dire |
+|---|---|
+| `clan-parmigiano-v10` | stai guardando la v10, ed è quella che ti sta servendo |
+| `…v10 — non ancora attiva su questa scheda` | il worker è installato ma questa pagina è arrivata dalla rete: ricarica |
+| `…v10 → …v11 — aggiornamento in corso` | il deploy nuovo è arrivato e si installa dietro: **chiudi e riapri**, poi rileggi la riga |
+| `nessuna cache: … dalla rete` | nessun service worker attivo — normale dopo `/pulisci`, non normale sull'app installata |
+
+**Dopo un deploy, la riga è il collaudo di sé stessa:** se mostra il numero nuovo, il marcatore
+funziona *e* il deploy è arrivato, in un colpo solo.
 
 ## Icone
 

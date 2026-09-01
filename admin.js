@@ -8,6 +8,60 @@ function apriAdmin(){
   _faseAperta = null;   // riparte dalla fase dedotta dai dati, non da dove si era rimasti ieri
   if(eAdmin) renderAdmin();
   else       renderAccessoAdmin();
+  aggiornaVersioneViva();   // non `await`: la riga arriva quando arriva, non blocca il pannello
+}
+
+// ── LA VERSIONE VIVA ────────────────────────────────────────────────────────
+// Una riga in fondo alla schermata admin che dice QUALE VERSIONE STA SERVENDO il
+// service worker. Non è un numero scritto a mano nel sorgente: quello direbbe
+// "cosa c'è nei file", e la domanda vera è un'altra. Sono due cose diverse ogni
+// volta che la PWA serve dalla cache e aggiorna in sottofondo, cioè sempre.
+//
+// Perché esiste: è costata tre diagnosi in due giorni. Un collaudo della vibrazione
+// fatto sul deploy della #4 credendolo #5 (31/08, scoperto solo perché nello
+// screenshot il bottone diceva ancora "nuovo topolino"); l'eredità dei prezzi data
+// per rotta quando era semplicemente non pubblicata (01/09); e in mezzo più di una
+// diagnosi che ha dovuto cominciare da "ma è il codice giusto?". Ogni volta la
+// risposta è arrivata PER INDIZI, cioè per fortuna.
+//
+// Il valore viene da `caches.keys()` e non da una costante: il service worker
+// cancella in `activate` ogni cache che non sia la sua, quindi il nome rimasto è
+// quello che sta servendo davvero. Durante un aggiornamento se ne vedono due — la
+// nuova già installata, la vecchia non ancora cancellata — e in quel caso la riga
+// lo DICE invece di sceglierne una a caso: una riga che sceglie a caso è
+// esattamente il difetto che questa riga esiste per togliere.
+var PREFISSO_CACHE = "clan-parmigiano-";   // il resto del nome è la versione, e sta in sw.js
+
+// "clan-parmigiano-v10" → 10. Un nome che non finisce con un numero vale -1 e finisce
+// in cima: non è un caso previsto, ma non deve far scomparire gli altri.
+function numeroCache(nome){
+  var m = /(\d+)$/.exec(nome);
+  return m ? parseInt(m[1], 10) : -1;
+}
+
+async function aggiornaVersioneViva(){
+  var el = document.getElementById("versione-viva");
+  if(!el) return;
+  var testo;
+  try{
+    if(!("caches" in window)) throw new Error("niente Cache API");
+    // Ordinate per NUMERO, non alfabeticamente: `sort()` senza comparatore metterebbe
+    // "…-v10" prima di "…-v9" e la riga si leggerebbe al contrario proprio nel momento
+    // in cui serve — durante un aggiornamento.
+    var nostre = (await caches.keys())
+      .filter(function(k){ return k.indexOf(PREFISSO_CACHE) === 0; })
+      .sort(function(a, b){ return numeroCache(a) - numeroCache(b); });
+    var controllata = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    if(!nostre.length)
+      testo = "nessuna cache: l'app sta arrivando dalla rete, non dal service worker";
+    else if(nostre.length > 1)
+      testo = nostre.join(" \u2192 ") + " \u2014 aggiornamento in corso, chiudi e riapri l'app";
+    else
+      testo = nostre[0] + (controllata ? "" : " \u2014 non ancora attiva su questa scheda");
+  }catch(e){
+    testo = "versione non leggibile su questo browser";
+  }
+  el.textContent = testo;
 }
 function chiudiAdmin(){
   mostraSchermataGiusta();

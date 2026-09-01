@@ -1,4 +1,7 @@
-const CACHE_NAME = 'clan-parmigiano-v9';
+// Il nome di questa cache è la VERSIONE VIVA dell'app: `aggiornaVersioneViva()` in
+// admin.js lo legge da `caches.keys()` e lo mostra in fondo alla schermata admin.
+// Se un giorno cambia il prefisso `clan-parmigiano-`, va cambiato anche là.
+const CACHE_NAME = 'clan-parmigiano-v10';
 // `logo-icona.svg` e `genera-icone.sh` NON stanno qui: sono sorgenti di build, non
 // roba che il browser chiede. Nemmeno `serve-locale.py` e `.claude/launch.json`, che
 // servono solo al collaudo in locale.

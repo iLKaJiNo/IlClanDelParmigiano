@@ -202,6 +202,10 @@ if("serviceWorker" in navigator){
     <div class="top-azioni"><button class="btn-pill" onclick="chiudiAdmin()">← Torna</button></div>
   </div>
   <div class="body" id="admin-content"></div>
+  <!-- La versione viva: FUORI da `admin-content`, che viene riscritto a ogni render.
+       Sta qui e non altrove perché questo è il posto dove va chi sta collaudando, e
+       non disturba nessun topino. La riempie `aggiornaVersioneViva()` in admin.js. -->
+  <div class="versione-viva" id="versione-viva"></div>
 </div>
 
 <!-- MODALE INGRESSO: conferma identità + password di gruppo al primo accesso -->
