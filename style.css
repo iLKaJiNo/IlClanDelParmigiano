@@ -527,6 +527,11 @@ body.modal-aperto{overflow:hidden;}
 .sw.on{background:var(--cheese-bg); border-color:var(--cheese-brd);}
 .sw.on::after{transform:translateX(18px); background:var(--cheese);}
 .sw:focus-visible{outline:2px solid var(--cheese-brd); outline-offset:2px;}
+/* L'interruttore Admin è l'unico che si muove in una direzione sola: chi non ha la targhetta
+   non può riceverla da qui, perché la accende `proponiFlagAdmin()` al primo accesso
+   amministrativo. Un comando che non fa niente deve VEDERSI che non fa niente — altrimenti è
+   un cancello finto col vetro davanti, e chi lo tocca pensa che l'app sia rotta. */
+.sw:disabled{opacity:.42; cursor:not-allowed;}
 @media(prefers-reduced-motion:reduce){ .sw,.sw::after{transition:none;} }
 /* La riga col nome non ha più bottoni-stato: solo matita e cestino, e nessun bordo
    sotto, perché i due interruttori appartengono ancora a quella persona. */

@@ -149,8 +149,8 @@ async function accediConPassword(email, password){
   return authUser;
 }
 // La sessione se ne va da `localStorage` e il client torna a parlare col database come
-// chiunque altro. Non è più un lucchetto da riaprire a costo zero: per rientrare serve
-// un'altra email, ed è la ragione per cui l'uscita si conferma.
+// chiunque altro. Non è più un lucchetto da riaprire a costo zero: per rientrare si
+// ridigitano email e password, ed è la ragione per cui l'uscita si conferma.
 async function esciDaAdmin(){
   try{ await sb.auth.signOut(); }catch(e){}
   authUser = null; eAdmin = false; adminAutorizzati = [];
@@ -317,6 +317,27 @@ async function aggiornaNoteNegoziante(testo){
 async function aggiornaCostoRealeTotale(val){
   var r = await sb.from("gruppi_acquisto").update({ costo_reale_totale: val }).eq("id", gruppo.id);
   if(r.error) throw r.error;
+}
+// I tipi dell'ULTIMO gruppo archiviato, per farci partire il giro nuovo (vedi
+// `confermaNuovoGruppo` in admin.js). Sono già a database, sono quelli chiesti al
+// negoziante, e si aggiornano da soli a ogni giro senza che nessuno se ne occupi.
+// `nullsFirst:false` non è un vezzo: in Postgres un `order by … desc` mette i NULL PRIMI,
+// quindi un archiviato senza `chiuso_at` vincerebbe sul più recente. `created_at` è lo
+// spareggio per i due archiviati nello stesso istante.
+// Solleva invece di restituire una lista vuota: "non riesco a leggere" e "non c'è un giro
+// precedente" portano a due frasi diverse per l'admin, e confonderle gli farebbe credere
+// che sia il primo gruppo quando invece è caduta la rete.
+async function tipiUltimoGruppoArchiviato(){
+  var rg = await sb.from("gruppi_acquisto").select("id").eq("stato", "archiviato")
+    .order("chiuso_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if(rg.error) throw rg.error;
+  if(!rg.data || !rg.data.length) return [];
+  var rt = await sb.from("tipi_parmigiano").select("nome,prezzo_kg")
+    .eq("gruppo_id", rg.data[0].id).order("ordine", { ascending: true });
+  if(rt.error) throw rt.error;
+  return rt.data || [];
 }
 async function creaGruppo(titolo, passwordHash, tipiIniziali){
   var rg = await sb.from("gruppi_acquisto").insert({ titolo: titolo, password_hash: passwordHash || null }).select().single();

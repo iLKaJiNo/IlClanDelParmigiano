@@ -121,11 +121,11 @@ function messaggioAuth(e){
 }
 
 // Uscire non è più il "blocca" di prima, che costava un tocco e si riapriva col PIN:
-// qui la sessione se ne va davvero, e per rientrare serve un'altra email. Per questo si
-// conferma — e per questo il bottone dice "Esci" e non "Blocca".
+// qui la sessione se ne va davvero, e per rientrare si ridigitano email e password. Per
+// questo si conferma — e per questo il bottone dice "Esci" e non "Blocca".
 async function esciAdmin(){
   if(!confirm("Esco dall'amministrazione su questo dispositivo?\n\n"
-      + "Per rientrare ti servirà un nuovo codice via email.")) return;
+      + "Per rientrare ti serviranno di nuovo email e password.")) return;
   await esciDaAdmin();
   _emailAccesso = "";
   chiudiAdmin();
@@ -465,6 +465,11 @@ function cardTopoliniHtml(){
   if(!persone.length){
     h += '<div class="empty">Nessun topino ancora.</div>';
   } else {
+    h += '<div class="hint">L\'interruttore <b>Admin</b> \u00e8 una <b>targhetta, non un '
+      +  'permesso</b>: dice al gruppo a chi chiedere, e non apre niente \u2014 chi amministra '
+      +  'davvero \u00e8 chi sta nella card Amministratori. <b>Si accende da sola</b> quando '
+      +  'quella persona entra in amministrazione con la sua email; da qui si pu\u00f2 solo '
+      +  '<b>spegnere</b>, per ripulire chi \u00e8 rimasto segnato dopo una revoca.</div>';
     h += persone.map(function(p){
       return '<div class="persona-blocco">'
         + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
@@ -481,16 +486,24 @@ function cardTopoliniHtml(){
                      p.pagato ? "sì" : "no")
         + swRigaHtml("Admin", "sw-adm-" + p.id, p.is_admin,
                      "toggleAdminPersona('" + p.id + "', this)",
-                     p.is_admin ? "sì" : "no")
+                     p.is_admin ? "sì" : "no",
+                     { disabilitato: !p.is_admin,
+                       titolo: "La targhetta si accende da sola al primo accesso "
+                             + "amministrativo di questa persona. Da qui si può solo spegnere." })
         + '</div>';
     }).join("");
   }
   return h + '</div>';
 }
-function swRigaHtml(nome, id, acceso, handler, stato){
+// `opz` è opzionale: `{ disabilitato, titolo }`. Serve all'interruttore Admin, che è l'unico
+// che si muove in una direzione sola (vedi `toggleAdminPersona`).
+function swRigaHtml(nome, id, acceso, handler, stato, opz){
+  var bloccato = !!(opz && opz.disabilitato);
   return '<div class="sw-riga"><span class="sw-nome">' + nome + '</span>'
     + '<button class="sw' + (acceso ? " on" : "") + '" id="' + id + '" type="button" role="switch"'
     +   ' aria-checked="' + (acceso ? "true" : "false") + '" aria-label="' + nome + '"'
+    +   (bloccato ? ' disabled' : '')
+    +   (opz && opz.titolo ? ' title="' + escapeHtml(opz.titolo) + '"' : '')
     +   ' onclick="' + handler + '"></button>'
     + '<span class="sw-stato' + (acceso ? "" : " spento") + '" id="' + id + '-lab">' + stato + '</span></div>';
 }
@@ -916,18 +929,36 @@ function apriRinomina(id){
   var nuovo = prompt("Nuovo nome per " + p.nome + ":", p.nome);
   if(nuovo && nuovo.trim()) eseguiRinomina(id, nuovo.trim());
 }
-// Non tocca i permessi: quelli stanno in `admin_autorizzati` e li decide `e_admin()`.
-// Accende solo la pillola che dice al gruppo a chi chiedere, ed è per questo che si può
-// accendere su più di una persona senza danno.
+// `persone.is_admin` È UNA TARGHETTA, NON UN RUOLO. Non tocca i permessi: quelli stanno in
+// `admin_autorizzati` e li decide `e_admin()` a database. Questa colonna esiste per una
+// ragione sola, e va tenuta a mente prima di toccarla: `admin_autorizzati` NON è leggibile
+// da `anon`, quindi i topini non hanno nessun altro modo di sapere a chi chiedere. È la
+// risposta pubblica a una domanda a cui la tabella dei permessi, giustamente, non risponde.
+//
+// DA QUI SI PUÒ SOLO SPEGNERE, e il perché è che la targhetta poteva mentire — e mentiva:
+// nella lista c'erano due persone con l'interruttore su "sì" che non erano in
+// `admin_autorizzati`. Per chiunque guardasse la tab Tabella erano amministratori, e non lo
+// erano. Una targhetta sbagliata è peggio di una targhetta assente: manda a chiedere alla
+// persona che non può rispondere.
+//
+// Accenderla a mano era l'unico gesto capace di renderla falsa, perché è l'unico che non
+// passa da una prova d'identità. Ad accenderla resta `proponiFlagAdmin()`, al primo accesso
+// amministrativo: l'unico momento in cui l'app SA con certezza che quella persona è admin.
+// Così il flag non può più essere semplicemente sbagliato — al massimo resta acceso dopo una
+// revoca, ed è esattamente il caso che questo interruttore serve a ripulire.
+//
+// Il rifiuto sta QUI e non solo nell'attributo `disabled` del bottone: un handler che si fida
+// della propria interfaccia si fida di chiunque apra la console. (A database la scrittura
+// passa comunque solo con `e_admin()`: questa è la terza rete, non la prima.)
 async function toggleAdminPersona(id, el){
+  if(!el.classList.contains("on")) return;   // solo spegnimento — vedi sopra
   vibra(10);
-  var val = !el.classList.contains("on");
-  _swSposta(el, val, val ? "s\u00ec" : "no");
+  _swSposta(el, false, "no");
   try{
-    await setIsAdmin(id, val);
+    await setIsAdmin(id, false);
     await caricaTutto(); renderAdmin();
   }catch(e){
-    _swSposta(el, !val, !val ? "s\u00ec" : "no");
+    _swSposta(el, true, "s\u00ec");
     dot("err", "Errore");
     alert("Errore: " + e.message);
   }
@@ -990,25 +1021,61 @@ async function eseguiEliminaPersona(id){
 }
 
 // ── NUOVO GRUPPO ──
-function apriNuovoGruppo(){
+// I quattro prezzi stavano cablati qui dentro. Cambiano ogni anno, e cablarli voleva dire
+// toccare il codice e ripubblicare per un numero che l'admin ha già chiesto al negoziante —
+// e infatti erano già sbagliati: il 48 mesi diceva 21,90 quando il prezzo vero era 21,80.
+// Adesso il giro nuovo parte dai tipi dell'ULTIMO gruppo archiviato: nomi e prezzi sono già
+// a database, sono quelli veri, e si aggiornano da soli a ogni giro.
+// Questi quattro restano SOLO come ripiego per il primissimo gruppo, quando non c'è ancora
+// un giro precedente da cui copiare. Se un giorno anche il ripiego risulta sbagliato, è
+// perché non è mai stato usato da anni: è il posto giusto in cui invecchiare.
+var TIPI_RIPIEGO = [
+  { nome: "12 mesi", prezzo_kg: 15.9 },
+  { nome: "24 mesi", prezzo_kg: 17.9 },
+  { nome: "36 mesi", prezzo_kg: 19.9 },
+  { nome: "48 mesi", prezzo_kg: 21.9 }
+];
+// Letti all'APERTURA del modale e non alla conferma, così l'admin vede con cosa parte prima
+// di creare. Se il negoziante ha cambiato i prezzi lo scopre adesso, e la correzione in
+// fase ① è un gesto consapevole invece di una cosa da ricordarsi.
+var _tipiNuovoGruppo = null;
+
+async function apriNuovoGruppo(){
   document.getElementById("ng-titolo").value = "";
   document.getElementById("ng-password").value = "";
   document.getElementById("ng-errore").textContent = "";
+  _tipiNuovoGruppo = null;
+  var org = document.getElementById("ng-origine");
+  var coda = " La password va girata sul gruppo WhatsApp: serve una volta sola per dispositivo.";
+  if(org) org.textContent = "Leggo i tipi dell'ultimo giro\u2026" + coda;
   openModal("modal-nuovo-gruppo");
+  try{
+    var t = await tipiUltimoGruppoArchiviato();
+    if(!org) return;
+    if(t.length){
+      _tipiNuovoGruppo = t;
+      org.textContent = "Parte dai tipi dell'ultimo giro archiviato: "
+        + t.map(function(x){ return x.nome + " a " + eurTesto(x.prezzo_kg); }).join(", ")
+        + " al kg. Li correggi subito dopo dall'admin se il negoziante ha cambiato i prezzi."
+        + coda;
+    } else {
+      org.textContent = "Non c'\u00e8 ancora un giro archiviato da cui copiare: parte dai "
+        + "quattro tipi standard a prezzi di ripiego, che sono quasi certamente da "
+        + "correggere subito." + coda;
+    }
+  }catch(e){
+    if(org) org.textContent = "Non riesco a leggere l'ultimo giro adesso. Se creo il gruppo "
+      + "parte dai prezzi di ripiego, da correggere subito." + coda;
+  }
 }
 function chiudiNuovoGruppo(){ closeModal("modal-nuovo-gruppo"); }
 async function confermaNuovoGruppo(){
   var titolo = document.getElementById("ng-titolo").value.trim();
   var password = document.getElementById("ng-password").value.trim();
   if(!titolo){ document.getElementById("ng-errore").textContent = "Dai un nome al gruppo (es. Ottobre 2026)."; return; }
-  var tipiDefault = [
-    { nome: "12 mesi", prezzo_kg: 15.9 },
-    { nome: "24 mesi", prezzo_kg: 17.9 },
-    { nome: "36 mesi", prezzo_kg: 19.9 },
-    { nome: "48 mesi", prezzo_kg: 21.9 }
-  ];
+  var tipi = (_tipiNuovoGruppo && _tipiNuovoGruppo.length) ? _tipiNuovoGruppo : TIPI_RIPIEGO;
   try{
-    await creaGruppo(titolo, await hashPassword(password), tipiDefault);
+    await creaGruppo(titolo, await hashPassword(password), tipi);
     chiudiNuovoGruppo();
     await caricaTutto();
     renderAdmin();

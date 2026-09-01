@@ -307,7 +307,11 @@ if("serviceWorker" in navigator){
     <div class="m-row"><label>Password d'accesso (lasciala vuota per non metterla)</label>
       <input class="inp" id="ng-password" name="chiave-gruppo" autocapitalize="none" autocorrect="off"
              spellcheck="false" autocomplete="off" placeholder="es. topogrigio26"></div>
-    <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);">Parte con i 4 tipi standard (12/24/36/48 mesi) a prezzo di default — li modifichi subito dopo dall'admin. La password va girata sul gruppo WhatsApp: serve una volta sola per dispositivo.</p>
+    <!-- Riempito da `apriNuovoGruppo()`: dice con QUALI prezzi si parte davvero, letti
+         dall'ultimo giro archiviato. Il testo statico che stava qui prometteva "i 4 tipi
+         standard a prezzo di default", ed era una frase che descriveva un meccanismo
+         destinato a cambiare ogni anno senza che nessuno la rileggesse. -->
+    <p style="font-family:'Nunito',sans-serif;font-size:.78rem;color:var(--dim);" id="ng-origine">La password va girata sul gruppo WhatsApp: serve una volta sola per dispositivo.</p>
     <div class="errore" id="ng-errore"></div>
     <div class="m-btns">
       <button class="btn btn-ghost" onclick="chiudiNuovoGruppo()">Annulla</button>
