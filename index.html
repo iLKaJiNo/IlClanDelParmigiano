@@ -34,36 +34,12 @@ window.addEventListener("appinstalled", function(){
   _promptInstall = null;
   if(typeof nascondiInvitoInstalla === "function") nascondiInvitoInstalla();
 });
-// L'innesco della vibrazione sta QUI per la stessa ragione di `beforeinstallprompt`:
-// `appStart()` è `async` e il primo swipe fra tab arriva mentre la rete sta ancora
-// rispondendo — cioè proprio all'apertura dell'app, che è il caso segnalato. Registrato
-// nel <head> il listener c'è già al primo tocco, prima che gli script in fondo al body
-// siano stati anche solo scaricati.
-// Due dettagli che sembrano pedanteria e non lo sono:
-//  · `vibrate(1)` e non `vibrate(0)`: uno zero è un ANNULLAMENTO, non una vibrazione, e
-//    potrebbe non contare come chiamata riuscita — cioè non attivare niente.
-//  · si ascolta anche `pointerup`/`touchend`, non solo `pointerdown`: su touchscreen il
-//    `pointerdown` NON è un evento che dà attivazione utente (lo sono `pointerup` e
-//    `touchend`), quindi un innesco `{once:true}` solo su `pointerdown` si consuma fallendo
-//    e non riprova mai.
-//
-// ⚠️ ONESTÀ SU COSA FA QUESTO BLOCCO: è una SONDA, non una cura. Il commento che stava qui
-// prima diceva che un `vibrate(0)` «attiva il documento»: è falso, e misurato — chiamare
-// `vibrate()` lascia `navigator.userActivation.hasBeenActive` a false. L'attivazione la
-// concede solo il browser dispatchando un evento di gesto: quel che questo blocco fa
-// davvero è esserci PRIMA del primo gesto, così l'attivazione non arriva a documento
-// muto. Collaudo su telefono del 01/09/2026: con questo innesco registrato nel <head> il
-// primo swipe di una sessione vibra. L'ipotesi che Chrome pretendesse un *tap* e non un
-// gesto qualsiasi era sbagliata: lo swipe basta.
-(function(){
-  if(!navigator.vibrate) return;   // iOS Safari: non esiste proprio, niente da innescare
-  var eventi = ["pointerdown", "pointerup", "touchend", "keydown"];
-  function innesca(){
-    eventi.forEach(function(ev){ document.removeEventListener(ev, innesca, true); });
-    try{ navigator.vibrate(1); }catch(e){}
-  }
-  eventi.forEach(function(ev){ document.addEventListener(ev, innesca, { capture: true, passive: true }); });
-})();
+// Qui stava un innesco della vibrazione: un listener registrato nel <head> che chiamava
+// `navigator.vibrate(1)` al primo gesto, per «scaldare» l'API prima del primo swipe fra
+// tab. Tolto il 02/09/2026 perché MISURATO inutile (Galaxy S25 / Chrome): uno swipe non
+// concede attivazione utente in nessun caso — `hasBeenActive` resta a 0 anche dopo due
+// swipe di fila — quindi il primo swipe di una sessione non vibra, con o senza innesco.
+// Non rimetterlo: la storia completa e i numeri stanno accanto a `vibra()` in utils.js.
 if("serviceWorker" in navigator){
   window.addEventListener("load", function(){
     navigator.serviceWorker.register("./sw.js").catch(function(e){ console.log("Errore SW:", e); });
@@ -73,12 +49,28 @@ if("serviceWorker" in navigator){
 </head>
 <body>
 
-<!-- NESSUN GRUPPO ATTIVO -->
-<div id="nogruppo-screen" class="screen attiva" style="align-items:center;justify-content:center;padding:32px;">
-  <img src="./logo.svg" style="width:90px;height:90px;margin-bottom:14px;" alt="">
+<!-- NESSUN GIRO APERTO — la schermata che si vede FRA UN GIRO E L'ALTRO.
+     Prima diceva «Nessun gruppo d'acquisto attivo — l'admin deve crearne uno nuovo» e
+     offriva un bottone per l'area admin: era la risposta dell'ADMIN, mostrata a tutti.
+     Un topino che apre il link fra due giri non ha niente da creare e niente da fare —
+     ha solo bisogno di sapere cosa sta guardando, e che tornerà.
+     Il bottone apre la guida, che è già scritta: è la presentazione del Clan per chi
+     arriva quando non c'è niente da ordinare, e non costa un testo nuovo.
+     La porta dell'admin resta, in secondo piano: qui l'admin ci passa una volta ogni
+     giro, il topino ogni volta che il giro è chiuso.
+     ⚠️ Questa è una `.screen` a sé, e non l'app con le tab svuotate: la tab bar, il franco
+     di 90px in fondo a `.body` e lo swipe fra tab stanno tutti dentro `#app-screen` e qui
+     non esistono. Non c'è niente da nascondere, e niente che possa tornare da solo. -->
+<div id="nogruppo-screen" class="screen schermo-centrato attiva">
+  <img src="./logo.svg" class="auth-logo" alt="">
   <div class="auth-title">Il Clan del Parmigiano</div>
-  <p class="auth-sub">Nessun gruppo d'acquisto attivo al momento.<br>L'admin deve crearne uno nuovo.</p>
-  <button class="btn btn-cheese" style="max-width:280px;" onclick="apriAdmin()">🐭 Vai all'area Admin</button>
+  <div class="card card-ngiro">
+    <div class="card-titolo">🧀 Nessun giro aperto</div>
+    <p class="ngiro-testo">In questo momento il Clan non sta ordinando. Quando l'admin apre il
+      giro successivo lo trovi qui, e ti arriverà un messaggio sul gruppo.</p>
+    <button class="btn btn-cheese" onclick="apriGuida()">Come funziona il Clan</button>
+  </div>
+  <button class="btn btn-ghost ngiro-admin" onclick="apriAdmin()">🐭 Vai all'area Admin</button>
 </div>
 
 <!-- SCELTA / CREAZIONE NOME -->
@@ -107,7 +99,7 @@ if("serviceWorker" in navigator){
     <button class="btn btn-cheese" onclick="confermaNuovoNome()">🐭 Entra come nuovo topino</button>
     <div class="auth-sezione" id="auth-lista-titolo">I topini già nel Clan</div>
     <div id="lista-persone"></div>
-    <button class="btn btn-ghost" style="margin-top:10px;" onclick="apriAdmin()">🔐 Sono l'admin</button>
+    <button class="btn btn-ghost" onclick="apriAdmin()">🔐 Sono l'admin</button>
   </div>
 </div>
 
@@ -117,7 +109,14 @@ if("serviceWorker" in navigator){
     <img src="./logo.svg" alt="">
     <div class="top-titoli">
       <h1 id="app-gruppo-titolo">Clan del Parmigiano</h1>
-      <p>🐭 <span id="app-mio-nome"></span> · <a href="javascript:void(0)" onclick="cambioIdentita()" style="color:var(--dim);">cambia</a></p>
+      <!-- LA TERZA PORTA DELLA GUIDA. Sta qui e NON come icona nell'header: a 320 px, con un
+           quarto `.btn-ico` accanto a ☀️ 🧀 🔐, al titolo resterebbero 62 px e «Il Clan del
+           Parmigiano» a `--fs-8` ne vuole circa 176. Già oggi va a capo; con la quarta icona
+           diventerebbe un moncone. Qui costa zero slot, riusa il modello di link testuale
+           che sta a due centimetri, e si vede da tutte le tab.
+           I due link hanno una classe: erano uno stile in linea (`color:var(--dim)`) e
+           toccando la riga si convertono tutti e due, non uno solo. -->
+      <p>🐭 <span id="app-mio-nome"></span> · <a class="top-link" href="javascript:void(0)" onclick="cambioIdentita()">cambia</a> · <a class="top-link" href="javascript:void(0)" onclick="apriGuida()">guida</a></p>
     </div>
     <div class="top-azioni">
       <span class="sync-dot" id="dot"></span>
@@ -134,6 +133,18 @@ if("serviceWorker" in navigator){
   <div class="body">
     <!-- TAB ORDINA -->
     <div class="tab-page attiva" data-tab="ordina">
+      <!-- ⚠️ TEMPORANEO — MARCATORE DI PASSO. Da togliere a fine fase estetica.
+           Dice a quale passo dell'handoff appartiene il codice che stai guardando, e sta
+           qui e non in admin perché la domanda "sto vedendo la cache vecchia?" arriva
+           sulla prima schermata, prima di entrare da nessuna parte. È testo fisso, non
+           calcolato: proprio per questo, se la cache è vecchia mostra il numero vecchio,
+           che è esattamente il segnale che serve.
+           La riga in fondo all'admin è un'altra cosa e non va toccata: quella legge
+           `caches.keys()` e dice cosa STA SERVENDO il service worker.
+           PER TOGLIERLO TUTTO:  grep -rn "MARCATORE DI PASSO" .
+           Sono tre punti: questo blocco, la regola `.marcatore-passo` in style.css,
+           e il suffisso del passo in `CACHE_NAME` dentro sw.js. -->
+      <div class="marcatore-passo">🔧 passo L6·5c · cache v51</div>
       <div class="banner-arrivo" id="banner-arrivo" style="display:none;"></div>
       <div class="card">
         <div class="card-titolo">Il tuo ordine</div>
@@ -188,9 +199,9 @@ if("serviceWorker" in navigator){
 
   <nav class="tab-bar">
     <button class="tab-btn attiva" data-tab="ordina" onclick="switchTab('ordina')"><span class="ti">🧀</span><span>Ordina</span></button>
-    <button class="tab-btn" data-tab="tabella" onclick="switchTab('tabella')"><span class="ti">📋</span><span>Tabella</span></button>
-    <button class="tab-btn" data-tab="bacheca" onclick="switchTab('bacheca')"><span class="ti">📝</span><span>Bacheca</span></button>
-    <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">💳<span class="tab-dot" id="tab-dot-pagamenti" style="display:none;"></span></span><span>Pagamenti</span></button>
+    <button class="tab-btn" data-tab="tabella" onclick="switchTab('tabella')"><span class="ti">🐭</span><span>Tabella</span></button>
+    <button class="tab-btn" data-tab="bacheca" onclick="switchTab('bacheca')"><span class="ti">🐾</span><span>Bacheca</span></button>
+    <button class="tab-btn" data-tab="pagamenti" onclick="switchTab('pagamenti')"><span class="ti">🐱<span class="tab-dot" id="tab-dot-pagamenti" style="display:none;"></span></span><span>Pagamenti</span></button>
   </nav>
 </div>
 
@@ -199,7 +210,19 @@ if("serviceWorker" in navigator){
   <div class="top">
     <img src="./logo.svg" alt="">
     <div class="top-titoli"><h1>Amministrazione</h1></div>
-    <div class="top-azioni"><button class="btn-pill" onclick="chiudiAdmin()">← Torna</button></div>
+    <!-- Due uscite, e stanno in fila dalla più vicina alla più lontana: «← admin» torna
+         di un passo (dal dettaglio di un giro archiviato alla schermata admin), «← Torna»
+         esce dall'admin del tutto. La prima compare solo quando c'è un passo indietro da
+         fare: la accende `apriDettaglioArchivio()` e la spegne `renderAdmin()`.
+         Stava nel corpo, come primo elemento di `#admin-content`: ma `.body` è una colonna
+         flex, e stirava una pillola da bordo a bordo — sei parole piccole dentro un
+         bottone largo quanto lo schermo, che sembrava importante ed era solo un indietro.
+         Nell'header prende la sua misura naturale e sta accanto all'altra uscita, che è
+         il posto dove si va a cercarla. 03/09/2026. -->
+    <div class="top-azioni">
+      <button class="btn-pill" id="btn-torna-admin" style="display:none;" onclick="renderAdmin()">← admin</button>
+      <button class="btn-pill" onclick="chiudiAdmin()">← Torna</button>
+    </div>
   </div>
   <div class="body" id="admin-content"></div>
   <!-- La versione viva: FUORI da `admin-content`, che viene riscritto a ogni render.
@@ -274,7 +297,9 @@ if("serviceWorker" in navigator){
 <div class="modal-overlay" id="modal-reali" onclick="if(event.target===this&&topModal()==='modal-reali')chiudiReali()">
   <div class="modal">
     <h2 id="mr-titolo">Prezzi reali</h2>
-    <p class="modal-sub">Leggi l'importo dall'etichetta di ogni pezzo. Se una riga è fatta di più pezzi, sommali con la 🧮.</p>
+    <!-- La riempie `apriReali()`: comincia col numero di PEZZI di questo topino, che è
+         quanti sacchetti gli tocca. Chi consegna sta in piedi e conta pezzi, non chili. -->
+    <p class="modal-sub" id="mr-sub"></p>
     <div id="mr-righe"></div>
     <div class="errore" id="mr-errore"></div>
     <div class="m-btns">
@@ -320,6 +345,40 @@ if("serviceWorker" in navigator){
     <div class="m-btns">
       <button class="btn btn-ghost" onclick="chiudiNuovoGruppo()">Annulla</button>
       <button class="btn btn-cheese" onclick="confermaNuovoGruppo()">Crea</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE "LA GUIDA" — il guscio; dentro ci sono SEI sezioni, nell'ordine in cui le cose
+     succedono durante un giro (vedi `GUIDA_SEZIONI` in ui.js).
+     Le sezioni sono `<details>` NATIVI: apertura, chiusura, tastiera e lettori di schermo
+     sono già dentro l'elemento, e una fisarmonica scritta a mano rifarebbe peggio tutte e
+     quattro le cose.
+     ⚠️ Il corpo lo disegna `apriGuida()` da `GUIDA_SEZIONI` in ui.js: i testi delle
+     medaglie stanno nella stessa tabella che decide quali medaglie esistono (`MEDAGLIE` in
+     utils.js), così una medaglia non può esistere senza la sua spiegazione né il contrario.
+     ⚠️ Niente stili in linea qui dentro: la scala è la legge del file, e le spaziature
+     scritte a mano il controllo di chiusura le trova. -->
+<div class="modal-overlay" id="modal-guida" onclick="if(event.target===this&&topModal()==='modal-guida')chiudiGuida()">
+  <div class="modal">
+    <h2>🧀 Come funziona il Clan</h2>
+    <!-- IL BENVENUTO. Non è una sezione della fisarmonica: è sempre visibile, non si chiude,
+         e sta qui in chiaro perché è testo fisso — non ha niente da leggere dai dati, e
+         generarlo in JS lo renderebbe solo più difficile da correggere.
+         Ha preso il posto della `.modal-sub` («Le cose che l'app fa da sola, spiegate»), che
+         diceva la stessa cosa una riga più su e più debole: due sottotitoli in fila sopra la
+         stessa fisarmonica sono uno di troppo. -->
+    <div class="guida-benvenuto">
+      <p class="guida-p"><b>Benvenuto nel Clan.</b> Questa è l'app con cui ci mettiamo
+        d'accordo per comprare il parmigiano tutti insieme, direttamente dalla latteria. Si
+        ordina, si aspetta, si ritira, si paga. Poi ricomincia.</p>
+      <p class="guida-p">Non c'è niente da imparare: dici quanti chili vuoi e l'app fa i
+        conti. Qui sotto c'è spiegato il resto, un pezzo per volta, nell'ordine in cui
+        succede.</p>
+    </div>
+    <div id="guida-corpo"></div>
+    <div class="m-btns">
+      <button class="btn btn-cheese" onclick="chiudiGuida()">Ho capito</button>
     </div>
   </div>
 </div>

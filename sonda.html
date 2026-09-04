@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sonda — che ambiente è questo</title>
+<style>
+:root{--bg:#241708;--card:#33210c;--line:#5a3d18;--text:#f7ecd8;--dim:#c3a97f;--ok:#7dc47d;--no:#e08b6a;--gi:#F2B33D;}
+*{box-sizing:border-box;}
+body{margin:0;padding:18px 14px 40px;background:var(--bg);color:var(--text);
+  font:15px/1.5 system-ui,-apple-system,sans-serif;}
+h1{font-size:1.15rem;margin:0 0 2px;color:var(--gi);}
+.sub{color:var(--dim);font-size:.82rem;margin-bottom:18px;}
+.sez{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:12px 14px;margin-bottom:12px;}
+.sez h2{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 8px;font-weight:700;}
+.r{display:flex;gap:10px;padding:3px 0;font-size:.86rem;align-items:baseline;}
+.r b{flex:0 0 40%;font-weight:600;color:var(--dim);}
+.r span{flex:1 1 auto;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;}
+.si{color:var(--ok);font-weight:700;} .no{color:var(--no);font-weight:700;}
+#verdetto{border:2px solid var(--gi);background:#3a2a10;}
+#verdetto h2{color:var(--gi);}
+#verdetto p{margin:0;font-size:.95rem;line-height:1.55;}
+button{width:100%;height:46px;margin-top:10px;border-radius:12px;border:1.5px solid var(--line);
+  background:var(--card);color:var(--text);font-size:.95rem;font-weight:700;}
+button:active{transform:scale(.98);}
+#esitoreg{margin-top:10px;font-size:.82rem;color:var(--dim);
+  font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all;}
+</style></head>
+<body>
+<h1>🔎 Sonda dell'ambiente</h1>
+<div class="sub">Non registra niente e non cancella niente: legge e basta.
+Apri questo file <b>esattamente come apri l'app</b>.</div>
+
+<div class="sez" id="verdetto"><h2>Verdetto</h2><p id="v">…</p></div>
+<div class="sez"><h2>Dove sei</h2><div id="dove"></div></div>
+<div class="sez"><h2>Service worker</h2><div id="sw"></div></div>
+<div class="sez"><h2>Cache e memoria</h2><div id="cache"></div></div>
+<div class="sez"><h2>Browser</h2><div id="ua"></div></div>
+
+<button onclick="copia()">📋 Copia tutto</button>
+<button onclick="prova()">⚙️ Prova a registrare ./sw.js (facoltativo)</button>
+<div id="esitoreg"></div>
+
+<script>
+var righe = [];
+function r(dove, etichetta, valore, stato){
+  righe.push(etichetta + ": " + valore);
+  var c = stato === true ? "si" : (stato === false ? "no" : "");
+  document.getElementById(dove).insertAdjacentHTML("beforeend",
+    '<div class="r"><b>' + etichetta + '</b><span class="' + c + '">' + esc(valore) + '</span></div>');
+}
+function esc(s){ return String(s).replace(/[&<>]/g, function(c){
+  return { "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]; }); }
+
+r("dove", "indirizzo", location.href);
+r("dove", "schema", location.protocol, location.protocol === "https:" || location.protocol === "http:");
+r("dove", "origine", location.origin === "null" ? "null (opaca)" : location.origin);
+r("dove", "base dei link", document.baseURI);
+r("dove", "contesto sicuro", window.isSecureContext ? "sì" : "NO", !!window.isSecureContext);
+
+var haSW = ("serviceWorker" in navigator);
+r("sw", "API presente", haSW ? "sì" : "NO", haSW);
+
+var schemaOk = (location.protocol === "https:" || location.protocol === "http:");
+var verdetto;
+if(!haSW){
+  verdetto = "Qui un service worker <b>non può esistere</b>: il browser non espone nemmeno l'API. "
+           + "Tutto quello che l'app dice sulle cache, da qui, è privo di significato.";
+} else if(!schemaOk){
+  verdetto = "Qui un service worker <b>non può esistere</b>: lo schema <code>" + location.protocol
+           + "</code> non è ammesso — i service worker accettano solo <code>http</code> e "
+           + "<code>https</code>. Quindi nessuna cache, nessun aggiornamento in sottofondo, e il "
+           + "marcatore in fondo all'admin non può che dire «nessuna cache». <b>Il difetto delle "
+           + "cache, da qui, non si può né vedere né riparare.</b>";
+} else if(!window.isSecureContext){
+  verdetto = "Schema giusto ma <b>contesto non sicuro</b>: su un indirizzo di rete in http semplice "
+           + "il browser rifiuta i service worker. Servono <code>https</code> oppure "
+           + "<code>localhost</code>.";
+} else {
+  verdetto = "Qui un service worker <b>può esistere</b>. Guarda sotto quanti ce ne sono e quali "
+           + "cache ci sono: se sono zero, non è mai stato registrato da questo indirizzo.";
+}
+document.getElementById("v").innerHTML = verdetto;
+righe.unshift("VERDETTO: " + verdetto.replace(/<[^>]+>/g, ""));
+
+if(haSW){
+  navigator.serviceWorker.getRegistrations().then(function(rs){
+    r("sw", "registrati qui", rs.length, rs.length > 0);
+    rs.forEach(function(g, i){
+      var w = g.active || g.waiting || g.installing;
+      r("sw", "#" + (i+1) + " script", w ? w.scriptURL : "?");
+      r("sw", "#" + (i+1) + " stato", w ? w.state : "?");
+      r("sw", "#" + (i+1) + " ambito", g.scope);
+    });
+    r("sw", "controller", navigator.serviceWorker.controller ? "presente" : "ASSENTE",
+      !!navigator.serviceWorker.controller);
+  }).catch(function(e){ r("sw", "errore", e.name + ": " + e.message, false); });
+} else {
+  r("sw", "controller", "—");
+}
+
+if("caches" in window){
+  r("cache", "Cache API", "presente", true);
+  caches.keys().then(function(ks){
+    r("cache", "cache esistenti", ks.length ? ks.join(", ") : "nessuna", ks.length > 0);
+  }).catch(function(e){ r("cache", "cache esistenti", "errore: " + e.message, false); });
+} else {
+  r("cache", "Cache API", "ASSENTE", false);
+  r("cache", "cache esistenti", "—");
+}
+try{
+  localStorage.setItem("__sonda", "1"); localStorage.removeItem("__sonda");
+  r("cache", "localStorage", "funziona", true);
+}catch(e){ r("cache", "localStorage", "NON funziona: " + e.name, false); }
+
+r("ua", "user agent", navigator.userAgent);
+r("ua", "online", navigator.onLine ? "sì" : "no");
+r("ua", "letto alle", new Date().toLocaleString("it-IT"));
+
+function copia(){
+  var t = righe.join("\n");
+  function vecchio(){
+    var a = document.createElement("textarea");
+    a.value = t; a.style.position = "fixed"; a.style.top = "-1000px";
+    document.body.appendChild(a); a.select();
+    try{ document.execCommand("copy"); alert("Copiato."); }
+    catch(e){ alert("Non copiato: fai uno screenshot."); }
+    document.body.removeChild(a);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(function(){ alert("Copiato."); }, vecchio);
+  else vecchio();
+}
+
+// Facoltativo, e solo se lo tocchi tu: prova la registrazione e mostra l'errore ESATTO.
+// È l'errore che dice, con parole del browser, perché qui non può funzionare.
+function prova(){
+  var e = document.getElementById("esitoreg");
+  if(!haSW){ e.textContent = "navigator.serviceWorker non esiste: niente da provare."; return; }
+  e.textContent = "provo…";
+  navigator.serviceWorker.register("./sw.js").then(function(g){
+    e.innerHTML = '<span class="si">registrato</span> — ambito ' + esc(g.scope);
+    righe.push("register(): riuscito, ambito " + g.scope);
+  }).catch(function(err){
+    e.innerHTML = '<span class="no">rifiutato</span> — ' + esc(err.name + ": " + err.message);
+    righe.push("register(): rifiutato — " + err.name + ": " + err.message);
+  });
+}
+</script>
+</body></html>

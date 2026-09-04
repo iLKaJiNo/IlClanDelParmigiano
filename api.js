@@ -13,9 +13,9 @@ function dot(cls, txt){
 async function appStart(){
   initTheme();          // prima del primo render, altrimenti si vede il lampo di tema sbagliato
   initTile();
-  // L'innesco della vibrazione NON sta più qui: è nel <head> di index.html, perché un
-  // listener registrato in una funzione `async` non c'è ancora quando arriva il primo
-  // swipe ad app appena aperta. Vedi il commento accanto a `vibra()` in utils.js.
+  // Qui stava, in un'altra vita, un innesco della vibrazione. Non c'è più da nessuna
+  // parte: è stato misurato inutile il 02/09/2026 e tolto anche dal <head>. Nessun
+  // innesco può funzionare — vedi il commento accanto a `vibra()` in utils.js.
   dot("", "Annusando il formaggio...");
   await initAuth();     // la sessione admin, se su questo device c'è, PRIMA del primo render
   await caricaTutto();
@@ -83,6 +83,9 @@ function mostraSchermataGiusta(){
     mioId = mia;
     mostraSchermata("app-screen");
     renderApp();
+    // Anche chi rientra: la guida si apre da sola finché non l'ha vista in questa versione.
+    // Sta qui e non in `renderApp()`, che il realtime richiama in continuazione.
+    forseApriGuida();
   } else {
     mioId = null;
     mostraSchermata("auth-screen");
@@ -178,9 +181,7 @@ function initRealtime(){
       _rtTimer = setTimeout(async function(){
         if(modaleAperto()){ _renderAdminInSospeso = true; return; }
         await caricaTutto();
-        if(document.getElementById("app-screen").classList.contains("attiva")) renderApp();
-        if(document.getElementById("auth-screen").classList.contains("attiva")) renderAuth();
-        if(document.getElementById("admin-screen").classList.contains("attiva")) renderAdmin();
+        ridisegnaSchermataViva();
       }, 600);
     })
     .subscribe();
@@ -190,9 +191,26 @@ async function renderAdminDifferito(){
   if(!_renderAdminInSospeso) return;
   _renderAdminInSospeso = false;
   await caricaTutto();
+  ridisegnaSchermataViva();
+}
+
+// Ridisegna la schermata che si sta guardando, dopo che i dati sono cambiati sotto.
+//
+// ⚠️ IL GIRO PUÒ SPARIRE SOTTO I PIEDI. L'admin archivia, il realtime ricarica, e `gruppo`
+// diventa `null` mentre un topino sta guardando l'app o la schermata d'accesso: da lì in
+// poi `renderApp()` disegnerebbe un'app senza nome con quattro tab vuote, e `renderAuth()`
+// andrebbe proprio in errore su `gruppo.titolo`. È l'unica strada per cui quel buco si vede
+// davvero — chi APRE il link fra due giri passa da `mostraSchermataGiusta()` e trova la
+// schermata «Nessun giro aperto» — e va chiusa qui, dove il buco si apre.
+// L'admin no: sta archiviando apposta, e buttarlo fuori dal pannello mentre apre il giro
+// successivo sarebbe togliergli la scrivania da sotto le mani. Per lui `renderAdmin()` ha
+// già la sua card «Nessun gruppo attivo».
+function ridisegnaSchermataViva(){
+  var inAdmin = document.getElementById("admin-screen").classList.contains("attiva");
+  if(!gruppo && !inAdmin){ mostraSchermataGiusta(); return; }
   if(document.getElementById("app-screen").classList.contains("attiva")) renderApp();
   if(document.getElementById("auth-screen").classList.contains("attiva")) renderAuth();
-  if(document.getElementById("admin-screen").classList.contains("attiva")) renderAdmin();
+  if(inAdmin) renderAdmin();
 }
 
 // ── AZIONI: persone / identità ──
@@ -207,6 +225,13 @@ async function rinominaPersona(id, nome){
 }
 async function setPartecipaSpedizione(id, val){
   var r = await sb.from("persone").update({ partecipa_spedizione: val }).eq("id", id);
+  if(r.error) throw r.error;
+}
+// Per quante persone ordina questo topino, ai fini della SOLA spedizione, sé stesso
+// compreso. Il vincolo 1..10 sta anche a DB (`quote_spedizione_range`): lo
+// stepper è un consiglio, quello è la regola.
+async function setQuoteSpedizione(id, val){
+  var r = await sb.from("persone").update({ quote_spedizione: val }).eq("id", id);
   if(r.error) throw r.error;
 }
 // §5: il flag PUBBLICO del gruppo, quello che dice ai topini a chi chiedere. Non è il

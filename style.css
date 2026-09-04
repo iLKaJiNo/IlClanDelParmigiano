@@ -10,6 +10,49 @@
   --mouse:#B9A38C; --moss:#8CBE79; --moss-bg:rgba(111,160,90,.14); --moss-brd:rgba(111,160,90,.35);
   --berry:#F2AFA4; --berry-bg:rgba(208,104,90,.14); --berry-brd:rgba(208,104,90,.35);
   --r-sm:10px; --r-md:16px; --r-lg:22px;
+
+  /* ── SCALA DELLE SPAZIATURE ──
+     Dieci gradini al posto dei ventidue valori sparsi che c'erano prima. Non servono a
+     cambiare l'aspetto — servono a far scegliere da un elenco invece che inventare un
+     numero. Chi aggiunge una regola prende il gradino più vicino e non ne crea di nuovi.
+     Solo `margin`, `padding` e `gap`: larghezze, altezze, raggi e bordi non sono ritmo
+     della pagina e restano in px.
+     ⚠️ Questi gradini sono in px e ci restano: a differenza dei corpi NON si accorciano
+     quando la radice scende a 14 sul telefono. Il ritmo della pagina è lo stesso su ogni
+     schermo, i testi dentro sono più piccoli. È voluto. */
+  --sp-1:  2px;
+  --sp-2:  4px;
+  --sp-3:  6px;
+  --sp-4:  8px;
+  --sp-5: 10px;
+  --sp-6: 12px;
+  --sp-7: 14px;
+  --sp-8: 16px;
+  --sp-9: 24px;
+  --sp-10:32px;
+
+  /* ── SCALA DEI CORPI DI TESTO ──
+     Dodici gradini al posto di trentacinque. Fra --fs-1 e --fs-8 ce n'erano venti, quasi
+     tutti separati da un terzo di pixel: nessuno schermo li distingue.
+     ⚠️ I px qui annotati valgono a RADICE 14, quella che `@media(max-width:600px)` impone
+     su ogni telefono — cioè l'unico posto dove questa app viene davvero guardata. Su
+     schermo largo la radice è 16 e tutta la scala cresce di un ottavo. I gradini sono in
+     rem apposta: cambiando la radice cambiano tutti insieme, e i rapporti restano.
+     `1.05rem` non c'è più: sul telefono distava sette decimi di pixel da `1.10rem`, che è
+     esattamente il difetto che questa scala esiste per togliere. Oggi 1.05 va su --fs-7. */
+  --fs-1:  .65rem;   /*  9,1px — micro-etichette, pillole, versione viva */
+  --fs-2:  .70rem;   /*  9,8px */
+  --fs-3:  .80rem;   /* 11,2px — note, didascalie */
+  --fs-4:  .85rem;   /* 11,9px */
+  --fs-5:  .90rem;   /* 12,6px — testo corrente */
+  --fs-6:  .95rem;   /* 13,3px */
+  --fs-7: 1.00rem;   /* 14,0px */
+  --fs-8: 1.10rem;   /* 15,4px — titolo dell'header */
+  --fs-9: 1.20rem;   /* 16,8px */
+  --fs-10:1.40rem;   /* 19,6px */
+  --fs-11:1.75rem;   /* 24,5px */
+  --fs-12:2.00rem;   /* 28,0px */
+
   --sunken:rgba(255,255,255,.06);
   --cheese-txt:#F2B33D;   /* oro come testo: nel tema scuro coincide con --cheese */
 }
@@ -56,22 +99,44 @@ body.tile-on::after, html.pre-tile body::after{
   mask:url('./tile-formaggio.svg') repeat center/120px;
 }
 body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; }
+/* Sulla sola schermata d'accesso la trama passa DIETRO i chip dei topini — che non
+   stanno dentro una card opaca, come invece sta tutto il resto dell'app — e ne mangia il
+   contrasto. Qui va smorzata, altrove no.
+   Il layer è un `::after` fisso del `body`, non un figlio di #auth-screen: non lo si può
+   restringere scrivendo `#auth-screen ...`. Si guarda invece quale schermata è accesa.
+   Una regola sola copre tutti e quattro i casi (scuro/chiaro × a regime/pre-), perché
+   l'`#id` dentro `:has()` conta nella specificità e batte le classi qui sopra: così le
+   due regole esistenti restano intatte.
+   Se `:has()` mancasse, la regola cade e la trama resta com'era: si perde la rifinitura,
+   non si rompe niente.
+   .022 è una taratura fatta su banco, non una misura: se sul telefono il fondo sparisce
+   del tutto va alzata. */
+body:has(#auth-screen.attiva)::after{ opacity:.022; }
 .screen{display:none; flex-direction:column; min-height:100vh; min-height:100dvh; position:relative; z-index:1;}
 .screen.attiva{display:flex;}
 
 /* ── HEADER ── */
-.top{display:flex; align-items:center; gap:12px; padding:14px 18px; padding-top:max(14px,env(safe-area-inset-top));
+.top{display:flex; align-items:center; gap:var(--sp-6); padding:var(--sp-7) var(--sp-8); padding-top:max(var(--sp-7),env(safe-area-inset-top));
   background:var(--bg2); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50;}
 .top img{width:34px; height:34px; flex-shrink:0;}
 .top-titoli{flex:1; min-width:0;}
-.top h1{font-size:1.1rem; font-weight:800; color:var(--cheese-txt);}
-.top p{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
-.top-azioni{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+.top h1{font-size:var(--fs-8); font-weight:800; color:var(--cheese-txt);}
+.top p{font-size:var(--fs-2); color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+/* I due link della riga sotto il titolo, «cambia» e «guida». Stessa affordance di
+   `.med-cosa`: su un telefono il cursore non esiste, e l'unico modo per dire che una parola
+   si tocca è che si legga come un collegamento.
+   Il padding allarga il bersaglio e il margine negativo se lo riprende: la riga non si
+   sposta di un pixel e l'header non si allunga, ma il pollice trova sei pixel in più sopra
+   e sotto e quattro ai lati. Fra i due bersagli resta il separatore, che NON è cliccabile:
+   è quello che impedisce di prendere «cambia» volendo «guida». */
+.top-link{display:inline-block; color:var(--dim); text-decoration:underline; text-underline-offset:2px;
+  padding:var(--sp-3) var(--sp-2); margin:calc(-1 * var(--sp-3)) calc(-1 * var(--sp-2));}
+.top-azioni{display:flex; align-items:center; gap:var(--sp-4); flex-shrink:0;}
 .btn-pill{background:var(--sunken); border:1px solid var(--line); border-radius:20px; color:var(--dim);
-  font-family:'Baloo 2',cursive; font-size:.72rem; font-weight:700; padding:6px 12px; cursor:pointer;}
+  font-family:'Baloo 2',cursive; font-size:var(--fs-2); font-weight:700; padding:var(--sp-3) var(--sp-6); cursor:pointer;}
 /* Bottoni icona dell'header: compatti, ma sopra i 30px anche a 320px di larghezza */
 .btn-ico{width:32px; height:32px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
-  background:var(--sunken); border:1px solid var(--line); border-radius:50%; font-size:.92rem;
+  background:var(--sunken); border:1px solid var(--line); border-radius:50%; font-size:var(--fs-5);
   cursor:pointer; padding:0; line-height:1; transition:transform .1s, opacity .15s; -webkit-appearance:none;}
 .btn-ico:active{transform:scale(.9);}
 .btn-ico.spento{opacity:.4; filter:grayscale(1);}
@@ -80,9 +145,9 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
    tutto qui dentro, e un avviso che chiede un'azione deve staccare dal fondo. Il bordo
    dello stesso colore dell'header lo stacca dall'icona sotto. */
 #btn-admin{position:relative; overflow:visible;}
-.ico-badge{position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px;
+.ico-badge{position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 var(--sp-2);
   border-radius:999px; background:#E05A4A; color:#fff; border:1.5px solid var(--bg2);
-  font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:800; line-height:13px;
+  font-family:'Nunito',sans-serif; font-size:var(--fs-1); font-weight:800; line-height:13px;
   display:flex; align-items:center; justify-content:center; box-sizing:border-box;}
 .sync-dot{width:8px; height:8px; border-radius:50%; background:var(--cheese); flex-shrink:0;}
 .sync-dot:not(.ok):not(.err){animation:pulse 1s ease-in-out infinite;}
@@ -90,36 +155,90 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
 
 /* ── BODY / CARD ── */
-.body{flex:1; width:100%; max-width:720px; margin:0 auto; padding:16px; padding-bottom:90px; display:flex; flex-direction:column; gap:16px;}
-.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px;}
-.card-titolo{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;}
+.body{flex:1; width:100%; max-width:720px; margin:0 auto; padding:var(--sp-8); padding-bottom:90px; display:flex; flex-direction:column; gap:var(--sp-8);}
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:var(--sp-8);}
+.card-titolo{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:var(--fs-2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:var(--sp-5);}
+/* La riga di spiegazione sotto un titolo di card. Nasce dalla card «Nessun gruppo attivo»
+   dell'admin, che la portava in linea (`font-size:.85rem; margin-bottom:12px`) — due valori
+   che sulla scala ci sono già, `--fs-4` e `--sp-6`. Il nome è generico apposta: è il posto
+   dove far cadere le prossime, invece di riscriverle in linea una alla volta. */
+.card-nota{font-family:'Nunito',sans-serif; font-size:var(--fs-4); font-weight:600;
+  color:var(--dim); line-height:1.5; margin-bottom:var(--sp-6);}
+/* I due bottoni «copia il messaggio»: il testo che dice quale sia sta SOTTO al bottone,
+   quindi lo stacco va sopra il bottone successivo e non sotto la nota — altrimenti il
+   secondo bottone sembrerebbe appartenere alla nota del primo. */
+.msg-btn{margin-bottom:var(--sp-4);}
+.msg-btn + .card-nota{margin-bottom:var(--sp-8);}
+/* L'ultima nota di una card non stacca da niente: sotto c'è già il bordo. DOPO la regola
+   qui sopra, che ha la stessa specificità: a parità vince l'ultima scritta, e l'ultima
+   deve essere questa. */
+.card-nota:last-child{margin-bottom:0;}
+/* L'indirizzo che finisce nel messaggio. Il `break-all` sta sull'URL e NON sul blocco: un
+   URL lungo senza spazi non ha nessun altro punto dove andare a capo, ma la stessa regola
+   sulla frase intorno la spezzerebbe a metà parola («indirizzo p / ubblico»), che è il
+   difetto che questa riga esiste per evitare — una riga che si legge male non si legge. */
+.hint-link{margin-bottom:0;}
+.hint-url{word-break:break-all;}
 
 /* ── AUTH / SCELTA NOME ── */
-#auth-screen{align-items:center; justify-content:center; padding:32px 22px;}
-.auth-logo{width:88px; height:88px; margin-bottom:12px;}
-.auth-title{font-size:1.7rem; font-weight:800; color:var(--cheese-txt); text-align:center;}
-.auth-sub{font-size:.85rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; margin:6px 0 22px; text-align:center;}
+#auth-screen{align-items:center; justify-content:center; padding:var(--sp-10) var(--sp-9);}
+/* ── NESSUN GIRO APERTO ──
+   Le due schermate senza tab (questa e l'accesso) stanno al centro dello schermo: erano
+   `style="align-items:center;justify-content:center;padding:32px"` in linea, ed erano fra
+   i 26 stili in linea rimasti dopo il lotto 3. Il padding è quello di prima, letto sulla
+   scala (32px = `--sp-10`).
+   Il logo qui era 90x90 con 14px sotto — due numeri fuori scala per dire la stessa cosa
+   che `.auth-logo` dice già a 88x88: una misura sola, e le due schermate d'ingresso si
+   somigliano perché SONO la stessa cosa vista in due momenti. */
+.schermo-centrato{align-items:center; justify-content:center; padding:var(--sp-10);}
+/* La card è l'unica cosa sullo schermo: qui il testo centrato non è un vezzo, è l'asse su
+   cui sta tutto il resto della schermata. */
+.card-ngiro{width:100%; max-width:360px; text-align:center;}
+.ngiro-testo{font-family:'Nunito',sans-serif; font-size:var(--fs-4); font-weight:600;
+  color:var(--text); line-height:1.55; margin-bottom:var(--sp-8);}
+/* La porta dell'admin: sotto la card, staccata, e in `--sp-9` perché è un'altra cosa —
+   non un secondo modo di rispondere alla stessa domanda. */
+.ngiro-admin{margin-top:var(--sp-9); max-width:280px;}
+.auth-logo{width:88px; height:88px; margin-bottom:var(--sp-6);}
+.auth-title{font-size:var(--fs-11); font-weight:800; color:var(--cheese-txt); text-align:center;}
+/* Il nome del giro in corso. Stava a --fs-4 in var(--dim): più piccolo delle etichette
+   dei bottoni che gli stanno sotto, per l'unica riga che dice DOVE si sta entrando. Sale
+   di due gradini e passa al testo pieno smorzato: 02/09/2026, §2.3.
+   Il margine sotto NON cambia — il conto aritmetico nel commento di
+   `INVITO ALL'INSTALLAZIONE` cita quei 24px e resta valido. */
+.auth-sub{font-size:var(--fs-7); color:var(--text); opacity:.85; font-family:'Nunito',sans-serif; font-weight:600; margin:var(--sp-3) 0 var(--sp-9); text-align:center;}
 .auth-box{width:100%; max-width:360px;}
-.auth-sezione{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.7rem;
-  text-transform:uppercase; letter-spacing:.5px; margin:20px 0 8px;}
+/* Centrata come i chip che etichetta: tutto il resto della schermata sta su un asse
+   centrale, e un'etichetta a sinistra sopra dei chip centrati sembra una dimenticanza.
+   La classe compare in un punto solo (#auth-lista-titolo), quindi non serve restringerla. */
+.auth-sezione{font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:var(--fs-2);
+  text-transform:uppercase; letter-spacing:.5px; margin:var(--sp-9) 0 var(--sp-4); text-align:center;}
 /* CHIP affiancati, non righe piene. Il blocco "entra come nuovo" sta sopra la lista, e chi
    torna — la maggioranza dei casi — non deve scorrere per trovarsi: a righe piene otto
    topini riempiono da soli la schermata, a chip ci stanno in tre file. La max-height è la
    valvola per quando i topini diventano venti. */
-#lista-persone{display:flex; flex-flow:row wrap; gap:8px; max-height:240px; overflow-y:auto;}
-#lista-persone .empty{flex:1 1 100%; padding:14px 10px;}
-.persona-pick{display:inline-flex; align-items:center; gap:6px; background:var(--card2); border:1px solid var(--line);
-  border-radius:999px; padding:7px 11px; cursor:pointer; transition:border-color .15s;}
+#lista-persone{display:flex; flex-flow:row wrap; justify-content:center; gap:var(--sp-4); max-height:240px; overflow-y:auto;}
+#lista-persone .empty{flex:1 1 100%; padding:var(--sp-7) var(--sp-5);}
+/* Il bottone dell'admin non appartiene alla lista dei topini, ed è la terza sezione della
+   schermata, non la coda della seconda. Prende quindi la stessa distanza che l'etichetta
+   della lista prende dal bottone sopra — `--sp-9`, il margine superiore di `.auth-sezione`
+   — invece dei 10px inline che aveva: a quella distanza sembrava l'ultimo chip andato a
+   capo. Le due misure sono UNA SOLA scelta scritta due volte, per questo è lo stesso
+   gradino e non un numero vicino. Regola qui e non in linea nel markup, così la scelta si
+   vede accanto a quella con cui deve accordarsi. 02/09/2026. */
+#lista-persone + .btn{margin-top:var(--sp-9);}
+.persona-pick{display:inline-flex; align-items:center; gap:var(--sp-3); background:var(--card2); border:1px solid var(--line);
+  border-radius:999px; padding:var(--sp-4) var(--sp-6); cursor:pointer; transition:border-color .15s;}
 .persona-pick:hover{border-color:var(--cheese-brd);}
-.persona-pick .pp-emoji{font-size:1rem; line-height:1;}
-.persona-pick .pp-nome{font-weight:700; font-size:.92rem;}
+.persona-pick .pp-emoji{font-size:var(--fs-7); line-height:1;}
+.persona-pick .pp-nome{font-weight:700; font-size:var(--fs-5);}
 /* Le pillole `pagato` / `in attesa` stavano qui dentro: tolte il 01/09/2026 con la loro
    regola CSS. Questa schermata sta prima della password di gruppo — vedi il commento in
    `renderAuth()`. Lo stato dei pagamenti vive in tab Tabella e nell'area admin. */
 
 /* ── INPUT / BOTTONI ── */
 .inp{width:100%; height:48px; border-radius:12px; border:1.5px solid var(--line); background:var(--card2);
-  color:var(--text); font-family:'Baloo 2',cursive; font-size:1rem; font-weight:600; padding:0 14px; outline:none;}
+  color:var(--text); font-family:'Baloo 2',cursive; font-size:var(--fs-7); font-weight:600; padding:0 var(--sp-7); outline:none;}
 .inp:focus{border-color:var(--cheese-brd);}
 /* L'accesso admin usa un `type="password"` vero, quindi qui non serve nessuna regola:
    i pallini li disegna il browser e il gestore delle password può salvarla. Era il
@@ -127,24 +246,34 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
    in CSS apposta per tenere il campo fuori dal radar del gestore. Quella regola è morta
    col PIN, e la `.codice` che l'aveva sostituita è morta col codice via email: due giorni
    in tutto, ed erano giuste tutte e due quando sono state scritte. */
-.btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:1rem;
+.btn{width:100%; height:50px; border-radius:14px; border:none; font-family:'Baloo 2',cursive; font-size:var(--fs-7);
   font-weight:800; cursor:pointer; transition:transform .12s;}
 .btn:active{transform:scale(.98);}
 .btn-cheese{background:linear-gradient(135deg,var(--cheese),var(--cheese-d)); color:#2a1c05;}
 .btn-ghost{background:var(--card2); border:1.5px solid var(--line); color:var(--text);}
 .btn-danger{background:var(--berry-bg); border:1.5px solid var(--berry-brd); color:var(--berry);}
-.btn-mini{height:36px; padding:0 14px; font-size:.85rem; border-radius:10px;}
-.errore{min-height:18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:.8rem; color:var(--berry); text-align:center; margin:6px 0;}
+.btn-mini{height:36px; padding:0 var(--sp-7); font-size:var(--fs-4); border-radius:10px;}
+.errore{min-height:18px; font-family:'Nunito',sans-serif; font-weight:700; font-size:var(--fs-3); color:var(--berry); text-align:center; margin:var(--sp-3) 0;}
+/* Da vuoto non deve occupare posto: riservargli 18px + margini significa infilare
+   40px fra il campo del nome e il suo bottone, che così sembra appartenere alla lista
+   sotto invece che al campo sopra. Il min-height serviva a non far saltare la pagina
+   quando compare un errore: si paga sempre e si incassa quasi mai. Baratto accettato
+   il 02/09/2026 — uno scatto raro invece di una lettura sbagliata continua.
+   ⚠️ `:empty` non scatta se dentro resta uno spazio: tutti i punti che ripuliscono un
+   `.errore` devono usare `textContent = ""`. Verificato il 02/09/2026 su ui.js e
+   admin.js (sette `.errore`, tutti puliti con stringa vuota) e sul markup (nessun
+   `&nbsp;`). Chi aggiunge un errore nuovo ha lo stesso obbligo. */
+.errore:empty{display:none;}
 
 /* ── TAB BAR ── */
 .tab-bar{position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--bg2); border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom); z-index:60;}
 .tab-btn{flex:1; background:none; border:none; color:var(--dim); font-family:'Baloo 2',cursive; font-weight:700;
-  font-size:.68rem; padding:9px 0 8px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px;}
-.tab-btn .ti{font-size:1.25rem; line-height:1;}
+  font-size:var(--fs-2); padding:var(--sp-4) 0; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:var(--sp-2);}
+.tab-btn .ti{font-size:var(--fs-9); line-height:1;}
 .tab-btn.attiva{color:var(--cheese-txt);}
 
-.tab-page{display:none;} .tab-page.attiva{display:flex; flex-direction:column; gap:16px;}
+.tab-page{display:none;} .tab-page.attiva{display:flex; flex-direction:column; gap:var(--sp-8);}
 .tab-switching{animation:tabIn .22s ease-out;}
 @keyframes tabIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
 @media(prefers-reduced-motion:reduce){
@@ -156,104 +285,140 @@ body.chiaro.tile-on::after, html.pre-chiaro.pre-tile body::after{ opacity:.055; 
 .inp-euro-wrap{position:relative;}
 .inp-euro-wrap .inp{padding-right:34px;}
 .btn-calc-icon{position:absolute; right:6px; top:50%; transform:translateY(-50%);
-  background:none; border:none; font-size:1rem; cursor:pointer; padding:2px; line-height:1;
+  background:none; border:none; font-size:var(--fs-7); cursor:pointer; padding:var(--sp-1); line-height:1;
   opacity:.55; transition:opacity .15s;}
 .btn-calc-icon:hover,.btn-calc-icon:active{opacity:1;}
 /* Il display resta scuro in entrambi i temi: è un display, non una superficie dell'app */
-.calc-display{background:#1A1006; border-radius:var(--r-md); padding:14px 18px; margin-bottom:16px;
-  text-align:right; min-height:74px; display:flex; flex-direction:column; justify-content:center; gap:2px;}
-.calc-expr{font-size:.875rem; color:rgba(255,255,255,.45); font-family:'Nunito',sans-serif;
+.calc-display{background:#1A1006; border-radius:var(--r-md); padding:var(--sp-7) var(--sp-8); margin-bottom:var(--sp-8);
+  text-align:right; min-height:74px; display:flex; flex-direction:column; justify-content:center; gap:var(--sp-1);}
+.calc-expr{font-size:var(--fs-5); color:rgba(255,255,255,.45); font-family:'Nunito',sans-serif;
   font-weight:600; min-height:18px;}
-.calc-result{font-size:1.75rem; color:#F2B33D; font-weight:800; line-height:1.1; word-break:break-all;}
-.calc-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+.calc-result{font-size:var(--fs-11); color:#F2B33D; font-weight:800; line-height:1.1; word-break:break-all;}
+.calc-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-4);}
 .calc-key{height:52px; border-radius:var(--r-sm); border:1.5px solid var(--line); background:var(--card2);
-  color:var(--text); font-family:'Baloo 2',cursive; font-size:1.25rem; font-weight:700; cursor:pointer;
+  color:var(--text); font-family:'Baloo 2',cursive; font-size:var(--fs-9); font-weight:700; cursor:pointer;
   transition:transform .1s, background .15s; -webkit-appearance:none;}
 .calc-key:active{transform:scale(.93);}
 .calc-op{background:var(--cheese-bg); border-color:var(--cheese-brd); color:var(--cheese-txt);}
-.calc-back{background:var(--card2); color:var(--dim); font-size:1.1rem;}
+.calc-back{background:var(--card2); color:var(--dim); font-size:var(--fs-8);}
 .calc-clear{background:var(--berry-bg); border-color:var(--berry-brd); color:var(--berry);}
 .calc-eq{background:linear-gradient(135deg,var(--cheese),var(--cheese-d)); border:none;
-  color:#2a1c05; font-size:1.4rem;}
+  color:#2a1c05; font-size:var(--fs-10);}
 
 /* ── MODALE PREZZI REALI PER PERSONA ── */
-.mr-riga{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+.mr-riga{display:flex; align-items:center; gap:var(--sp-5); padding:var(--sp-5) 0; border-bottom:1px solid var(--line);}
 .mr-riga:last-of-type{border-bottom:none;}
 .mr-info{flex:1; min-width:0;}
 .mr-tipo{font-weight:700;}
-.mr-kg{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim);}
+.mr-kg{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600; color:var(--dim);}
 .mr-campo{width:124px; flex-shrink:0;}
 .mr-campo .inp{height:40px;}
 
 /* ── ACCESSO (lucchetto + modale d'ingresso) ── */
-.auth-lucchetto{font-family:'Nunito',sans-serif; font-weight:600; font-size:.78rem; color:var(--cheese-txt);
+.auth-lucchetto{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); color:var(--cheese-txt);
   background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:var(--r-md);
-  padding:10px 12px; margin-bottom:14px; line-height:1.35;}
-.modal-sub{font-family:'Nunito',sans-serif; font-weight:600; font-size:.82rem; color:var(--dim);
-  line-height:1.4; margin:6px 0 14px;}
+  padding:var(--sp-5) var(--sp-6); margin-bottom:var(--sp-7); line-height:1.35;}
+.modal-sub{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); color:var(--dim);
+  line-height:1.4; margin:var(--sp-3) 0 var(--sp-7);}
 
 /* ── ORDINE (stepper: una riga per tipo, il valore mostrato È l'ordine) ── */
-.banner-ordini{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4;
-  border-radius:var(--r-md); padding:10px 12px; margin-bottom:12px; border:1px solid;}
+.banner-ordini{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); line-height:1.4;
+  border-radius:var(--r-md); padding:var(--sp-5) var(--sp-6); margin-bottom:var(--sp-6); border:1px solid;}
 .banner-ordini.aperto{color:var(--cheese-txt); background:var(--cheese-bg); border-color:var(--cheese-brd);}
 .banner-ordini.chiuso{color:var(--berry); background:var(--berry-bg); border-color:var(--berry-brd);}
 .tipo-row.bloccata{opacity:.62;}
 .tipo-row.bloccata.attiva{opacity:.78;}
-.hint{font-family:'Nunito',sans-serif; font-weight:600; font-size:.78rem; color:var(--dim); margin-bottom:12px;}
+.hint{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); color:var(--dim); margin-bottom:var(--sp-6);}
+/* `.hint` nasce come riga che INTRODUCE qualcosa: ha solo il margine sotto, e in cima a una
+   card è giusto così. Ma nell'admin fa spessissimo il mestiere opposto — sta SOTTO un
+   bottone e ne spiega l'effetto — e lì, senza margine sopra, si appiccicava al tasto che
+   deve commentare. In tre punti non aveva proprio niente (segnala l'arrivo, riepilogo PDF,
+   autorizza un admin) e in due se lo scriveva da sé in linea, con due numeri diversi.
+   Un numero solo, qui, per tutti i casi in cui la spiegazione segue il suo comando.
+   14px e non 16: sedici è il padding della card, e a quella distanza la spiegazione
+   smette di appartenere al bottone e sembra un blocco a parte. Segnalato da iL KaJiNo il
+   03/09/2026 («poco o niente spazio rispetto al tasto di riferimento»). */
+.btn + .hint, .ar-actions + .hint, .scontrino-calc + .hint{margin-top:var(--sp-7);}
 /* Ordini chiusi: la riga sopra gli stepper smette di essere un'istruzione e diventa uno
    STATO, quindi prende il colore degli ordini chiusi invece del grigio dei suggerimenti.
    Resta anche quando il banner in cima tace per lasciare il campo a quello dell'arrivo. */
 .hint.chiuso{color:var(--berry);}
-.tipo-row{display:flex; flex-direction:column; gap:6px; padding:12px; margin-bottom:8px;
+.tipo-row{display:flex; flex-direction:column; gap:var(--sp-3); padding:var(--sp-6); margin-bottom:var(--sp-4);
   background:var(--card2); border:1px solid var(--line); border-radius:var(--r-md); transition:border-color .15s;}
 .tipo-row:last-of-type{margin-bottom:0;}
 .tipo-row.attiva{border-color:var(--cheese-brd); background:var(--cheese-bg);}
-.tr-alto,.tr-basso{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-.tipo-nome{font-weight:700; font-size:1.02rem;}
-.tipo-tot{font-weight:800; color:var(--dim); font-family:'Nunito',sans-serif; font-size:.95rem;
+.tr-alto,.tr-basso{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5);}
+.tipo-nome{font-weight:700; font-size:var(--fs-7);}
+.tipo-tot{font-weight:800; color:var(--dim); font-family:'Nunito',sans-serif; font-size:var(--fs-6);
   font-variant-numeric:tabular-nums;}
 .tipo-row.attiva .tipo-tot{color:var(--cheese-txt);}
-.tipo-prezzo{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+.tipo-prezzo{font-size:var(--fs-3); color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
 
 /* Stepper a pillola: niente frecce, target tattili da 44px */
-.stepper{display:flex; align-items:center; gap:2px; padding:3px; flex-shrink:0;
+.stepper{display:flex; align-items:center; gap:var(--sp-1); padding:var(--sp-2); flex-shrink:0;
   background:var(--sunken); border:1px solid var(--line); border-radius:999px;}
 .step-btn{width:38px; height:38px; flex-shrink:0; border:none; border-radius:50%; background:transparent;
-  color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-size:1.4rem; font-weight:700; line-height:1;
+  color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-size:var(--fs-10); font-weight:700; line-height:1;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
   transition:background .15s, transform .1s; -webkit-appearance:none;}
 .step-btn:active{transform:scale(.88); background:var(--cheese-bg);}
 .step-btn:disabled{color:var(--dim); opacity:.3; cursor:default; transform:none; background:transparent;}
-.step-val{min-width:66px; text-align:center; font-weight:800; font-size:.95rem;
+.step-val{min-width:66px; text-align:center; font-weight:800; font-size:var(--fs-6);
   font-family:'Nunito',sans-serif; font-variant-numeric:tabular-nums;}
 
 /* Griglia atteso/reale x con-e-senza-spedizione: i quattro numeri da confrontare */
-.mt-griglia{display:grid; grid-template-columns:auto 1fr 1fr; gap:4px 8px; align-items:baseline;}
-.mt-h{font-size:.66rem; font-weight:800; color:var(--dim); text-transform:uppercase;
-  letter-spacing:.3px; text-align:right; padding-bottom:4px; line-height:1.2;}
+.mt-griglia{display:grid; grid-template-columns:auto 1fr 1fr; gap:var(--sp-2) var(--sp-4); align-items:baseline;}
+.mt-h{font-size:var(--fs-1); font-weight:800; color:var(--dim); text-transform:uppercase;
+  letter-spacing:.3px; text-align:right; padding-bottom:var(--sp-2); line-height:1.2;}
 .mt-l{font-weight:800; color:var(--dim);}
 .mt-l.reale,.mt-v.reale{color:var(--moss);}
 .mt-v{text-align:right; font-variant-numeric:tabular-nums; font-weight:700; color:var(--text);}
-.mt-v.forte{font-size:1.1rem; font-weight:800;}
-.mt-nota{margin-top:10px; font-size:.72rem; font-weight:600; color:var(--dim); line-height:1.35;}
+.mt-v.forte{font-size:var(--fs-8); font-weight:800;}
+.mt-nota{margin-top:var(--sp-5); font-size:var(--fs-2); font-weight:600; color:var(--dim); line-height:1.35;}
 
 /* Riquadro spedizione: la divisione resta visibile, non solo il risultato */
-.sped-conto{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 8px;
+.sped-conto{display:flex; flex-wrap:wrap; align-items:baseline; gap:var(--sp-3) var(--sp-4);
   font-family:'Nunito',sans-serif; font-variant-numeric:tabular-nums;}
-.sped-num{font-weight:700; color:var(--text); font-size:.95rem;}
+.sped-num{font-weight:700; color:var(--text); font-size:var(--fs-6);}
 .sped-op{font-weight:800; color:var(--dim);}
-.sped-quota{font-weight:800; color:var(--cheese-txt); font-size:1.05rem;}
-.sped-nota{margin-top:8px; font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600;
+.sped-quota{font-weight:800; color:var(--cheese-txt); font-size:var(--fs-7);}
+.sped-nota{margin-top:var(--sp-4); font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600;
   color:var(--dim); line-height:1.35;}
 
+/* ── LO STEPPER DELLE QUOTE DI SPEDIZIONE ──
+   Riquadro proprio, staccato dal conto da un filo: quel numero non è un dato che si legge
+   come gli altri della card, è l'unico comando che ci sta dentro. Lo stepper è lo stesso
+   delle righe del formaggio (`.stepper`, `.step-btn`, `.step-val`), non una variante: è la
+   stessa frase detta su un altro numero, e riusarne le classi è ciò che lo dice. */
+.sped-quote{margin-top:var(--sp-5); padding-top:var(--sp-5); border-top:1px solid var(--line);}
+.sq-testa{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4);}
+.sq-label{font-weight:700; font-size:var(--fs-5); line-height:1.25;}
+.sq-sotto{margin-top:var(--sp-3); font-family:'Nunito',sans-serif; font-size:var(--fs-2);
+  font-weight:600; color:var(--dim); line-height:1.35;}
+/* Ordini chiusi: stessa attenuazione di `.tipo-row.bloccata`, perché è lo stesso stato.
+   Il comando resta e si spegne — sparire direbbe «non per te», che qui sarebbe falso. */
+.sped-quote.bloccata{opacity:.62;}
+
+/* I due numeri di chi ordina per altri. Il secondo è quello che evita una divisione a mano
+   sulla porta di casa di un amico, quindi ha lo stesso peso del primo: nessuno dei due è
+   una postilla dell'altro. */
+.sq-numeri{margin-top:var(--sp-4); padding:var(--sp-4) var(--sp-5);
+  background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:var(--r-md);
+  font-family:'Nunito',sans-serif; font-variant-numeric:tabular-nums;}
+.sq-riga{display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5);
+  font-size:var(--fs-3); font-weight:600; color:var(--dim); line-height:1.4;}
+.sq-riga + .sq-riga{margin-top:var(--sp-2);}
+.sq-riga span:last-child{font-weight:800; font-size:var(--fs-5); color:var(--cheese-txt);
+  white-space:nowrap;}
+
 /* Riepilogo costi del topino */
-.mio-totale{margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
-  font-family:'Nunito',sans-serif; font-weight:700; font-size:.88rem;}
-.mt-riga{display:flex; justify-content:space-between; gap:12px; padding:4px 0; color:var(--dim);
+.mio-totale{margin-top:var(--sp-7); padding-top:var(--sp-6); border-top:1px solid var(--line);
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:var(--fs-5);}
+.mt-riga{display:flex; justify-content:space-between; gap:var(--sp-6); padding:var(--sp-2) 0; color:var(--dim);
   font-variant-numeric:tabular-nums;}
 .mt-riga.reale{color:var(--moss);}
-.mt-riga.grande{margin-top:6px; padding-top:8px; border-top:1px solid var(--line);
-  color:var(--text); font-size:1.05rem; font-weight:800;}
+.mt-riga.grande{margin-top:var(--sp-3); padding-top:var(--sp-4); border-top:1px solid var(--line);
+  color:var(--text); font-size:var(--fs-7); font-weight:800;}
 .mt-riga.grande span:last-child{color:var(--cheese-txt);}
 
 /* Via le frecce native dai campi numerici (admin compreso) — §5.B */
@@ -263,158 +428,320 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;
 
 /* ── TABELLA DI GRUPPO (card impilate, mai scroll orizzontale) ── */
 .persona-card{background:var(--card2); border:1px solid var(--line); border-radius:var(--r-md);
-  padding:14px; margin-bottom:10px;}
+  padding:var(--sp-7); margin-bottom:var(--sp-5);}
 .persona-card:last-child{margin-bottom:0;}
 .persona-card.mia{border-color:var(--cheese-brd); background:var(--cheese-bg);}
 .persona-card.totale-gruppo{background:var(--bg2); border-color:var(--cheese-brd);}
-.pc-testa{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
-.pc-nome{font-weight:800; font-size:1.05rem;}
-.pc-tu{font-family:'Nunito',sans-serif; font-size:.65rem; font-weight:800; color:var(--cheese-txt);
-  background:var(--bg2); border-radius:20px; padding:2px 8px; vertical-align:middle;}
-.pc-voci{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;}
-.pc-voce{font-family:'Nunito',sans-serif; font-size:.76rem; font-weight:600; color:var(--text);
-  background:var(--bg2); border:1px solid var(--line); border-radius:20px; padding:3px 10px;}
+/* La testata: il nome e le sue pillole possono andare a capo quanto serve, la pillola
+   del pagamento no. Era questo il difetto — non la quantità di roba, ma il fatto che a
+   cedere fosse per prima la cosa che deve restare leggibile sempre: con `admin` + topino
+   grasso + «sei tu» su un nome lungo, a 320px si spezzava in due righe la pillola «da
+   pagare». Con `flex:0 0 auto` la riga si allunga verso il basso invece di sbriciolarsi,
+   e il caso peggiore smette di essere un caso da prevedere.
+   `align-items:flex-start` invece di `center`: con una riga sola l'effetto è quasi nullo,
+   ma quando il nome va a capo la pillola deve restare in alto, allineata alla PRIMA riga
+   del nome, non centrata sul blocco. */
+.pc-testa{display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); margin-bottom:var(--sp-5);}
+.pc-nome{font-weight:800; font-size:var(--fs-7); min-width:0;}
+.pc-testa > .badge{flex:0 0 auto; white-space:nowrap;}
+.pc-tu{font-family:'Nunito',sans-serif; font-size:var(--fs-1); font-weight:800; color:var(--cheese-txt);
+  background:var(--bg2); border-radius:20px; padding:var(--sp-1) var(--sp-4); vertical-align:middle;}
+.pc-voci{display:flex; flex-wrap:wrap; gap:var(--sp-3); margin-bottom:var(--sp-3);}
+.pc-voce{font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600; color:var(--text);
+  background:var(--bg2); border:1px solid var(--line); border-radius:20px; padding:var(--sp-2) var(--sp-5);}
 .pc-voce b{font-weight:800; color:var(--cheese-txt);}
 .pc-voce.vuota{color:var(--dim); font-style:italic;}
-.pc-kg{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:700; color:var(--dim); margin-bottom:8px;}
-.pc-conti{border-top:1px solid var(--line); padding-top:8px;
-  font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem;}
-.pc-riga{display:flex; justify-content:space-between; gap:12px; padding:3px 0; color:var(--dim);
+.pc-kg{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:700; color:var(--dim); margin-bottom:var(--sp-4);}
+.pc-conti{border-top:1px solid var(--line); padding-top:var(--sp-4);
+  font-family:'Nunito',sans-serif; font-weight:700; font-size:var(--fs-4);}
+.pc-riga{display:flex; justify-content:space-between; gap:var(--sp-6); padding:var(--sp-2) 0; color:var(--dim);
   font-variant-numeric:tabular-nums;}
 .pc-riga.reale{color:var(--moss);}
-.pc-riga.grande{margin-top:5px; padding-top:7px; border-top:1px solid var(--line);
-  color:var(--text); font-size:1rem; font-weight:800;}
+.pc-riga.grande{margin-top:var(--sp-2); padding-top:var(--sp-4); border-top:1px solid var(--line);
+  color:var(--text); font-size:var(--fs-7); font-weight:800;}
 .pc-riga.grande span:last-child{color:var(--cheese-txt);}
 
-/* Topino grasso: pulsa mentre il gruppo è aperto, si posa quando viene archiviato */
-.badge-grasso{display:inline-block; font-size:.9rem; animation:grassoPulse 1.8s ease-in-out infinite;
-  transform-origin:center;}
-.badge-grasso.incoronato{animation:none; filter:drop-shadow(0 0 4px var(--cheese-brd));}
-@keyframes grassoPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
-@media(prefers-reduced-motion:reduce){ .badge-grasso{animation:none;} }
+/* ── LA BARRA DELL'ORDINAMENTO (tab Tabella, sotto «Tutto il clan») ──
+   Stessa forma delle `.pc-voce` che stanno due centimetri sotto: in questa tab la pillola
+   arrotondata vuol già dire «un'informazione piccola», e usarla anche per un comando la
+   rende leggibile senza inventare un elemento nuovo.
+   Scorre in orizzontale invece di andare a capo: quattro voci su una riga sola si leggono
+   come alternative, le stesse quattro su due righe sembrano due gruppi di due. A 320px la
+   quarta sporge, e il fatto che sporga è quello che dice che si può scorrere. */
+/* ⚠️ `safe center` e non `center`: con `center` secco, quando le pillole non ci stanno il
+   contenuto trabocca da TUTTI E DUE i lati e quello a sinistra non si può raggiungere —
+   `scrollLeft` è già a zero. Misurato a 320px: la prima pillola partiva 13px prima del
+   bordo e «Ingresso» restava tagliata per sempre. Con `safe` il centraggio si spegne da
+   solo appena il contenuto trabocca e la barra torna ad appoggiarsi a sinistra; i browser
+   che non lo conoscono ignorano la riga intera e restano a sinistra, che è il ripiego
+   giusto. Chiesto da iL KaJiNo il 04/09/2026. */
+.ord-barra{display:flex; justify-content:safe center; gap:var(--sp-3); overflow-x:auto;
+  margin-bottom:var(--sp-5); padding-bottom:var(--sp-2);
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+.ord-barra::-webkit-scrollbar{display:none;}
+.ord-btn{flex:0 0 auto; font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:700;
+  color:var(--dim); background:var(--bg2); border:1px solid var(--line); border-radius:999px;
+  padding:var(--sp-3) var(--sp-5); cursor:pointer; white-space:nowrap;}
+.ord-btn.attivo{color:var(--cheese-txt); background:var(--cheese-bg);
+  border-color:var(--cheese-brd); font-weight:800;}
+
+/* ── LA RIGA DELLE MEDAGLIE ──
+   Una riga propria sotto il nome, che esiste solo se c'è almeno una medaglia. Il margine
+   negativo in cima la tira sotto la testata: è la seconda riga della stessa cosa, non un
+   blocco nuovo.
+   Il topino si scrive UNA volta sola ed è il gancio; i simboli si accumulano dopo di lui.
+   ⚠️ Pulsa il SIMBOLO, mai il gancio: se pulsasse il gancio trascinerebbe nel movimento
+   anche le medaglie che gli stanno accanto, che devono restare ferme. E pulsa solo la
+   corona — una cosa che si muove in mezzo a cinque ferme si vede, sei che si muovono sono
+   rumore.
+   ⚠️ Il gancio è fermo e sta alla misura MASSIMA della pulsazione (1.18), non a quella
+   minima: perdendo il movimento perderebbe visibilità, e gliela si restituisce con la
+   taglia. Con la dimensione vera e non con un `transform:scale` statico — uno scale
+   lascerebbe la scatola di prima e disegnerebbe fuori, sovrapponendosi a quello che gli sta
+   accanto. Alzando il `font-size` i `width`/`height` in `em` di `.topino-ico` lo seguono da
+   soli: è esattamente il motivo per cui erano stati scritti in `em`.
+   `.posata` è il caso archiviato: a giro chiuso non si muove più niente e la corona prende
+   l'alone. Il gancio, lì, resta — adesso porta anche altre medaglie, non solo la corona. */
+/* ⚠️ Il `padding` verticale è il BERSAGLIO TATTILE, non ritmo: una riga alta venti pixel
+   che si tocca è una riga che si manca. I due margini sono quelli di prima meno gli otto
+   pixel di padding (−6−8 sopra, 10−8 sotto): la riga cresce come area toccabile e non si
+   sposta di un pixel come disegno. Se un giorno cambia il padding, vanno rifatti i conti
+   tutti e due insieme. */
+.pc-medaglie{display:flex; align-items:center; flex-wrap:wrap; gap:var(--sp-3);
+  margin:calc(-1 * var(--sp-7)) 0 var(--sp-1); padding:var(--sp-4) 0;
+  font-size:var(--fs-5); line-height:1; cursor:pointer;}
+/* La coda che dice che la riga si tocca. Sottolineata e in `--dim`: su un telefono il
+   `title` non si vede e il cursore non esiste, quindi l'unica affordance possibile è una
+   parola che si legge come un collegamento. */
+.med-cosa{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:700;
+  color:var(--dim); text-decoration:underline; text-underline-offset:2px;
+  margin-left:var(--sp-2);}
+.pc-medaglie .gancio{font-size:1.18em; line-height:1; display:inline-flex; align-items:center;}
+.pc-medaglie .med{display:inline-block;}
+.pc-medaglie .med.pulsa{animation:medPulse 1.8s ease-in-out infinite; transform-origin:center;}
+.pc-medaglie .med.posata{filter:drop-shadow(0 0 4px var(--cheese-brd));}
+@keyframes medPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+@media(prefers-reduced-motion:reduce){ .pc-medaglie .med.pulsa{animation:none;} }
 
 /* ── BACHECA ── */
-.nota-composer{display:flex; flex-direction:column; gap:8px; margin-bottom:14px;}
+.nota-composer{display:flex; flex-direction:column; gap:var(--sp-4); margin-bottom:var(--sp-7);}
 .nota-textarea{width:100%; box-sizing:border-box; resize:none; min-height:44px; max-height:200px;
   border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card2); color:var(--text);
-  padding:10px 12px; font-family:'Nunito',sans-serif; font-weight:600; font-size:.9rem; line-height:1.4;}
+  padding:var(--sp-5) var(--sp-6); font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-5); line-height:1.4;}
 .nota-textarea:focus{outline:none; border-color:var(--cheese-brd);}
+/* Il tetto di 200px esiste per il compositore della bacheca, che sta SOPRA una lista: se
+   crescesse senza limite spingerebbe le note fuori schermo mentre si scrive. Le note per il
+   negoziante non hanno niente sotto — stanno in fondo a una fase della fisarmonica — quindi
+   non hanno motivo di scorrere dentro sé stesse: crescono e basta. Con `maxlength=500` il
+   caso peggiore è una dozzina di righe. `notaAuto()` legge questo valore invece di avere il
+   proprio numero scritto dentro, così il tetto si decide in un posto solo. */
+.nota-textarea.nota-libera{max-height:none;}
 .nota-item{border:1px solid var(--line); border-radius:var(--r-md); background:var(--card2);
-  padding:11px 13px; margin-bottom:8px;}
+  padding:var(--sp-6); margin-bottom:var(--sp-4);}
 .nota-item:last-child{margin-bottom:0;}
 .nota-item.mia{border-color:var(--cheese-brd); background:var(--cheese-bg);}
 .nota-item.in-modifica{background:var(--bg2);}
 /* pre-wrap tiene gli a capo scritti a mano, break-word impedisce alle URL di sfondare */
-.nota-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.9rem; line-height:1.45;
+.nota-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-5); line-height:1.45;
   white-space:pre-wrap; word-break:break-word;}
-.nota-piede{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px;}
-.nota-meta{font-family:'Nunito',sans-serif; font-size:.7rem; font-weight:600; color:var(--dim);
+.nota-piede{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); margin-top:var(--sp-4);}
+.nota-meta{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600; color:var(--dim);
   line-height:1.3;}
-.nota-azioni{display:flex; gap:2px; flex-shrink:0;}
-.nota-ico{border:none; background:transparent; cursor:pointer; padding:4px 6px; font-size:.95rem;
+.nota-azioni{display:flex; gap:var(--sp-1); flex-shrink:0;}
+.nota-ico{border:none; background:transparent; cursor:pointer; padding:var(--sp-2) var(--sp-3); font-size:var(--fs-6);
   border-radius:var(--r-sm); line-height:1;}
 .nota-ico:active{background:var(--sunken);}
-.nota-azioni-edit{display:flex; gap:8px; justify-content:flex-end; margin-top:8px;}
+.nota-azioni-edit{display:flex; gap:var(--sp-4); justify-content:flex-end; margin-top:var(--sp-4);}
 
 /* ── STATISTICHE ── */
-.grafico-wrap{width:100%; margin-bottom:12px;}
+.grafico-wrap{width:100%; margin-bottom:var(--sp-6);}
 .grafico-wrap canvas{display:block; max-width:100%;}
-.stat-lista{font-family:'Nunito',sans-serif; font-weight:700; font-size:.84rem;}
-.stat-riga{display:flex; justify-content:space-between; gap:12px; padding:5px 0; color:var(--dim);
+.stat-lista{font-family:'Nunito',sans-serif; font-weight:700; font-size:var(--fs-4);}
+.stat-riga{display:flex; justify-content:space-between; gap:var(--sp-6); padding:var(--sp-2) 0; color:var(--dim);
   border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;}
 .stat-riga:last-child{border-bottom:none;}
 .stat-perc{color:var(--cheese-txt); font-weight:800;}
-.stat-riga.totale{color:var(--text); font-weight:800; border-top:1px solid var(--line); margin-top:4px;}
+.stat-riga.totale{color:var(--text); font-weight:800; border-top:1px solid var(--line); margin-top:var(--sp-2);}
 
 /* Resta per l'archivio admin, che usa ancora una tabella vera */
 .tabella-wrap{overflow-x:auto;}
-table.tb{width:100%; border-collapse:collapse; font-size:.85rem;}
-table.tb th{text-align:left; font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:.68rem;
-  text-transform:uppercase; letter-spacing:.4px; padding:8px 10px; border-bottom:2px solid var(--line); white-space:nowrap;}
-table.tb td{padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;}
+table.tb{width:100%; border-collapse:collapse; font-size:var(--fs-4);}
+table.tb th{text-align:left; font-family:'Nunito',sans-serif; font-weight:700; color:var(--dim); font-size:var(--fs-2);
+  text-transform:uppercase; letter-spacing:.4px; padding:var(--sp-4) var(--sp-5); border-bottom:2px solid var(--line); white-space:nowrap;}
+table.tb td{padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line); white-space:nowrap;}
+/* Le celle hanno un padding orizzontale che serve a separare le colonne FRA LORO. Ai due
+   bordi però non separa niente: rientra la prima colonna di dieci pixel rispetto al titolo
+   della card, e stacca l'ultima dal bordo destro. Il testo della tabella sembrava così
+   allineato a un margine tutto suo. Ai capi il padding si toglie e le colonne tornano sui
+   bordi del contenuto della card; in mezzo resta dov'è, perché lì il suo mestiere ce l'ha. */
+table.tb th:first-child, table.tb td:first-child{padding-left:0;}
+table.tb th:last-child,  table.tb td:last-child{padding-right:0;}
 table.tb tr:last-child td{border-bottom:none;}
-.badge{font-size:.65rem; padding:2px 8px; border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
+.badge{font-size:var(--fs-1); padding:var(--sp-1) var(--sp-4); border-radius:20px; font-family:'Nunito',sans-serif; font-weight:800;}
 .badge.ok{background:var(--moss-bg); color:var(--moss); border:1px solid var(--moss-brd);}
 .badge.no{background:var(--berry-bg); color:var(--berry); border:1px solid var(--berry-brd);}
 .tot-riga{background:var(--cheese-bg);}
 
 /* ── PAGAMENTI ── */
 .pay-tot{background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:var(--r-md);
-  padding:14px; margin-bottom:14px; text-align:center;}
-.pt-label{font-family:'Nunito',sans-serif; font-size:.72rem; font-weight:700; color:var(--dim);
+  padding:var(--sp-7); margin-bottom:var(--sp-7); text-align:center;}
+.pt-label{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:700; color:var(--dim);
   text-transform:uppercase; letter-spacing:.4px;}
-.pt-val{font-size:2rem; font-weight:800; color:var(--cheese-txt); line-height:1.2;
+.pt-val{font-size:var(--fs-12); font-weight:800; color:var(--cheese-txt); line-height:1.2;
   font-variant-numeric:tabular-nums;}
-.pt-sub{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim);}
-.pay-contanti{font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:600; color:var(--dim);
-  text-align:center; padding:10px 0;}
+.pt-sub{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600; color:var(--dim);}
+.pay-contanti{font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600; color:var(--dim);
+  text-align:center; padding:var(--sp-5) 0;}
 
-.pay-stato{border-radius:var(--r-md); padding:12px 14px; margin-top:14px;
-  font-family:'Nunito',sans-serif; font-size:.88rem; font-weight:700; border:1px solid;}
+.pay-stato{border-radius:var(--r-md); padding:var(--sp-6) var(--sp-7); margin-top:var(--sp-7);
+  font-family:'Nunito',sans-serif; font-size:var(--fs-5); font-weight:700; border:1px solid;}
 .pay-stato.attesa{color:var(--cheese-txt); background:var(--cheese-bg); border-color:var(--cheese-brd);}
 .pay-stato.confermato{color:var(--moss); background:var(--moss-bg); border-color:var(--moss-brd);}
-.ps-sub{font-weight:600; font-size:.76rem; color:var(--dim); margin-top:4px; line-height:1.35;}
+.ps-sub{font-weight:600; font-size:var(--fs-3); color:var(--dim); margin-top:var(--sp-2); line-height:1.35;}
 
-.metodi-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px;}
-.metodo-btn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-  min-height:76px; padding:10px 6px; border-radius:var(--r-md); border:1.5px solid var(--line);
-  background:var(--card2); color:var(--text); font-family:'Baloo 2',cursive; font-size:.86rem;
+.metodi-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4); margin-bottom:var(--sp-3);}
+.metodo-btn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--sp-2);
+  min-height:76px; padding:var(--sp-5) var(--sp-3); border-radius:var(--r-md); border:1.5px solid var(--line);
+  background:var(--card2); color:var(--text); font-family:'Baloo 2',cursive; font-size:var(--fs-4);
   font-weight:700; cursor:pointer; text-align:center; line-height:1.2;
   transition:transform .1s, border-color .15s; -webkit-appearance:none;}
 .metodo-btn:active{transform:scale(.95);}
 .metodo-btn:hover{border-color:var(--cheese-brd);}
-.mb-ico{font-size:1.5rem; line-height:1;}
+.mb-ico{font-size:var(--fs-10); line-height:1;}
 
-.pay-link{display:flex; align-items:center; gap:12px; background:var(--card2); border:1px solid var(--line);
-  border-radius:14px; padding:14px; margin-bottom:10px; text-decoration:none; color:var(--text); cursor:pointer;}
-.pay-link .pl-ico{font-size:1.5rem;}
+.pay-link{display:flex; align-items:center; gap:var(--sp-6); background:var(--card2); border:1px solid var(--line);
+  border-radius:14px; padding:var(--sp-7); margin-bottom:var(--sp-5); text-decoration:none; color:var(--text); cursor:pointer;}
+.pay-link .pl-ico{font-size:var(--fs-10);}
 .pay-link .pl-info{flex:1; min-width:0;}
 .pay-link .pl-nome{font-weight:700;}
-.pay-link .pl-val{font-size:.78rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; overflow:hidden; text-overflow:ellipsis;}
+.pay-link .pl-val{font-size:var(--fs-3); color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; overflow:hidden; text-overflow:ellipsis;}
 
 /* ── ADMIN ── */
-.admin-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
+/* `.body` porta `padding-bottom:90px`, il franco per la tab bar. La schermata admin la tab
+   bar non ce l'ha — sotto c'è solo la riga della versione viva, che ha già il suo spazio e
+   il franco per la barra di sistema. Novanta pixel di vuoto in fondo a ogni scorrimento
+   erano il franco per una barra che qui non esiste. La regola generale resta intoccata:
+   questo è un annullamento locale, dove il presupposto non vale. */
+#admin-screen .body{padding-bottom:var(--sp-8);}
+.admin-row{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); padding:var(--sp-5) 0; border-bottom:1px solid var(--line);}
 .admin-row:last-child{border-bottom:none;}
 .admin-row .ar-nome{font-weight:700;}
-.admin-row .ar-actions{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
-.admin-row.cliccabile{cursor:pointer; margin:0 -6px; padding:10px 6px; border-radius:var(--r-sm);
+/* `.ar-actions` fa due mestieri, e per uno dei due non c'era nessuna regola.
+   Dentro `.admin-row` è una fila di comandi accanto a un nome: orizzontale, ed è sempre
+   stata coperta. Dentro una `.card` invece raccoglie bottoni a piena larghezza uno sotto
+   l'altro — e lì `.ar-actions` era un `div` nudo: i `.btn` sono `width:100%` e di blocco,
+   quindi si TOCCAVANO, senza un filo di stacco. Visto da iL KaJiNo il 03/09/2026 sulla
+   fase 3 dell'admin («Rimanda il messaggio» / «Annulla la segnalazione»); lo stesso
+   difetto stava in sei dei dodici punti che usano questa classe.
+   ⚠️ La FILA è il valore di base, la colonna è l'eccezione — e non il contrario.
+   Il 03/09/2026 questa coppia di regole era scritta al rovescio: colonna di base, fila
+   ripristinata per `.admin-row`. Sembrava equivalente e non lo era, perché `.admin-row`
+   non è l'unico posto in cui questa classe sta in fila: dentro `.archivio-item` il cestino
+   e la freccetta si sono impilati uno sull'altro, e il difetto è passato inosservato
+   perché l'archivio sta dietro la password dell'admin.
+   Scritta così non può più succedere: `.card > .ar-actions` nomina ESATTAMENTE i sei punti
+   che impilano — bottoni a piena larghezza figli diretti di una card — e tutto il resto
+   resta com'è sempre stato. Una regola che elenca le eccezioni sbaglia appena ne nasce una
+   nuova; una che descrive la sola forma diversa, no. */
+.ar-actions{display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:center;}
+.card > .ar-actions{flex-direction:column; flex-wrap:nowrap; align-items:stretch;}
+/* Il margine negativo ANNULLA il padding orizzontale: serve ad allargare l'area toccabile
+   senza spostare di un pixel il testo rispetto alle righe non cliccabili sopra e sotto. I
+   due valori non sono due scelte, sono una sola scelta scritta due volte — per questo il
+   negativo passa dal gradino con un `calc` invece di restare 6px fisso: se un domani
+   `--sp-3` cambia, il margine lo segue e l'allineamento regge da solo. Un negativo scritto
+   a mano si scollerebbe dal padding in silenzio, ed è il tipo di difetto che non si vede
+   finché qualcuno non si accorge che una riga sporge. */
+.admin-row.cliccabile{cursor:pointer; margin:0 calc(-1 * var(--sp-3)); padding:var(--sp-5) var(--sp-3); border-radius:var(--r-sm);
   transition:background .15s;}
 .admin-row.cliccabile:active{background:var(--sunken);}
 .card-attesa{border-color:var(--cheese-brd); background:var(--cheese-bg);}
-.ar-flag{font-family:'Nunito',sans-serif; font-size:.66rem; font-weight:800; color:var(--cheese-txt);
-  background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:20px; padding:2px 8px;
+.ar-flag{font-family:'Nunito',sans-serif; font-size:var(--fs-1); font-weight:800; color:var(--cheese-txt);
+  background:var(--cheese-bg); border:1px solid var(--cheese-brd); border-radius:20px; padding:var(--sp-1) var(--sp-4);
   white-space:nowrap;}
-.ar-sub{font-family:'Nunito',sans-serif; font-size:.74rem; font-weight:600; color:var(--dim); margin-top:2px;}
-.ar-freccia{color:var(--dim); font-size:1.2rem; line-height:1;}
+.ar-sub{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600; color:var(--dim); margin-top:var(--sp-1);}
+.ar-freccia{color:var(--dim); font-size:var(--fs-9); line-height:1;}
 
 /* ── MODALI ── */
 .modal-overlay{display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.6);
-  align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(3px);}
+  align-items:center; justify-content:center; padding:var(--sp-9); backdrop-filter:blur(3px);}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--bg2); border:1px solid var(--line); border-radius:22px; padding:22px; width:100%;
+.modal{background:var(--bg2); border:1px solid var(--line); border-radius:22px; padding:var(--sp-9); width:100%;
   max-width:400px; max-height:88vh; overflow-y:auto;}
-.modal h2{font-size:1.2rem; font-weight:800; color:var(--cheese-txt); margin-bottom:10px;}
-.m-row{margin-bottom:12px;}
-.m-row label{display:block; font-size:.78rem; font-weight:700; color:var(--text); margin-bottom:5px; font-family:'Nunito',sans-serif;}
-.m-btns{display:flex; gap:10px; margin-top:16px;}
+.modal h2{font-size:var(--fs-9); font-weight:800; color:var(--cheese-txt); margin-bottom:var(--sp-5);}
+.m-row{margin-bottom:var(--sp-6);}
+.m-row label{display:block; font-size:var(--fs-3); font-weight:700; color:var(--text); margin-bottom:var(--sp-2); font-family:'Nunito',sans-serif;}
+.m-btns{display:flex; gap:var(--sp-5); margin-top:var(--sp-8);}
 .m-btns .btn{flex:1;}
 
-.empty{text-align:center; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; padding:26px 10px; line-height:1.6;}
+/* ── LA GUIDA: sezioni a fisarmonica ──
+   `<details>` nativi. Il triangolino di sistema si toglie in due modi perché i browser lo
+   disegnano in due modi (`list-style` e lo pseudo-elemento di WebKit), e al suo posto c'è
+   una freccia nostra che gira: quella di sistema è minuscola e sta dalla parte sbagliata.
+   ⚠️ `display:flex` sul `<summary>` è anche quello che, in Safari, spegne il marcatore. */
+.guida-sez{border:1px solid var(--line); border-radius:14px; background:var(--card2);
+  margin-bottom:var(--sp-5); overflow:hidden;}
+.guida-sez[open]{border-color:var(--cheese-brd);}
+.guida-tit{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5);
+  font-family:'Nunito',sans-serif; font-weight:800; font-size:var(--fs-6); color:var(--text);
+  padding:var(--sp-6) var(--sp-7); cursor:pointer; list-style:none;}
+.guida-tit::-webkit-details-marker{display:none;}
+.guida-sez[open] .guida-tit{color:var(--cheese-txt);}
+.guida-freccia{color:var(--dim); font-size:var(--fs-7); line-height:1; transition:transform .2s;}
+.guida-sez[open] .guida-freccia{transform:rotate(180deg);}
+.guida-dentro{padding:0 var(--sp-7) var(--sp-7);}
+.guida-intro{font-family:'Nunito',sans-serif; font-size:var(--fs-4); font-weight:600;
+  color:var(--dim); line-height:1.5; margin-bottom:var(--sp-6);}
+/* Il corpo delle sezioni lunghe. Non riusa `.guida-intro`, che è un ATTACCO — una riga in
+   grigio che presenta un elenco — mentre qui si leggono tre paragrafi di fila: il grigio
+   che va bene per una frase, su un blocco intero, si legge peggio. Colore del testo
+   corrente, interlinea un filo più larga, e il margine dalla scala.
+   ⚠️ Il `<b>` NON prende il giallo formaggio: nei testi della guida il grassetto cade su
+   frasi intere («è già il tuo ordine», «anche per qualcuno fuori dal Clan»), e un colore
+   caldo su quella lunghezza smette di essere enfasi e diventa rumore. Nelle medaglie il
+   giallo resta, perché lì il grassetto è un nome di due parole. */
+.guida-p{font-family:'Nunito',sans-serif; font-size:var(--fs-4); font-weight:600;
+  color:var(--text); line-height:1.55; margin-bottom:var(--sp-6);}
+.guida-p:last-child{margin-bottom:0;}
+.guida-p b{font-weight:800;}
+/* Il benvenuto: sempre in cima alla guida, sopra la fisarmonica, e non si chiude. Nessun
+   riquadro e nessun fondo — è il testo con cui il modale parla, non un blocco a parte; il
+   distacco dalla prima sezione lo fa lo spazio, che a questa distanza basta e avanza.
+   Qui il grassetto SÌ in giallo formaggio: è l'attacco di tre parole, non una frase. */
+.guida-benvenuto{margin-bottom:var(--sp-8);}
+.guida-benvenuto b{color:var(--cheese-txt);}
+.guida-med{display:flex; align-items:flex-start; gap:var(--sp-5); margin-bottom:var(--sp-6);
+  font-family:'Nunito',sans-serif; font-size:var(--fs-4); font-weight:600; color:var(--text);
+  line-height:1.45;}
+.guida-med:last-child{margin-bottom:0;}
+.guida-med-ico{flex:0 0 auto; font-size:var(--fs-9); line-height:1.2;}
+.guida-med b{font-weight:800; color:var(--cheese-txt);}
 
-.archivio-item{display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card2);
-  border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:8px; cursor:pointer;}
+.empty{text-align:center; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600; padding:var(--sp-9) var(--sp-5); line-height:1.6;}
+
+/* Non è un modale: sta in questa sezione solo perché ci è finita, e nei lotti precedenti è
+   caduta fuori da tutti gli intervalli. Convertita qui, con gli ultimi due orfani del file,
+   invece di aspettare il ridisegno dell'archivio: una regola non convertita dentro un file
+   per il resto convertito è precisamente quella che fra tre lotti nessuno ricorda più. */
+.archivio-item{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); background:var(--card2);
+  border:1px solid var(--line); border-radius:14px; padding:var(--sp-6) var(--sp-7); margin-bottom:var(--sp-4); cursor:pointer;}
 .archivio-item .ai-nome{font-weight:700;}
-.archivio-item .ai-meta{font-size:.72rem; color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
+.archivio-item .ai-meta{font-size:var(--fs-2); color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
 
 /* ── KG RICEVUTI E SCARTO (derivati da prezzo_reale / prezzo_kg, mai registrati) ──
    Verde muschio come tutti gli altri numeri "reali": chi ha già imparato che il verde
    è il consuntivo non deve impararlo una seconda volta. */
-.mt-scarto{margin-top:10px; font-family:'Nunito',sans-serif; font-size:.78rem; font-weight:700;
+.mt-scarto{margin-top:var(--sp-5); font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:700;
   color:var(--moss); background:var(--moss-bg); border:1px solid var(--moss-brd);
-  border-radius:var(--r-sm); padding:7px 10px; text-align:center;}
-.pc-kg.pc-ric{color:var(--moss); margin-top:-4px;}
-.mr-scarto{font-family:'Nunito',sans-serif; font-size:.72rem; font-weight:700; color:var(--moss);
-  margin-top:3px; line-height:1.3;}
+  border-radius:var(--r-sm); padding:var(--sp-4) var(--sp-5); text-align:center;}
+/* Il margine negativo stringe le due righe dei kg: `.pc-kg` porta `margin-bottom:8px`
+   (`--sp-4`, convertito insieme a questa sezione) e qui se ne riprende la metà, perché «0,5 kg in tutto» e
+   «ordinati 0,5 · ricevuti 1,23» sono la stessa informazione in due tempi e devono stare
+   più vicine di due blocchi distinti. Sulla scala anche in negativo: si nega un gradino,
+   non si inventa un numero. */
+.pc-kg.pc-ric{color:var(--moss); margin-top:calc(-1 * var(--sp-2));}
+.mr-scarto{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:700; color:var(--moss);
+  margin-top:var(--sp-2); line-height:1.3;}
 .mr-scarto:empty{display:none;}
 
 /* Quadratura: quando non torna, il numero deve gridare, non sussurrare */
@@ -423,9 +750,9 @@ table.tb tr:last-child td{border-bottom:none;}
 
 /* ── DOCUMENTO COPIABILE (ordine per il negoziante) ──
    Monospaziato e a capo conservati: è il testo esatto che finisce nella email. */
-.doc-testo{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace; font-size:.76rem;
+.doc-testo{font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace; font-size:var(--fs-3);
   line-height:1.55; color:var(--text); background:var(--card2); border:1px solid var(--line);
-  border-radius:var(--r-md); padding:12px 14px; margin-bottom:12px;
+  border-radius:var(--r-md); padding:var(--sp-6) var(--sp-7); margin-bottom:var(--sp-6);
   white-space:pre-wrap; word-break:break-word; overflow-x:auto;}
 
 /* Archivio: il titolo apre il dettaglio, il cestino no — servono due bersagli distinti */
@@ -453,29 +780,39 @@ table.tb tr:last-child td{border-bottom:none;}
 .svg-topo-monete{--svg:url('./topo-monete.svg');}
 
 /* Icona SVG dentro un bottone testuale. 20px: alla prova su `formaggio-arrivato`
-   cilindro e spicchio staccato restano distinguibili — tratto uniforme, due sole masse. */
-.btn-ico-svg{width:20px; height:20px; vertical-align:-.26em; margin-right:4px;}
+   cilindro e spicchio staccato restano distinguibili — tratto uniforme, due sole masse.
+   ⚠️ I 20px e il margine NON sono la stessa specie di misura, ed è per questo che uno resta
+   in px e l'altro no. La larghezza si accorda col DISEGNO dell'SVG — è la regola dei casi
+   fuori tabella — mentre il margine è solo lo stacco fra l'icona e la parola accanto:
+   niente ci sta sopra, niente da allineare, quindi è ritmo di pagina e va sulla scala.
+   Il `margin-right:4px` era l'unica cosa non prevista che la verifica di chiusura del
+   03/09/2026 ha trovato in tutto il file: viveva qui fra le utility SVG, che non erano
+   dentro nessuno degli intervalli dei lotti — l'unico punto cieco del metodo, e l'ha
+   scoperto il controllo su tutto il file invece che per sezioni. `--sp-2` vale 4px: la
+   conversione non sposta un pixel. */
+.btn-ico-svg{width:20px; height:20px; vertical-align:-.26em; margin-right:var(--sp-2);}
 
-/* Badge "topino grasso": misura in em, così segue il corpo del testo che lo contiene */
-.badge-grasso{color:var(--cheese-txt);}
+/* Il gancio della riga delle medaglie: misura in em, così segue il corpo del testo che lo
+   contiene — e il `font-size:1.18em` di `.pc-medaglie .gancio` lo ingrandisce da solo. */
+.pc-medaglie .gancio{color:var(--cheese-txt);}
 .topino-ico{width:1.05em; height:1.05em; vertical-align:-.16em;}
 
 /* ── BANNER "IL FORMAGGIO È ARRIVATO" (tab Ordina, per tutti) ──
    Verde `--moss` di proposito: distingue "buona notizia, c'è da fare qualcosa" dal
    `--berry` degli ordini chiusi e dal `--cheese` delle informazioni normali.
    Sta SOPRA la card "Il tuo ordine": è un annuncio al gruppo, non un dato del tuo ordine. */
-.banner-arrivo{display:flex; align-items:center; gap:12px;
+.banner-arrivo{display:flex; align-items:center; gap:var(--sp-6);
   color:var(--moss); background:var(--moss-bg); border:1px solid var(--moss-brd);
-  border-radius:var(--r-md); padding:12px 14px; margin-bottom:12px;}
+  border-radius:var(--r-md); padding:var(--sp-6) var(--sp-7); margin-bottom:var(--sp-6);}
 .banner-arrivo .svg-inv{width:32px; height:32px; flex-shrink:0;}
-.ba-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4; min-width:0;}
-.ba-testo b{font-family:'Baloo 2',cursive; font-weight:800; font-size:.98rem; display:block; margin-bottom:1px;}
+.ba-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); line-height:1.4; min-width:0;}
+.ba-testo b{font-family:'Baloo 2',cursive; font-weight:800; font-size:var(--fs-7); display:block; margin-bottom:var(--sp-1);}
 
 /* ── ILLUSTRAZIONE IN TESTA ALLA TAB PAGAMENTI ──
    A 20-24px questo disegno (corpo, ciotola, due monete, scintille) diventa un grumo:
    nella tab bar restano le emoji. Qui invece c'è lo spazio, ed è l'unica cosa che
    rende meno arido un elenco di coordinate bancarie. */
-.pay-illustra{display:flex; justify-content:center; margin-bottom:6px; color:var(--cheese-txt);}
+.pay-illustra{display:flex; justify-content:center; margin-bottom:var(--sp-3); color:var(--cheese-txt);}
 .pay-illustra .svg-inv{width:60px; height:60px;}
 
 /* ── INVITO ALL'INSTALLAZIONE ──
@@ -488,21 +825,28 @@ table.tb tr:last-child td{border-bottom:none;}
     · #installa-box-auth: sotto c'è subito il campo del nome, che a margine zero sembra
       la riga successiva di una lista. 32px = il doppio della distanza fra due card
       (`gap:16px` di `.body`/`.tab-page`), così la separazione si legge come cambio di
-      sezione; sopra ce ne sono 34 (22 di `.auth-sub` + 12 qui), quindi il blocco resta
-      centrato fra le due sezioni invece di appoggiarsi a quella sotto;
+      sezione; sopra ce ne sono 36 (24 di `.auth-sub` + 12 qui), quindi il blocco resta
+      centrato fra le due sezioni invece di appoggiarsi a quella sotto. I 22 del margine
+      di `.auth-sub` sono diventati 24 con la conversione alla scala: il conto qui sopra
+      è aggiornato, e il blocco resta comunque un filo più vicino a quel che sta sopra;
     · #installa-box (coda della tab Ordina): è l'ULTIMO elemento della tab, la distanza
       dalla card Spedizione la dà già il `gap:16px`, e sotto ci sono i 90px di
       `padding-bottom` del `.body` che tengono libera la barra delle tab. Un margine
       inferiore qui sarebbe solo vuoto in più prima della barra. */
 .installa-box{position:relative; background:var(--card2); border:1px dashed var(--cheese-brd);
-  border-radius:var(--r-md); padding:14px; margin-top:12px;}
-#installa-box-auth{margin-bottom:32px;}
-.installa-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem;
+  border-radius:var(--r-md); padding:var(--sp-7); margin-top:var(--sp-6);}
+#installa-box-auth{margin-bottom:var(--sp-10);}
+/* Il `padding-right` NON prende un gradino, per la stessa ragione di
+   `.inp-euro-wrap .inp{padding-right:34px}`: non è ritmo della pagina, è il franco per la ×
+   che ci sta sopra in `position:absolute`. Deve accordarsi con i 28px del bottone, non con la
+   scala — e la scala, cambiando, lo porterebbe a sbattere contro la ×. Si lega a ciò che deve
+   evitare, non a ciò che gli sta intorno. */
+.installa-testo{font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3);
   line-height:1.5; color:var(--dim); padding-right:26px;}
 .installa-testo b{color:var(--cheese-txt);}
-.installa-box .btn{margin-top:10px;}
+.installa-box .btn{margin-top:var(--sp-5);}
 .installa-x{position:absolute; top:6px; right:8px; width:28px; height:28px; line-height:1;
-  background:none; border:0; color:var(--dim); font-size:1.3rem; cursor:pointer; padding:0;}
+  background:none; border:0; color:var(--dim); font-size:var(--fs-10); cursor:pointer; padding:0;}
 
 /* ── STACK DEI MODALI ──
    Lo z-index dei singoli overlay lo scrive `openModal()` in linea, secondo l'ordine di
@@ -514,8 +858,8 @@ body.modal-aperto{overflow:hidden;}
    Due pillole che seguivano convenzioni opposte — una diceva l'AZIONE ("no sped."),
    l'altra lo STATO ("non pagato") — sono diventate due interruttori veri, etichettati
    sempre e solo con lo stato. */
-.sw-riga{display:flex; align-items:center; gap:10px; padding:6px 0 6px 4px;
-  font-family:'Nunito',sans-serif; font-size:.8rem; font-weight:700; color:var(--dim);}
+.sw-riga{display:flex; align-items:center; gap:var(--sp-5); padding:var(--sp-3) 0 var(--sp-3) var(--sp-2);
+  font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:700; color:var(--dim);}
 .sw-riga .sw-nome{flex:0 0 92px;}
 .sw-riga .sw-stato{font-weight:800; color:var(--text);}
 .sw-riga .sw-stato.spento{color:var(--dim); font-weight:700;}
@@ -535,9 +879,18 @@ body.modal-aperto{overflow:hidden;}
 @media(prefers-reduced-motion:reduce){ .sw,.sw::after{transition:none;} }
 /* La riga col nome non ha più bottoni-stato: solo matita e cestino, e nessun bordo
    sotto, perché i due interruttori appartengono ancora a quella persona. */
-.persona-blocco{padding:10px 0; border-bottom:1px solid var(--line);}
+.persona-blocco{padding:var(--sp-5) 0; border-bottom:1px solid var(--line);}
 .persona-blocco:last-child{border-bottom:none;}
 .persona-blocco .admin-row{padding:0; border-bottom:none;}
+
+/* ── SOTTO-CARD: un blocco dentro una card, senza aprirne una seconda ──
+   Nasce per la targhetta «admin», che appartiene alla card Amministratori ma non è la
+   stessa cosa dell'elenco delle email: quello dice CHI PUÒ amministrare, questa chi
+   RISULTA farlo nella tabella. Un filo e un titolino bastano a dirlo; una card separata
+   avrebbe rimesso in due posti la cosa che stavamo mettendo in uno. */
+.sotto-card{margin-top:var(--sp-7); padding-top:var(--sp-6); border-top:1px solid var(--line);}
+.sc-titolo{font-family:'Baloo 2',cursive; font-weight:700; font-size:var(--fs-5);
+  color:var(--cheese-txt); margin-bottom:var(--sp-4);}
 
 /* ── PALLINO SULLA TAB PAGAMENTI ──
    Un pallino e non una parola: a 320px la tab bar non ha spazio per un'etichetta in più.
@@ -550,16 +903,16 @@ body.modal-aperto{overflow:hidden;}
    `--cheese` come la card ⑤ a cui porta, e non `--moss`/`--berry`: non è una buona
    notizia né un allarme, è una cosa da sbrigare. Tutto il banner è il bersaglio, non
    solo un link dentro: è la prima cosa che si tocca dopo aver visto il pallino sul 🔐. */
-.banner-segnalazioni{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+.banner-segnalazioni{display:flex; align-items:center; gap:var(--sp-6); width:100%; text-align:left;
   color:var(--cheese-txt); background:var(--cheese-bg); border:1px solid var(--cheese-brd);
-  border-radius:var(--r-lg); padding:12px 14px; margin-bottom:12px; cursor:pointer;
-  font-family:'Nunito',sans-serif; font-weight:600; font-size:.8rem; line-height:1.4;}
-.banner-segnalazioni .bs-ico{font-size:1.35rem; line-height:1; flex-shrink:0;}
+  border-radius:var(--r-lg); padding:var(--sp-6) var(--sp-7); margin-bottom:var(--sp-6); cursor:pointer;
+  font-family:'Nunito',sans-serif; font-weight:600; font-size:var(--fs-3); line-height:1.4;}
+.banner-segnalazioni .bs-ico{font-size:var(--fs-10); line-height:1; flex-shrink:0;}
 .banner-segnalazioni > span:nth-child(2){flex:1; min-width:0;}
-.banner-segnalazioni b{font-family:'Baloo 2',cursive; font-weight:800; font-size:.98rem;
-  display:block; margin-bottom:1px;}
+.banner-segnalazioni b{font-family:'Baloo 2',cursive; font-weight:800; font-size:var(--fs-7);
+  display:block; margin-bottom:var(--sp-1);}
 .bs-sub{color:var(--dim); display:block;}
-.bs-freccia{color:var(--dim); font-size:1.2rem; line-height:1; flex-shrink:0;}
+.bs-freccia{color:var(--dim); font-size:var(--fs-9); line-height:1; flex-shrink:0;}
 
 /* ── FISARMONICA A FASI (admin) ──
    Tredici card sempre aperte costringevano a scorrere sopra la quadratura dello scontrino
@@ -567,37 +920,37 @@ body.modal-aperto{overflow:hidden;}
    niente migrazione e niente stato da tenere allineato. Le fasi passate restano
    toccabili — la spedizione si corregge, gli ordini si riaprono. */
 .fasi-testa{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
-  padding:14px 16px; margin-bottom:12px;}
-.fasi-striscia{display:flex; align-items:center; justify-content:space-between; gap:2px; margin-bottom:10px;}
-.fs-passo{font-size:1.05rem; line-height:1; color:var(--dim); background:none; border:0; padding:2px 1px; cursor:pointer;}
+  padding:var(--sp-7) var(--sp-8); margin-bottom:var(--sp-6);}
+.fasi-striscia{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-1); margin-bottom:var(--sp-5);}
+.fs-passo{font-size:var(--fs-7); line-height:1; color:var(--dim); background:none; border:0; padding:var(--sp-1); cursor:pointer;}
 .fs-passo.fatto{color:var(--cheese-txt);}
-.fs-passo.ora{color:var(--cheese); font-size:1.3rem;}
+.fs-passo.ora{color:var(--cheese); font-size:var(--fs-10);}
 .fs-linea{flex:1; height:1.5px; background:var(--line); min-width:4px;}
-.fasi-tocca{font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600;
+.fasi-tocca{font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600;
   line-height:1.45; color:var(--dim);}
 .fasi-tocca b{color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-weight:800;
-  font-size:.95rem; display:block; margin-bottom:2px;}
+  font-size:var(--fs-6); display:block; margin-bottom:var(--sp-1);}
 
 .fase{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--card);
-  margin-bottom:10px; overflow:hidden;}
-.fase-testa{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
-  background:none; border:0; padding:14px 16px; cursor:pointer; color:var(--text);
-  font-family:'Baloo 2',cursive; font-weight:800; font-size:1rem;}
+  margin-bottom:var(--sp-5); overflow:hidden;}
+.fase-testa{display:flex; align-items:center; gap:var(--sp-5); width:100%; text-align:left;
+  background:none; border:0; padding:var(--sp-7) var(--sp-8); cursor:pointer; color:var(--text);
+  font-family:'Baloo 2',cursive; font-weight:800; font-size:var(--fs-7);}
 .fase-num{width:24px; height:24px; flex-shrink:0; border-radius:50%; display:flex;
-  align-items:center; justify-content:center; font-size:.78rem; font-weight:800;
+  align-items:center; justify-content:center; font-size:var(--fs-3); font-weight:800;
   background:var(--sunken); color:var(--dim); border:1px solid var(--line);}
 .fase.corrente .fase-num{background:var(--cheese-bg); color:var(--cheese-txt); border-color:var(--cheese-brd);}
 .fase.corrente > .fase-testa{color:var(--cheese-txt);}
-.fase-freccia{margin-left:auto; color:var(--dim); font-size:.9rem; transition:transform .18s;}
+.fase-freccia{margin-left:auto; color:var(--dim); font-size:var(--fs-5); transition:transform .18s;}
 .fase.aperta .fase-freccia{transform:rotate(90deg);}
-.fase-corpo{display:none; padding:0 12px 12px;}
+.fase-corpo{display:none; padding:0 var(--sp-6) var(--sp-6);}
 .fase.aperta .fase-corpo{display:block; animation:tabIn .22s ease both;}
-.fase-corpo .card{border:none; background:transparent; padding:10px 4px; border-radius:0;}
+.fase-corpo .card{border:none; background:transparent; padding:var(--sp-5) var(--sp-2); border-radius:0;}
 .fase-corpo .card + .card{border-top:1px solid var(--line);}
 /* "Pagamenti da confermare" deve restare evidenziata anche dentro la fisarmonica: è una
    coda di lavoro, non una card qualunque, e sciogliersi nel fondo la farebbe sparire. */
 .fase-corpo .card.card-attesa{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
-  border-radius:var(--r-md); padding:14px; margin-bottom:10px;}
+  border-radius:var(--r-md); padding:var(--sp-7); margin-bottom:var(--sp-5);}
 @media(prefers-reduced-motion:reduce){ .fase.aperta .fase-corpo{animation:none;} .fase-freccia{transition:none;} }
 
 /* ── SCONTRINO: la sottrazione della spedizione, in chiaro ──
@@ -605,21 +958,25 @@ body.modal-aperto{overflow:hidden;}
    negoziante, spedizione inclusa. La sottrazione la fa l'app. La spedizione è MOSTRATA,
    non ri-digitata: due campi che scrivono la stessa colonna in due card diverse si
    desincronizzano al primo salvataggio parziale. */
-.scontrino-calc{margin-top:12px; padding-top:10px; border-top:1px solid var(--line);
-  font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600;}
-.sc-riga{display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:3px 0;}
-.sc-riga.risultato{border-top:1px solid var(--line); margin-top:6px; padding-top:8px;
-  font-weight:800; font-size:.95rem; color:var(--cheese-txt);}
-.sc-riga .sc-mod{font-size:.72rem; font-weight:700; color:var(--dim);
-  background:none; border:0; padding:0 0 0 8px; text-decoration:underline; cursor:pointer;}
+.scontrino-calc{margin-top:var(--sp-6); padding-top:var(--sp-5); border-top:1px solid var(--line);
+  font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600;}
+.sc-riga{display:flex; justify-content:space-between; align-items:baseline; gap:var(--sp-5); padding:var(--sp-2) 0;}
+.sc-riga.risultato{border-top:1px solid var(--line); margin-top:var(--sp-3); padding-top:var(--sp-4);
+  font-weight:800; font-size:var(--fs-6); color:var(--cheese-txt);}
+/* Il «modifica» accanto a un numero MOSTRATO e non ri-digitabile: porta dove quel numero si
+   decide davvero. Nato nello scontrino per la spedizione, serve ora anche alla card dei kg
+   della fase ② — quindi la regola non sta più dentro `.sc-riga`. Vale ovunque ricorra lo
+   stesso caso: un valore che si legge qui e si cambia altrove. */
+.sc-mod{font-size:var(--fs-2); font-weight:700; color:var(--dim);
+  background:none; border:0; padding:0 0 0 var(--sp-4); text-decoration:underline; cursor:pointer;}
 .card.evidenzia{animation:evidenzia 1.4s ease;}
 @keyframes evidenzia{0%,100%{background:transparent;} 25%,60%{background:var(--cheese-bg);}}
 @media(prefers-reduced-motion:reduce){ .card.evidenzia{animation:none;} }
 
 /* ── AVVISO PRIMA DI PAGARE SU UN TOTALE STIMATO (§4.4) ── */
 .avviso-stima{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
-  border-radius:var(--r-md); padding:14px; margin-bottom:12px;
-  font-family:'Nunito',sans-serif; font-size:.82rem; font-weight:600; line-height:1.5; color:var(--text);}
+  border-radius:var(--r-md); padding:var(--sp-7); margin-bottom:var(--sp-6);
+  font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600; line-height:1.5; color:var(--text);}
 .avviso-stima b{color:var(--cheese-txt);}
 
 /* ── TOTALE DEFINITIVO (§4.5) ──
@@ -632,17 +989,52 @@ body.modal-aperto{overflow:hidden;}
    Non un topo diverso: il topino è già il badge del "topino grasso", e due topi diversi
    nella stessa colonna diventano un rebus. Piccola, color formaggio, e visibile a TUTTI —
    che è esattamente il punto: sapere a chi chiedere. */
-.pill-admin{font-family:'Nunito',sans-serif; font-size:.6rem; font-weight:800;
+.pill-admin{font-family:'Nunito',sans-serif; font-size:var(--fs-1); font-weight:800;
   text-transform:uppercase; letter-spacing:.4px; color:var(--cheese-txt);
   background:var(--cheese-bg); border:1px solid var(--cheese-brd);
-  border-radius:999px; padding:2px 7px; vertical-align:.12em; white-space:nowrap;}
+  border-radius:999px; padding:var(--sp-1) var(--sp-4); vertical-align:.12em; white-space:nowrap;}
+
+/* ── PILLOLA «+2»: quante persone questo topino porta OLTRE sé stesso ──
+   Non è una decorazione, è una contromisura. Le quote di spedizione le alza il topino da
+   sé, e alzando le proprie abbassa quelle di tutti gli altri: la difesa scelta non è un
+   permesso, è che il numero si veda accanto al nome ovunque compaia anche un totale.
+   Forma della pillola admin ma NON oro: in questa app l'oro vuol dire «soldi tuoi», e
+   questa dice una quantità di persone. Distinguerle a colpo d'occhio evita che si leggano
+   come la stessa cosa.
+   ⚠️ Il colore naturale sarebbe `--mouse`, ed è sbagliato: sul tema chiaro #8A7663 su crema
+   fa ~4,0:1, sotto il minimo, ed è testo piccolo — lo stesso inciampo per cui in questo
+   file esiste `--cheese-txt` scurito. `--dim` è il grigio già tarato per essere letto in
+   entrambi i temi, e il fondo `--sunken` fa il lavoro che avrebbe fatto il bordo colorato. */
+.pill-quote{font-family:'Nunito',sans-serif; font-size:var(--fs-1); font-weight:800;
+  letter-spacing:.3px; color:var(--dim); background:var(--sunken);
+  border:1px solid var(--line); border-radius:999px;
+  padding:var(--sp-1) var(--sp-3); vertical-align:.12em; white-space:nowrap;}
 
 /* ── LA VERSIONE VIVA (in fondo alla schermata admin) ──
    Testo piccolo, `--dim`, nessun bordo: non è un'informazione da leggere ogni giorno,
    è una da poter CERCARE quando una diagnosi comincia da "ma è il codice giusto?".
    Selezionabile di proposito, così si può copiare in un messaggio. */
 .versione-viva{width:100%; max-width:720px; margin:0 auto;
-  padding:0 16px 16px; padding-bottom:max(16px, env(safe-area-inset-bottom));
-  font-family:'Nunito',sans-serif; font-size:.68rem; font-weight:600;
+  padding:0 var(--sp-8) var(--sp-8); padding-bottom:max(var(--sp-8), env(safe-area-inset-bottom));
+  font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600;
   color:var(--dim); text-align:center; line-height:1.4;
   user-select:text; -webkit-user-select:text;}
+
+/* ⚠️ TEMPORANEO — MARCATORE DI PASSO (vedi index.html, tab Ordina).
+   Da togliere a fine fase estetica insieme al suo markup. Deliberatamente in px e non
+   sui gradini `--sp-*`/`--fs-*`: è un'impalcatura, e un'impalcatura che usa la scala
+   sporcherebbe il conto delle conversioni. Tratteggiato perché si veda a
+   colpo d'occhio che non fa parte dell'app. */
+.marcatore-passo{align-self:center; font-family:'Nunito',sans-serif; font-size:.7rem;
+  font-weight:700; color:var(--dim); background:var(--sunken);
+  border:1px dashed var(--line); border-radius:999px; padding:3px 10px;
+  /* INERTE, ed è la parte importante. Un'impalcatura esiste per dare certezza: se può
+     essere sospettata di aver rotto qualcosa, la toglie invece di darla. `pointer-events`
+     la rende invisibile al tocco, e `user-select:none` toglie il vero rischio — con
+     `user-select:text` (come la versione viva, da cui questa regola era copiata) un dito
+     che parte di qui inizia una SELEZIONE, e una selezione non è uno swipe e non concede
+     attivazione utente. La pillola sta in cima alla tab Ordina, cioè esattamente dove
+     cade il pollice ad app appena aperta. Copiare uno stile senza copiarne il contesto:
+     la versione viva sta in fondo all'admin e va poter incollare in un messaggio, questa
+     dice sei caratteri che si leggono. */
+  pointer-events:none; user-select:none; -webkit-user-select:none;}

@@ -34,7 +34,43 @@ var TABS = ["ordina", "tabella", "bacheca", "pagamenti"]; // + "admin" sempre vi
 // Il Clan nasce scuro, quindi qui è :root a essere scuro e `body.chiaro` a
 // ridefinire le stesse variabili — l'opposto della Tana, stesso principio.
 var THEME_KEY = "clan_parm_tema";
+var ORDINE_KEY = "clan_parm_ordine_tabella";
 var TILE_KEY  = "clan_parm_tile";
+
+// ── LA VERSIONE DELLA GUIDA ──
+// La guida si apre da sola al primo ingresso di un topino, e poi mai più — a meno che non
+// CAMBI. Non si riapre a ogni giro nuovo, ed è una scelta: una guida che ricompare quando
+// la conosci già insegna a chiuderla senza leggerla, e poi fallisce l'unica volta che
+// conta davvero, con un topino nuovo. Ma una guida che è cambiata merita di essere rivista.
+//
+// Quindi un intero solo. `GUIDA_VERSIONE` sale quando i testi cambiano davvero (col voto
+// al formaggio del lotto 9 diventerà 2), e chi ha visto una versione più bassa la rivede
+// UNA volta. Alzarla per una virgola corretta è il modo di rendere di nuovo insignificante
+// la riapertura: si alza quando c'è qualcosa di nuovo da raccontare.
+//
+// ⚠️ La chiave è PER DISPOSITIVO, non per persona, come il tema e lo sfondo: su un telefono
+// condiviso, o cambiando identità, la guida non si riapre. È coerente con le altre
+// preferenze e va saputo, non scoperto.
+//
+// ⚠️ Il giorno in cui questo arriva in mano ai topini, la guida si apre a TUTTI, anche a chi
+// usa l'app da settimane. Approvato da iL KaJiNo il 04/09/2026: è l'occasione di raccontare
+// a un gruppo che non l'ha chiesto le cose nuove degli ultimi giri.
+var GUIDA_KEY = "clan_parm_guida_vista";
+var GUIDA_VERSIONE = 1;
+
+// `false` anche quando `localStorage` non c'è (navigazione privata, storage negato): senza
+// un posto dove ricordare che l'hai vista, l'alternativa sarebbe riaprirla a ogni singolo
+// ingresso — che è precisamente il difetto che questo meccanismo esiste per evitare.
+function guidaDaMostrare(){
+  try{ return (parseInt(localStorage.getItem(GUIDA_KEY), 10) || 0) < GUIDA_VERSIONE; }
+  catch(e){ return false; }
+}
+// Si segna all'APERTURA, non alla chiusura: se un topino la chiude subito, la sua risposta
+// è "non adesso" e riproporgliela al prossimo ingresso non la renderebbe più convincente.
+// Le tre porte restano aperte per quando la vorrà davvero.
+function segnaGuidaVista(){
+  try{ localStorage.setItem(GUIDA_KEY, String(GUIDA_VERSIONE)); }catch(e){}
+}
 
 // Chrome ignora `navigator.vibrate()` finché l'utente non ha interagito col documento
 // (*sticky user activation*); su iOS Safari `navigator.vibrate` non esiste proprio.
@@ -44,15 +80,27 @@ var TILE_KEY  = "clan_parm_tile";
 //  1. l'attivazione la concede SOLO il browser, dispatchando un evento di gesto.
 //     Chiamare `vibrate()` non ne concede: dopo `navigator.vibrate(1)`,
 //     `navigator.userActivation.hasBeenActive` resta `false`. Un'API gated non si
-//     scalda chiamandola — l'innesco nel <head> di index.html è una sonda, non una cura;
+//     scalda chiamandola — per questo l'innesco che stava nel <head> è stato tolto;
 //  2. non tutti gli eventi di un gesto danno attivazione. La danno `keydown`,
 //     `mousedown`, `mouseup`, `click`, `pointerup` e `touchend`; `pointerdown` solo se
-//     `pointerType` è `"mouse"`. Su un telefono l'inizio del gesto non conta, ed è per
-//     questo che l'innesco ascolta anche `pointerup`/`touchend`;
+//     `pointerType` è `"mouse"`;
 //  3. `vibra()` va chiamata come PRIMA istruzione di un handler, mai dopo un `await`:
 //     l'attivazione utente scade, e dopo l'await il browser non la riconosce più.
-// Collaudo su telefono del 01/09/2026: con queste tre regole rispettate il primo swipe
-// di una sessione vibra. Lo swipe È un gesto sufficiente per Chrome.
+//
+// ⚠️ E UNA QUARTA, MISURATA IL 02/09/2026 SU GALAXY S25 / CHROME, che smentisce quel che
+// era scritto qui il giorno prima («lo swipe È un gesto sufficiente per Chrome»: falso).
+// Sonda montata dentro `touchend`, subito prima di `vibra(15)`, con l'app aperta a freddo
+// e lo swipe come primissimo gesto del documento:
+//     swipe come primo gesto  →  hasBeenActive 0, isActive 0, vibrate() rifiutata
+//     dopo un tocco qualsiasi →  hasBeenActive 1, isActive 1, vibrate() accettata
+// `hasBeenActive` resta 0 anche dopo il SECONDO swipe: non è questione di un istante
+// troppo presto. Chrome legge lo swipe come un pan e non lo conta come attivazione, per
+// nessuno dei suoi eventi, `touchend` compreso.
+// CONSEGUENZA: se il primo gesto di una sessione è uno swipe, quello swipe non vibra, e
+// non c'è codice che possa aggiustarlo — è una regola della piattaforma, non un difetto
+// dell'app. Dal primo tocco in poi l'attivazione è sticky e vale per tutta la sessione,
+// quindi ogni altro swipe vibra. Non cercare più una cura per questo caso: è stato
+// misurato, non dedotto.
 function vibra(ms){
   try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){}
 }
@@ -157,11 +205,26 @@ var PEZZATURA_KG = 0.5;
 var KG_STEP = 0.5;
 var KG_MAX = 50;
 
+// ── QUOTE DI SPEDIZIONE ──
+// Chi ritira anche per amici fuori dal Clan paga più di una quota: sono più consegne, non
+// più formaggio. Il 10 non è una misura, viene dall'esempio di iL KaJiNo («2 o 3 o 10»).
+// ⚠️ Il limite vero è il vincolo `quote_spedizione_range` sul database: queste due
+// costanti governano solo lo stepper. Se un giorno cambia il vincolo, vanno cambiate
+// insieme — uno stepper più largo del vincolo darebbe un errore invece che un rifiuto.
+var QUOTE_MIN = 1;
+var QUOTE_MAX = 10;
+
 // Numero di pezzi sottovuoto: esatto, perché i kg sono sempre multipli della pezzatura.
 function pezziDa(kg){ return Math.round((kg || 0) / PEZZATURA_KG); }
-function pezziTesto(kg){
+// Due forme dello stesso conto, e la regola del plurale sta in un posto solo: la forma
+// breve serve dove il contesto dice già di cosa si parla (la consegna, dove i pezzi sono
+// in mano), quella lunga dove va spiegato — il documento per il negoziante.
+function pezziBreve(kg){
   var n = pezziDa(kg);
-  return n + (n === 1 ? " pezzo" : " pezzi") + " sottovuoto da " + kgTesto(PEZZATURA_KG);
+  return n + (n === 1 ? " pezzo" : " pezzi");
+}
+function pezziTesto(kg){
+  return pezziBreve(kg) + " sottovuoto da " + kgTesto(PEZZATURA_KG);
 }
 
 // ── CALCOLI ──
@@ -187,18 +250,66 @@ function totaleIpotetico(personaId){
 function haPrezziReali(personaId){
   return righeDi(personaId).some(function(r){ return r.prezzo_reale != null; });
 }
-// Quanti partecipano alla spedizione (per dividerla)
-function numeroPartecipantiSpedizione(){
-  return persone.filter(function(p){ return p.partecipa_spedizione; }).length;
+// ── SPEDIZIONE: si divide per QUOTE, non per teste ──
+// Le quote di UNA persona. Il fallback a 1 non è cosmetico: le fotografie archiviate
+// prima della colonna `quote_spedizione` non ce l'hanno, e senza fallback diventerebbero
+// NaN — cioè un archivio che cambia i numeri a posteriori.
+// ⚠️ Il filtro su `partecipa_spedizione` è obbligatorio: sommare le quote di chi non
+// partecipa diluirebbe la spedizione su teste che non c'entrano, e il totale continuerebbe
+// a tornare senza che nessuno se ne accorga.
+function quoteDi(persona){
+  if(!persona || !persona.partecipa_spedizione) return 0;
+  return parseInt(persona.quote_spedizione, 10) || 1;
 }
+// Quante quote di spedizione ci sono in tutto. NON è il numero dei topini: un topino che
+// ordina anche per due amici fuori dal Clan conta per tre, perché sono tre consegne.
+function quoteSpedizioneTotali(){
+  return persone.reduce(function(a, p){ return a + quoteDi(p); }, 0);
+}
+// Quanto vale UNA quota: è la cifra che un amico fuori dal Clan deve a chi ha ordinato
+// per lui, ed è uguale per tutti — chi ordina per tre compreso.
+function quotaSpedizioneSingola(){
+  var tot = quoteSpedizioneTotali();
+  if(tot <= 0) return 0;
+  return (gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0) / tot;
+}
+// Quanto deve all'admin questa persona: TUTTE le sue quote messe insieme.
+// ⚠️ Si moltiplica prima e si divide una volta sola — `totale * mie / tot`, non
+// `(totale / tot) * mie`: la regola del nessun arrotondamento intermedio vale anche qui.
 function quotaSpedizione(persona){
-  if(!persona.partecipa_spedizione) return 0;
-  var n = numeroPartecipantiSpedizione();
-  if(n <= 0) return 0;
-  return (gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0) / n;
+  var mie = quoteDi(persona);
+  if(!mie) return 0;
+  var tot = quoteSpedizioneTotali();
+  if(tot <= 0) return 0;
+  return (gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0) * mie / tot;
 }
 function totaleDovuto(persona){
   return totaleOrdine(persona.id) + quotaSpedizione(persona);
+}
+
+// ── LE PAROLE DELLA SPEDIZIONE ──
+// La parola segue il fatto. Finché nessuno ha alzato il proprio contatore le quote SONO le
+// teste, e «topini» è insieme vero e più chiaro; appena qualcuno lo alza diventa «quote».
+// Una condizione sola, in un posto solo: l'etichetta deve descrivere ciò che viene diviso,
+// non una convenzione. La usano la card Spedizione, due punti dell'admin e il PDF.
+function spedizionePerQuote(){
+  var teste = persone.filter(function(p){ return p.partecipa_spedizione; }).length;
+  return quoteSpedizioneTotali() !== teste;
+}
+function paroleDivisore(n){
+  if(spedizionePerQuote()) return n === 1 ? "quota" : "quote";
+  return n === 1 ? "topino" : "topini";
+}
+function paroleATesta(){ return spedizionePerQuote() ? "a quota" : "a testa"; }
+
+// Il «+2» accanto a un nome: quante persone questo topino porta OLTRE sé stesso.
+// È la contromisura del permesso di scrittura concesso ai topini — chi alza il proprio
+// contatore cambia il conto di tutti gli altri, e la difesa non è un lucchetto: è che si veda.
+// ⚠️ Chi non partecipa alla spedizione non porta quote, e `quoteDi()` gli dà 0: niente
+// etichetta. Mostrargli un «+2» direbbe una cosa falsa proprio accanto a un conto che è zero.
+function etichettaQuote(persona){
+  var q = quoteDi(persona);
+  return q > 1 ? "+" + (q - 1) : "";
 }
 function kgTotaliDi(personaId){
   return righeDi(personaId).reduce(function(a, r){ return a + parseFloat(r.kg_nominale); }, 0);
@@ -300,12 +411,184 @@ function testoOrdineNegoziante(){
 
 // "Topino grasso": chi ha ordinato più kg. Solo client, nessuna colonna in più.
 // In caso di parità vincono tutti — è una medaglia scherzosa, non una classifica.
+// È la 👑 delle sei medaglie qui sotto, e ha il conto suo perché esisteva prima di loro.
 function topiniGrassi(){
   var max = 0;
   persone.forEach(function(p){ var k = kgTotaliDi(p.id); if(k > max) max = k; });
   if(max <= 0) return [];
   return persone.filter(function(p){ return kgTotaliDi(p.id) === max; }).map(function(p){ return p.id; });
 }
+// ── LE SEI MEDAGLIE ──
+// Regola di composizione: il topino si scrive UNA volta sola — è il gancio — e i simboli si
+// accumulano dopo di lui (`🐁 👑 🍀`, mai `🐁 👑 🐁 🍀`). Stanno su una riga propria sotto
+// il nome, che compare SOLO se c'è almeno una medaglia: un topino senza niente addosso ha la
+// card identica a prima. Tutte usano dati già in memoria: nessuna colonna, nessuna chiamata.
+//
+// L'ordine di questa lista È l'ordine sulla riga, e non cambia mai: un ordine fisso fa sì che
+// l'occhio impari le posizioni, uno che cambia costringe a rileggere ogni volta.
+// `breve` è il `title` sulla medaglia, `testo` la spiegazione lunga della guida. Stanno nella
+// stessa riga di tabella di proposito: la stessa medaglia non può spiegarsi in due modi
+// diversi a due centimetri di distanza, e con due elenchi separati prima o poi succede.
+var MEDAGLIE = [
+  { id:"goloso", ico:"\uD83D\uDC51", nome:"Il topino goloso",
+    breve:"Ha preso pi\u00F9 formaggio di tutti",
+    testo:"Ha preso pi\u00F9 formaggio di tutti. Non \u00E8 una gara, ma se lo fosse l'avrebbe vinta lui." },
+  { id:"raffinato", ico:"✨", nome:"Il raffinato",
+    breve:"Ha il prezzo al chilo pi\u00F9 alto del clan",
+    testo:"Ha il prezzo al chilo pi\u00F9 alto del clan. Magari ha preso mezzo etto, ma della stagionatura giusta." },
+  { id:"fortunato", ico:"\uD83C\uDF40", nome:"Gli \u00E8 andata grassa",
+    breve:"Nel pacco gli sono finiti pi\u00F9 grammi in pi\u00F9 che a tutti",
+    testo:"Il taglio \u00E8 a mano, e a qualcuno finiscono sempre ottanta grammi in pi\u00F9 nel pacco. Stavolta \u00E8 toccato a lui." },
+  { id:"collezionista", ico:"\uD83C\uDFAD", nome:"Il collezionista",
+    breve:"Ha preso pi\u00F9 stagionature diverse di tutti",
+    testo:"Non \u00E8 riuscito a sceglierne una. Ha preso un po' di tutto, e va benissimo cos\u00EC." },
+  { id:"minimalista", ico:"\uD83E\uDEB6", nome:"Il minimalista",
+    breve:"Il minimo sindacale, con dignit\u00E0",
+    testo:"Il minimo sindacale, con dignit\u00E0. Sa quello che vuole e ne vuole poco." },
+  { id:"chiacchierone", ico:"\uD83D\uDCAC", nome:"Il chiacchierone",
+    breve:"Ha scritto pi\u00F9 note in bacheca di chiunque altro",
+    testo:"Ha scritto pi\u00F9 note in bacheca di chiunque altro. Qualcuno doveva pur farlo." }
+];
+function medagliaDi(id){
+  return MEDAGLIE.find(function(m){ return m.id === id; }) || null;
+}
+
+// I vincitori di un premio: il massimo fra i `concorrenti` — o il minimo, con `minimo` —
+// e i pari merito vincono tutti, perché è una medaglia scherzosa e non una classifica.
+// `soglia`: il valore vincente deve arrivarci, altrimenti la medaglia non si assegna a
+// nessuno (🎭 vuole almeno due stagionature, 💬 almeno una nota).
+//
+// ① Un premio che vincono TUTTI i concorrenti non è un premio. Serve a un caso reale: se
+// tutti hanno ordinato la stessa stagionatura hanno tutti lo stesso prezzo al kg, e ✨
+// finirebbe addosso all'intero clan.
+//
+// ⚠️ I valori vanno arrotondati dal chiamante alla precisione a cui si VEDONO — i centesimi
+// per un prezzo, il decimo di punto per uno scarto. Due numeri che sullo schermo sono
+// uguali devono essere pari merito: altrimenti la medaglia va a chi ha vinto per una cifra
+// che nessuno può leggere, e da fuori sembra assegnata a caso.
+function vincitoriMedaglia(concorrenti, valore, minimo, soglia){
+  if(!concorrenti.length) return [];
+  var best = null;
+  concorrenti.forEach(function(p){
+    var v = valore(p);
+    if(best === null || (minimo ? v < best : v > best)) best = v;
+  });
+  if(soglia != null && !(best >= soglia)) return [];
+  var vinc = concorrenti.filter(function(p){ return valore(p) === best; });
+  if(vinc.length === concorrenti.length) return [];                       // ①
+  return vinc.map(function(p){ return p.id; });
+}
+
+// Tutti e sei i conti in una passata sola: `renderTabella()` la chiama UNA volta e poi
+// legge la mappa, invece di rifare sei scansioni del clan per ogni card.
+// Restituisce { id_persona: ["goloso", "raffinato", …] }, già nell'ordine di MEDAGLIE.
+function medaglieDelClan(){
+  var out = {};
+  function assegna(chiave, ids){
+    ids.forEach(function(id){ if(!out[id]) out[id] = []; out[id].push(chiave); });
+  }
+  // Il campo di gara di quasi tutte: chi ha ordinato qualcosa. Chi non ha kg non concorre —
+  // e senza kg il prezzo medio sarebbe una divisione per zero.
+  var conKg = persone.filter(function(p){ return kgTotaliDi(p.id) > 0; });
+
+  // 👑 il goloso — la medaglia che c'era già, con il suo conto di sempre.
+  var golosi = topiniGrassi();
+  assegna("goloso", golosi);
+
+  // ✨ il raffinato — prezzo medio al kg più alto, al centesimo.
+  assegna("raffinato", vincitoriMedaglia(conKg, function(p){
+    return Math.round(totaleOrdine(p.id) / kgTotaliDi(p.id) * 100) / 100;
+  }));
+
+  // 🍀 gli è andata grassa — lo scarto positivo più alto. Esiste solo DOPO che l'admin ha
+  // battuto i prezzi delle etichette: prima non c'è nessuno scarto da premiare, e la
+  // medaglia semplicemente non c'è. Concorre chi ha già righe prezzate, e la soglia dello
+  // 0,1% tiene fuori chi ha ricevuto esattamente quello che aveva ordinato.
+  var conScarto = persone.filter(function(p){ return confrontoKg(p.id) != null; });
+  assegna("fortunato", vincitoriMedaglia(conScarto, function(p){
+    return Math.round(confrontoKg(p.id).scarto * 1000) / 1000;
+  }, false, 0.001));
+
+  // 🎭 il collezionista — più stagionature DIVERSE. ③ ne vuole almeno due: con una sola
+  // non si sta collezionando niente.
+  assegna("collezionista", vincitoriMedaglia(conKg, function(p){
+    var visti = [];
+    righeDi(p.id).forEach(function(r){ if(visti.indexOf(r.tipo_id) < 0) visti.push(r.tipo_id); });
+    return visti.length;
+  }, false, 2));
+
+  // 🪶 il minimalista — meno kg di tutti, ma ha ordinato.
+  // ② non si posa MAI su chi ha già 👑: con un topino solo che ha ordinato il massimo e il
+  // minimo coincidono, e la stessa persona sarebbe insieme la più golosa e la più sobria.
+  // Questa regola sola chiude tutti i casi degeneri.
+  assegna("minimalista", vincitoriMedaglia(conKg, function(p){
+    return kgTotaliDi(p.id);
+  }, true).filter(function(id){ return golosi.indexOf(id) < 0; }));
+
+  // 💬 il chiacchierone — più note in bacheca. Concorre TUTTO il clan e non solo chi ha
+  // scritto: la bacheca è aperta a tutti, e restringere il campo a chi ha già scritto farebbe
+  // sparire la medaglia ogni volta che due topini hanno una nota a testa (regola ①). Con
+  // zero note nessun chiacchierone: la soglia è una nota.
+  assegna("chiacchierone", vincitoriMedaglia(persone, function(p){
+    return note.filter(function(n){ return n.persona_id === p.id; }).length;
+  }, false, 1));
+
+  return out;
+}
+
+// ── L'ORDINAMENTO DELLA TABELLA ──
+// Quattro chiavi, ognuna con la SUA direzione naturale, e nessuna inversione: toccare due
+// volte la stessa pillola non capovolge niente. Uno stato nascosto dentro una pillola è una
+// cosa che nessuno scopre e che fa dubitare di quello che si sta guardando.
+//
+// «Ingresso» è il predefinito perché è già l'ordine di oggi (`api.js` carica le persone con
+// `.order("created_at")`): chi apre la tab domani vede esattamente quello di ieri, e scopre
+// che si può cambiare solo se guarda.
+//
+// ⚠️ Il goloso NON resta in cima. Un elenco ordinato per nome con un'eccezione in cima non
+// è ordinato per nome, e la domanda «chi viene prima di chi» smette di avere una risposta
+// sola. Quando si ordina per kg il goloso ci arriva da solo, per merito.
+var ORDINAMENTI = [
+  { id:"ingresso", ico:"\uD83D\uDCC5", nome:"Ingresso" },
+  { id:"nome",     ico:"\uD83D\uDD24", nome:"Nome"     },
+  { id:"kg",       ico:"\u2696\uFE0F", nome:"Kg"       },
+  { id:"spesa",    ico:"\uD83D\uDCB0", nome:"Spesa"    }
+];
+// La scelta sopravvive alla chiusura dell'app: un ordinamento da ripescare ogni volta è un
+// ordinamento che si smette di usare. Chiave globale e non per gruppo — è una preferenza di
+// chi guarda, come il tema, non un dato del giro.
+function ordinamentoTabella(){
+  var v = null;
+  try{ v = localStorage.getItem(ORDINE_KEY); }catch(e){}
+  return ORDINAMENTI.some(function(o){ return o.id === v; }) ? v : "ingresso";
+}
+function setOrdinamentoTabella(id){
+  try{ localStorage.setItem(ORDINE_KEY, id); }catch(e){}
+}
+// ⚠️ Si ordina una COPIA. `persone` è l'ordine di caricamento e lo usano altre funzioni:
+// `persone.sort(...)` riscriverebbe l'array globale e «Ingresso» non tornerebbe più indietro.
+// I pari merito restano nell'ordine d'ingresso, perché `sort` è stabile: due topini con gli
+// stessi kg non si scambiano di posto a ogni ridisegno.
+function personeOrdinate(){
+  var copia = persone.slice();
+  switch(ordinamentoTabella()){
+    case "nome":
+      // ⚠️ `localeCompare` con la lingua, mai `<`: il confronto fra stringhe sbaglia sulle
+      // maiuscole (Z prima di a) e sulle accentate, e in un elenco di nomi si vede subito.
+      return copia.sort(function(a, b){
+        return String(a.nome || "").localeCompare(String(b.nome || ""), "it");
+      });
+    case "kg":
+      return copia.sort(function(a, b){ return kgTotaliDi(b.id) - kgTotaliDi(a.id); });
+    case "spesa":
+      // La stessa cifra della riga «Totale» della card: se l'ordine non tornasse con il
+      // numero che si legge accanto, sembrerebbe sbagliato uno dei due.
+      return copia.sort(function(a, b){ return totaleDovuto(b) - totaleDovuto(a); });
+    default:
+      return copia;              // ingresso: è già l'ordine di caricamento
+  }
+}
+
 function nomeTipo(tipoId){
   var t = tipi.find(function(x){ return x.id === tipoId; });
   return t ? t.nome : "?";

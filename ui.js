@@ -105,6 +105,7 @@ function entraComePersona(id){
   setMiaIdentita(id);
   mostraSchermata("app-screen");
   renderApp();
+  forseApriGuida();
 }
 
 // ── APP (dopo identità) ──
@@ -385,30 +386,132 @@ function renderSpedizione(){
     el.innerHTML = '<div class="sped-nota">Nessuna spesa di spedizione su questo giro. \uD83C\uDF89</div>';
     return;
   }
-  var n = numeroPartecipantiSpedizione();
+  var n = quoteSpedizioneTotali();
   var mia = persone.find(function(p){ return p.id === mioId; });
   var h = '<div class="sped-conto">'
     +   '<span class="sped-num">' + eur(tot) + '</span>'
     +   '<span class="sped-op">\u00f7</span>'
-    +   '<span class="sped-num">' + n + (n === 1 ? " topino" : " topini") + '</span>'
+    +   '<span class="sped-num">' + n + ' ' + paroleDivisore(n) + '</span>'
     +   '<span class="sped-op">=</span>'
-    +   '<span class="sped-quota">' + eur(n ? tot / n : 0) + ' a testa</span>'
+    +   '<span class="sped-quota">' + eur(quotaSpedizioneSingola()) + ' ' + paroleATesta() + '</span>'
     + '</div>';
+  // Lo stepper sta QUI: sotto il conto che quel numero muove, e sopra le note.
+  h += renderQuoteMieHtml(mia);
+  // ✅ Questa frase resta VERA con le quote, e non va toccata: la quota *singola* è davvero
+  // uguale per tutti, chi ordina per tre compreso — in lui è diverso il NUMERO di quote,
+  // non il loro prezzo. Mostrando lì sopra tutti e due i numeri, diventa inequivocabile.
   h += '<div class="sped-nota">' + (
         !n ? "Nessuno partecipa ancora alla spedizione."
         : (mia && mia.partecipa_spedizione
             ? "Uguale per tutti quelli che partecipano, te compreso."
             : "Tu non partecipi alla spedizione, quindi non la paghi.")
       ) + '</div>';
-  // Finché gli ordini sono aperti la quota a testa è provvisoria per due ragioni insieme:
-  // la spedizione dipende dai kg totali, e il numero di chi partecipa può ancora cambiare.
+  // Finché gli ordini sono aperti la quota è provvisoria per tre ragioni insieme: la
+  // spedizione dipende dai kg totali, chi partecipa può ancora cambiare, e ora anche
+  // quante persone ciascuno porta con sé.
   // A ordini chiusi sparisce: lì il numero è definitivo e ripeterlo sarebbe rumore.
   if(!ordiniChiusi()){
     h += '<div class="sped-nota">\u2139\uFE0F La spedizione dipende dai kg totali del gruppo: '
-      + 'finch\u00e9 l\'ordine \u00e8 aperto la quota a testa pu\u00f2 ancora cambiare. '
+      + 'finch\u00e9 l\'ordine \u00e8 aperto la quota pu\u00f2 ancora cambiare, anche perch\u00e9 '
+      + 'qualcuno pu\u00f2 aggiungere le persone per cui ritira. '
       + 'Pi\u00f9 formaggio si ordina, meno pesa su ciascuno.</div>';
   }
   el.innerHTML = h;
+}
+
+// ── LO STEPPER DELLE QUOTE, E I DUE NUMERI DI CHI ORDINA PER ALTRI ──
+// ⚠️ Sta nella card Spedizione e NON fra gli stepper del formaggio. È l'unica cosa su cui
+// questo numero agisce, e in mezzo alle righe delle stagionature un «+2» sembrerebbe dire
+// «ordinane il triplo»: la vicinanza a uno stepper che moltiplica i chili è il solo vero
+// rischio di fraintendimento di tutta questa modifica.
+// Non è un elemento nuovo: è lo stesso stepper delle righe del formaggio detto su un altro
+// numero — il valore mostrato È il dato, nessun bottone di conferma, si salva da solo.
+function renderQuoteMieHtml(mia){
+  // I due stati in cui non si tocca sono DIVERSI perché dicono cose diverse.
+  // «Non per te»: chi non partecipa non vede il comando affatto. Sotto c'è già scritto che
+  // non la paga, e un comando morto sotto quella frase è rumore.
+  if(!mia || !mia.partecipa_spedizione) return "";
+  // «Non adesso»: a ordini chiusi il comando resta, spento come gli stepper dei kg. Le
+  // quote ormai sono note e immodificabili, ed è su quelle che si pagherà.
+  var chiusi = ordiniChiusi();
+  var q = quoteMie();
+  var h = '<div class="sped-quote' + (chiusi ? " bloccata" : "") + '">'
+    +   '<div class="sq-testa">'
+    +     '<span class="sq-label">Per quante persone ordini?</span>'
+    +     '<div class="stepper">'
+    +       '<button class="step-btn meno" ' + (q > QUOTE_MIN && !chiusi ? "" : "disabled ")
+    +         'onclick="stepQuote(-1)" aria-label="Una persona in meno">\u2212</button>'
+    +       '<span class="step-val" id="step-quote">' + q + '</span>'
+    +       '<button class="step-btn piu" ' + (q < QUOTE_MAX && !chiusi ? "" : "disabled ")
+    +         'onclick="stepQuote(1)" aria-label="Una persona in pi\u00f9">+</button>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="sq-sotto"><b>Conta anche te</b>: lascia 1 se ordini solo per te. '
+    +     'Alzalo se ritiri anche per amici fuori dal Clan \u2014 sono altre consegne, e '
+    +     'la loro spedizione la paghi tu insieme alla tua.</div>';
+  // I due numeri: richiesta esplicita di iL KaJiNo. Il secondo non è un di più — senza,
+  // chi ordina per altri deve fare una divisione a mano ogni volta che va a bussare a un
+  // amico, ed è il tipo di conto che si sbaglia sulla porta di casa.
+  // A una quota sola il secondo coinciderebbe col primo: sarebbe rumore per tutti tranne uno.
+  if(q > 1){
+    h += '<div class="sq-numeri">'
+      +   '<div class="sq-riga"><span>Spedizione a tuo carico</span><span>'
+      +     eur(quotaSpedizione(mia)) + '</span></div>'
+      +   '<div class="sq-riga"><span>Da chiedere a ciascun amico</span><span>'
+      +     eur(quotaSpedizioneSingola()) + '</span></div>'
+      + '</div>';
+  }
+  return h + '</div>';
+}
+
+// Il valore vero prima del tocco, tenuto da parte per il rollback. `null` = nessun
+// salvataggio in volo.
+var _quoteVere = null;
+var _quoteTimer = null;
+function quoteMie(){
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  return mia ? (parseInt(mia.quote_spedizione, 10) || QUOTE_MIN) : QUOTE_MIN;
+}
+function stepQuote(dir){
+  if(ordiniChiusi()){ dot("err", "Ordini chiusi"); return; }
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  if(!mia) return;
+  var attuale = quoteMie();
+  var q = attuale + dir;
+  if(q < QUOTE_MIN) q = QUOTE_MIN;
+  if(q > QUOTE_MAX) q = QUOTE_MAX;
+  if(q === attuale) return;
+  // Si scrive PRIMA in memoria, e non solo nella casella dello stepper: alzando le mie
+  // quote cambia il divisore di tutti, quindi il conto, i due numeri e perfino la parola
+  // «topini»/«quote» devono muoversi insieme. `caricaTutto()` rimette la verità del
+  // database appena il salvataggio va a buon fine.
+  if(_quoteVere == null) _quoteVere = attuale;
+  mia.quote_spedizione = q;
+  renderSpedizione();
+  renderMioTotale();
+  // Debounce come per i kg: chi tocca «+» cinque volte fa una scrittura, non cinque.
+  clearTimeout(_quoteTimer);
+  dot("", "Salvataggio\u2026");
+  _quoteTimer = setTimeout(function(){ salvaQuoteMie(q); }, 600);
+}
+async function salvaQuoteMie(q){
+  try{
+    await setQuoteSpedizione(mioId, q);
+    _quoteVere = null;
+    await caricaTutto();
+    if(currentTab === "ordina") renderOrdina();
+    dot("ok", "Salvato \uD83E\uDDC0");
+  }catch(e){
+    // Rollback al valore vero. Qui il numero mostrato È il dato: lasciare sullo schermo
+    // un valore che il database ha rifiutato non mentirebbe solo a chi l'ha toccato —
+    // gli farebbe leggere un conto sbagliato anche per tutti gli altri.
+    var mia = persone.find(function(x){ return x.id === mioId; });
+    if(mia && _quoteVere != null) mia.quote_spedizione = _quoteVere;
+    _quoteVere = null;
+    renderOrdina();
+    dot("err", "Errore");
+    alert("Non sono riuscito a salvare: " + e.message);
+  }
 }
 
 // ── TAB TABELLA ──
@@ -421,9 +524,10 @@ function renderTabella(){
     return;
   }
 
-  var grassi = topiniGrassi();
+  // Le sei medaglie si contano UNA volta per tutto il clan, non una per card.
+  var medaglie = medaglieDelClan();
   var archiviato = gruppo && gruppo.stato === "archiviato";
-  var h = persone.map(function(p){
+  var h = personeOrdinate().map(function(p){
     var mie   = righeDi(p.id);
     var ip    = totaleIpotetico(p.id);
     var reale = totaleOrdine(p.id);          // usa il prezzo reale dove c'è, il nominale altrove
@@ -440,19 +544,47 @@ function renderTabella(){
       : '<span class="pc-voce vuota">nessun ordine</span>';
 
     var c = '<div class="persona-card' + (io_ ? " mia" : "") + '">';
-    // Topino grasso: pulsa mentre il gruppo è aperto, diventa corona quando è archiviato
-    var grasso = grassi.indexOf(p.id) > -1
-      ? ' <span class="badge-grasso' + (archiviato ? " incoronato" : "") + '" title="Ha ordinato più kg di tutti">'
-        + (archiviato ? "\uD83D\uDC51" : '<span class="svg-inv svg-topino topino-ico"></span>\uD83D\uDC51') + '</span>'
+    // La riga delle medaglie: il topino una volta sola (il gancio), poi i simboli. Esiste
+    // solo se c'è almeno una medaglia — chi non ne ha nessuna ha la card di sempre.
+    // Pulsa SOLO la corona: una cosa che si muove in mezzo a cinque ferme si vede, sei che
+    // si muovono sono rumore. A gruppo archiviato non pulsa niente e la corona si posa.
+    var sue = medaglie[p.id] || [];
+    // La riga È la porta della guida: la si tocca e la guida si apre già aperta sulla
+    // sezione giusta. Meglio di una ⓘ appiccicata a lato — qui la porta è la cosa stessa
+    // che si vuole capire. La coda «cosa sono?» esiste perché su un telefono il `title` non
+    // si vede e il cursore non c'è: senza, la porta la troverebbe solo chi tocca a caso.
+    var rigaMed = sue.length
+      ? '<div class="pc-medaglie" onclick="apriGuida(\'medaglie\')"'
+        + ' title="Cosa sono queste medaglie?">'
+        + '<span class="gancio"><span class="svg-inv svg-topino topino-ico"></span></span>'
+        + sue.map(function(k){
+            var m = medagliaDi(k);
+            if(!m) return "";
+            var stato = (k === "goloso") ? (archiviato ? " posata" : " pulsa") : "";
+            return '<span class="med' + stato + '" title="'
+              + escapeHtml(m.nome + " \u2014 " + m.breve) + '">' + m.ico + '</span>';
+          }).join("")
+        + '<span class="med-cosa">cosa sono?</span>'
+        + '</div>'
       : '';
-    // Pillola e non un topo diverso: il topino è già il badge del "topino grasso", e due
-    // topi diversi nella stessa colonna diventerebbero un rebus. La vedono TUTTI, che è
+    // Pillola e non un topo diverso: il topino è già il gancio della riga delle medaglie, e
+    // due topi diversi nella stessa card diventerebbero un rebus. La vedono TUTTI, che è
     // il punto: sapere a chi chiedere.
     var adminBadge = p.is_admin ? ' <span class="pill-admin">admin</span>' : '';
+    // Il «+2»: questo è il primo comando in mano ai topini che cambia il conto di
+    // QUALCUN ALTRO, e la contromisura non è un permesso — è che si veda. Sta qui perché
+    // qui c'è anche il totale: è il punto in cui uno può chiedersi perché quel numero è
+    // più alto degli altri, e trovarci accanto la risposta.
+    var et = etichettaQuote(p);
+    var quoteBadge = et
+      ? ' <span class="pill-quote" title="Ordina anche per altre persone: paga ' + (quoteDi(p))
+        + ' quote di spedizione">' + et + '</span>'
+      : '';
     c += '<div class="pc-testa">'
-       +   '<span class="pc-nome">\uD83D\uDC2D ' + escapeHtml(p.nome) + adminBadge + grasso + (io_ ? ' <span class="pc-tu">sei tu</span>' : '') + '</span>'
+       +   '<span class="pc-nome">\uD83D\uDC2D ' + escapeHtml(p.nome) + adminBadge + quoteBadge + (io_ ? ' <span class="pc-tu">sei tu</span>' : '') + '</span>'
        +   (p.pagato ? '<span class="badge ok">pagato</span>' : '<span class="badge no">da pagare</span>')
        + '</div>';
+    c += rigaMed;
     c += '<div class="pc-voci">' + voci + '</div>';
     // I kg ricevuti sono derivati da prezzo_reale / prezzo_kg: dopo la consegna è il
     // prezzo la verità, e il numero ordinato è diventato storia. Si mostrano affiancati
@@ -465,7 +597,11 @@ function renderTabella(){
     c += '<div class="pc-conti">';
     c +=   '<div class="pc-riga"><span>Parmigiano' + (conReale ? " (stima)" : "") + '</span><span>' + eur(ip) + '</span></div>';
     if(conReale) c += '<div class="pc-riga reale"><span>Parmigiano (reale)</span><span>' + eur(reale) + '</span></div>';
-    c +=   '<div class="pc-riga"><span>Spedizione' + (p.partecipa_spedizione ? "" : " (non partecipa)") + '</span><span>' + eur(sped) + '</span></div>';
+    c +=   '<div class="pc-riga"><span>Spedizione'
+       +     (p.partecipa_spedizione
+             ? (quoteDi(p) > 1 ? " (" + quoteDi(p) + " quote)" : "")
+             : " (non partecipa)")
+       +     '</span><span>' + eur(sped) + '</span></div>';
     c +=   '<div class="pc-riga grande"><span>Totale</span><span>' + eur(tot) + '</span></div>';
     c += '</div></div>';
     return c;
@@ -475,7 +611,7 @@ function renderTabella(){
   var kgGruppo   = persone.reduce(function(a, p){ return a + kgTotaliDi(p.id); }, 0);
   var nPagati    = persone.filter(function(p){ return p.pagato; }).length;
 
-  h += '<div class="persona-card totale-gruppo">'
+  var riepilogo = '<div class="persona-card totale-gruppo">'
      +   '<div class="pc-testa"><span class="pc-nome">\uD83E\uDDC0 Tutto il clan</span>'
      +     '<span class="badge ' + (nPagati === persone.length ? "ok" : "no") + '">' + nPagati + ' su ' + persone.length + ' pagati</span></div>'
      +   '<div class="pc-conti">'
@@ -483,7 +619,170 @@ function renderTabella(){
      +     '<div class="pc-riga grande"><span>Totale gruppo</span><span>' + eur(totGruppo) + '</span></div>'
      +   '</div></div>';
 
-  el.innerHTML = h;
+  // Il riepilogo sta IN CIMA, prima delle card dei singoli. Stava in fondo, dov'era la
+  // conclusione di una lettura: si scorrevano tutti i topini e si arrivava al totale. Ma la
+  // domanda con cui si apre questa tab \u00E8 quasi sempre "a che punto siamo?" \u2014 quanti hanno
+  // pagato, quanto viene in tutto \u2014 e con tredici topini quella risposta stava sotto due
+  // schermate di scorrimento. In cima diventa un'intestazione: si legge il totale, e si
+  // scende nel dettaglio solo se serve. Chiesto da iL KaJiNo il 02/09/2026.
+  // Nessuna regola CSS dipendeva dalla posizione: `.persona-card:last-child{margin-bottom:0}`
+  // continua a cadere sull'ultima card, che ora \u00E8 l'ultimo topino invece del riepilogo.
+  // La barra sta FRA il riepilogo e le card: «Tutto il clan» è fuori dall'elenco ordinato e
+  // resta in cima sempre — l'ordinamento tocca solo le card dei singoli, e mettendogli la
+  // barra sopra sembrerebbe che riordini anche lui.
+  var att = ordinamentoTabella();
+  var barra = '<div class="ord-barra">'
+    + ORDINAMENTI.map(function(o){
+        return '<button class="ord-btn' + (o.id === att ? " attivo" : "") + '"'
+          + ' aria-pressed="' + (o.id === att ? "true" : "false") + '"'
+          + ' onclick="ordinaTabella(\'' + o.id + '\')">' + o.ico + ' ' + o.nome + '</button>';
+      }).join("")
+    + '</div>';
+
+  el.innerHTML = riepilogo + barra + h;
+}
+
+// Toccare la pillola già attiva non fa niente: non c'è un verso da invertire, e un
+// ridisegno che non cambia nulla farebbe solo sospettare che il tocco non sia arrivato.
+function ordinaTabella(chiave){
+  if(chiave === ordinamentoTabella()) return;
+  setOrdinamentoTabella(chiave);
+  vibra(12);
+  renderTabella();
+}
+
+// ── LA GUIDA ──
+// Un modale con sezioni a fisarmonica (`<details>` nativi: il guscio è in `#modal-guida`).
+//
+// L'ORDINE DELLE SEZIONI È LA STORIA DI UN GIRO, non l'elenco delle tab. La domanda che un
+// topino si fa non è «cosa fa questo bottone» — i bottoni sono quattro e si capiscono — ma
+// «a che punto siamo, e cosa tocca a me adesso». E non costa niente in reperibilità, perché
+// il giro coincide già con le tab: si ordina in Ordina, si guarda in Tabella, si paga in
+// Pagamenti.
+//
+// ⚠️ La bacheca NON ha una sezione, ed è una scelta: ogni versione scritta diceva «scrivi
+// una nota e gli altri la leggono», che è esattamente quello che si capisce guardandola.
+// Una voce di guida che spiega l'ovvio insegna a saltare anche le altre.
+//
+// ⚠️ Aggiungere una sezione costa UNA VOCE in questo elenco, ed è per questo che il guscio è
+// stato costruito così nel lotto 5. Il voto al formaggio (lotto 9) avrà una sezione sua e
+// non un paragrafo dentro un'altra: è un'azione che il topino compie, non un fatto da
+// sapere, e le azioni meritano un titolo che si veda nella fisarmonica. Diventerà la 6, e
+// «Quando il giro finisce» scalerà alla 7.
+//
+// ⚠️ I testi delle medaglie NON si riscrivono qui: vengono da `MEDAGLIE` in utils.js, la
+// stessa tabella che decide quali medaglie esistono e che fornisce anche il `title` corto
+// sulla riga. Due elenchi separati finirebbero per spiegare la stessa medaglia in due modi
+// diversi a due centimetri di distanza.
+//
+// ⚠️ Gli altri testi sono lunghi: vanno spezzati in `<p class="guida-p">`, e le spaziature
+// stanno in style.css. Niente stili in linea qui dentro.
+var GUIDA_SEZIONI = [
+  { id:"ordinare", ico:"🧀", titolo:"Ordinare", corpo:function(){
+      return '<p class="guida-p">Nella tab <b>Ordina</b> c\'è una riga per ogni stagionatura. '
+        + 'Tocchi + e − e il numero che vedi <b>è già il tuo ordine</b>: non c\'è niente da '
+        + 'confermare, si salva da solo.</p>'
+        + '<p class="guida-p">Si va a mezzo chilo per volta, perché è così che si taglia. Puoi '
+        + 'cambiare idea quante volte vuoi finché gli ordini sono aperti — e quando l\'admin '
+        + 'li chiude, i comandi si spengono e quello che hai scritto diventa l\'ordine che parte '
+        + 'per la latteria.</p>';
+    } },
+  { id:"spedizione", ico:"🚚", titolo:"La spedizione", corpo:function(){
+      return '<p class="guida-p">La latteria spedisce una volta sola, per tutti. Quel costo si '
+        + 'divide in parti uguali: ogni topino paga <b>una quota</b>.</p>'
+        + '<p class="guida-p">Se stai ordinando <b>anche per qualcuno fuori dal Clan</b>, alza il '
+        + 'contatore nella card Spedizione: sono consegne in più, e paghi una quota per ciascuna. '
+        + 'Accanto al tuo nome, in tabella, comparirà una pillola con <b>quante quote di '
+        + 'spedizione stai pagando</b> — ×2, ×3, quante sono. Non sono chili e non è il tuo '
+        + 'ordine: sono solo quote di spedizione, e servono a far capire a tutti perché il tuo '
+        + 'totale è più alto.</p>'
+        + '<p class="guida-p">Sotto il contatore trovi due cifre: quanto devi tu in tutto, e '
+        + 'quanto vale <b>una quota sola</b> — che è quella da chiedere a ciascun amico, senza '
+        + 'doverla dividere a mano sulla porta di casa.</p>';
+    } },
+  { id:"arrivo", ico:"⚖️", titolo:"Quando arriva il formaggio", corpo:function(){
+      return '<p class="guida-p">Il parmigiano si taglia a mano, e un pezzo da mezzo chilo non '
+        + 'pesa mai esattamente mezzo chilo. Per questo, finché il formaggio non è arrivato, <b>il '
+        + 'tuo totale è una stima</b>.</p>'
+        + '<p class="guida-p">Quando l\'admin ritira i pezzi, batte gli importi che legge sulle '
+        + 'etichette. Da quel momento i numeri sono quelli veri, e nella tabella compare quanto '
+        + 'hai preso davvero rispetto a quanto avevi chiesto. A volte in più, a volte in meno: è '
+        + 'il bello del taglio a mano.</p>'
+        + '<p class="guida-p">Il prezzo al chilo, quello, non cambia mai: è concordato prima.</p>';
+    } },
+  { id:"pagare", ico:"💰", titolo:"Pagare", corpo:function(){
+      return '<p class="guida-p">Si paga <b>dopo la consegna</b>, e non è una raccomandazione: '
+        + 'prima il tuo prezzo non esiste ancora, perché i pezzi non sono ancora stati scelti e '
+        + 'consegnati.</p>'
+        + '<p class="guida-p">Quando i numeri sono definitivi, nella tab <b>Pagamenti</b> trovi '
+        + 'quanto devi e come pagare: contanti al ritiro, oppure bonifico, PayPal o Satispay. Poi '
+        + 'tocchi «Ho pagato» e dici come l\'hai fatto — l\'admin controlla e conferma. Il '
+        + 'pallino accanto al tuo nome diventa verde e hai finito.</p>';
+    } },
+  { id:"medaglie", ico:"\uD83D\uDC51", titolo:"Le medaglie", corpo:function(){
+      return '<p class="guida-intro">Ogni tanto, sotto il nome di un topino, compare una fila '
+        + 'di simboli. Sono medaglie: non servono a niente, non cambiano i conti, e si vincono '
+        + 'quasi sempre senza farlo apposta.</p>'
+        + MEDAGLIE.map(function(m){
+            return '<div class="guida-med"><span class="guida-med-ico">' + m.ico + '</span>'
+              + '<div><b>' + escapeHtml(m.nome) + '</b> \u2014 ' + escapeHtml(m.testo) + '</div></div>';
+          }).join("");
+    } },
+  { id:"fine", ico:"📦", titolo:"Quando il giro finisce", corpo:function(){
+      return '<p class="guida-p">Quando hanno pagato tutti, l\'admin archivia il giro e se ne '
+        + 'apre uno nuovo.</p>'
+        + '<p class="guida-p">Niente si perde: i giri vecchi restano consultabili, con chi c\'era, '
+        + 'quanto aveva preso e quanto aveva speso. Se ti viene il dubbio di quanto costava il 36 '
+        + 'mesi al giro precedente, la risposta è lì.</p>';
+    } }
+];
+
+// `sezione` è il pezzo su cui la guida si apre già aperta. Senza argomento si apre tutta
+// chiusa, ed è la forma che usano le porte generiche: il link «guida» sotto il titolo e il
+// primo ingresso di un topino. Con una sezione, quella e solo quella parte aperta — le
+// altre restano chiuse, che è il modo di dire «la risposta è qui» invece di «leggi tutto».
+function apriGuida(sezione){
+  var corpo = document.getElementById("guida-corpo");
+  if(!corpo) return;
+  corpo.innerHTML = GUIDA_SEZIONI.map(function(sz){
+    return '<details class="guida-sez" id="guida-' + sz.id + '"' + (sz.id === sezione ? " open" : "") + '>'
+      + '<summary class="guida-tit"><span>' + sz.ico + ' ' + sz.titolo + '</span>'
+      + '<span class="guida-freccia">\u25BE</span></summary>'
+      + '<div class="guida-dentro">' + sz.corpo() + '</div></details>';
+  }).join("");
+  vibra(12);
+  openModal("modal-guida");
+  // ⚠️ Dopo un attimo, non subito: il modale si sta ancora aprendo e `scrollIntoView` su un
+  // contenitore che non ha ancora la sua altezza definitiva non trova nessuna posizione da
+  // raggiungere. Con sei sezioni la sezione richiesta è spesso sotto la piega, e senza
+  // questo rinvio la guida si aprirebbe in cima lasciando cercare a mano.
+  if(sezione) setTimeout(function(){
+    var d = document.getElementById("guida-" + sezione);
+    if(d && d.scrollIntoView) d.scrollIntoView({ behavior:"smooth", block:"start" });
+  }, 120);
+}
+function chiudiGuida(){ closeModal("modal-guida"); }
+
+// La guida al primo ingresso: QUESTO è il benvenuto. Non quattro slide da sfogliare e non
+// un secondo modale — la stessa superficie che il topino ritroverà dalle altre due porte,
+// aperta tutta chiusa, col testo di benvenuto in cima.
+//
+// ⚠️ DOPO l'ingresso, mai sulla schermata d'accesso: chi non è ancora entrato non ha il
+// contesto per capire cosa gli si sta raccontando, e si trova una guida a un'app che non
+// ha ancora visto.
+//
+// ⚠️ Non si accavalla con l'invito all'installazione, che nella vita di un topino arriva
+// nello stesso momento: quello NON è un modale, è una card in coda alla tab Ordina (e in
+// cima all'accesso), quindi sta lì e aspetta. La guida ha la precedenza perché copre lo
+// schermo; chiusa lei, l'invito è la prima cosa che resta sotto gli occhi.
+//
+// Il rinvio è per far disegnare l'app prima: la guida deve arrivare SOPRA il Clan, non al
+// posto suo. Aprendola nello stesso istante del render, il topino non vedrebbe mai l'app
+// che sta per usare.
+function forseApriGuida(){
+  if(!guidaDaMostrare()) return;
+  segnaGuidaVista();
+  setTimeout(function(){ apriGuida(); }, 400);
 }
 
 // ── TAB BACHECA ──
@@ -501,8 +800,26 @@ function nomeAutore(personaId){
 }
 function notaAuto(t){
   if(!t) return;
+  var st = getComputedStyle(t);
+  // Il tetto lo decide il CSS (`max-height` su `.nota-textarea`), non un numero scritto qui:
+  // due posti che devono dire lo stesso numero prima o poi dicono numeri diversi. Con
+  // `max-height:none` — la classe `.nota-libera` — `parseFloat` dà NaN e la textarea cresce
+  // quanto serve.
+  var tetto = parseFloat(st.maxHeight);
+  if(!isFinite(tetto)) tetto = Infinity;
+  // ⚠️ `scrollHeight` misura contenuto + padding, MA NON IL BORDO. Con `box-sizing:border-box`
+  // l'altezza che assegniamo è quella del bordo esterno, quindi assegnare `scrollHeight` così
+  // com'è lascia il contenuto più alto della scatola dei tre pixel del bordo — e compare una
+  // barra di scorrimento anche a campo vuoto. Va risommato.
+  var bordi = st.boxSizing === "border-box"
+    ? (parseFloat(st.borderTopWidth) || 0) + (parseFloat(st.borderBottomWidth) || 0)
+    : 0;
   t.style.height = "auto";
-  t.style.height = Math.min(t.scrollHeight, 200) + "px";   // textarea che cresce, con tetto
+  var voluta = t.scrollHeight + bordi;
+  t.style.height = Math.min(voluta, tetto) + "px";
+  // E la barra si mostra solo quando serve davvero, cioè quando il tetto taglia: un mezzo
+  // pixel di arrotondamento non deve poter far comparire una barra su un campo che ci sta.
+  t.style.overflowY = voluta > tetto ? "auto" : "hidden";
 }
 
 function renderBacheca(){
@@ -757,9 +1074,12 @@ function aggiornaPallinoPagamenti(){
   d.style.display = stima ? "" : "none";
 }
 
-// Chi paga su un totale ancora stimato paga una cifra che cambierà: i pezzi non sono
-// stati tagliati, quindi non si sa quanto pesano. NON si blocca — chi paga in contanti
-// alla consegna deve poter procedere — ma glielo si dice prima, non dopo.
+// Prima del ritiro il prezzo di un topino NON ESISTE ancora: i pezzi non sono stati
+// scelti, quindi non c'è una cifra da pagare — non è che pagare prima sia sconsigliato.
+// Per questo il modale dello stimato non ha più un "pago lo stesso": non è un bivio, è
+// una constatazione con una sola uscita.
+// ⚠️ Chi paga in contanti alla consegna NON passa mai di qui: al momento della consegna
+// i prezzi reali ci sono già, quindi `haPrezziReali()` è vero e si va dritti ai metodi.
 function apriSegnalaPagamento(){
   document.getElementById("sp-errore").textContent = "";
   if(!haPrezziReali(mioId)) mostraAvvisoStima();
@@ -767,20 +1087,20 @@ function apriSegnalaPagamento(){
   openModal("modal-segnala");
 }
 function mostraAvvisoStima(){
-  document.getElementById("sp-titolo").textContent = "\uD83E\uDDC0 Aspetta un attimo";
+  document.getElementById("sp-titolo").textContent = "\uD83E\uDDC0 \u00c8 ancora presto";
   document.getElementById("sp-sub").textContent = "";
   document.getElementById("sp-metodi").innerHTML = "";
   document.getElementById("sp-avviso").innerHTML =
-    '<div class="avviso-stima">Il tuo totale \u00e8 ancora <b>stimato</b>: i pezzi non sono stati '
-    + 'tagliati, quindi non si sa quanto pesano davvero. L\'importo cambier\u00e0, di solito di '
-    + 'qualche euro in su o in gi\u00f9. Meglio aspettare che l\'admin inserisca gli importi '
-    + 'delle etichette.</div>'
+    '<div class="avviso-stima">Il tuo conto <b>non esiste ancora</b>. I pezzi non sono stati '
+    + 'tagliati, quindi il tuo totale \u00e8 solo <b>stimato</b>: non \u00e8 una cifra da pagare, '
+    + '\u00e8 un\'idea di quanto verr\u00e0. Il prezzo vero nasce quando l\'admin inserisce gli '
+    + 'importi delle etichette \u2014 e da l\u00ec in poi lo trovi qui.</div>'
     + '<div class="m-btns" style="margin-bottom:4px;">'
-    +   '<button class="btn btn-ghost" onclick="mostraMetodiPagamento()">Pago lo stesso</button>'
-    +   '<button class="btn btn-cheese" onclick="chiudiSegnalaPagamento()">Aspetto</button>'
+    +   '<button class="btn btn-cheese" onclick="chiudiSegnalaPagamento()">Ho capito</button>'
     + '</div>';
-  // "Aspetto" è già l'uscita: lasciare anche l'"Annulla" del modale darebbe due bottoni
-  // che fanno la stessa cosa accanto all'unico che ne fa un'altra.
+  // Il modale ha UNA sola uscita, ed è questo bottone: lasciare acceso anche l'"Annulla"
+  // di `sp-btns` darebbe due bottoni che fanno esattamente la stessa cosa. Prima erano due
+  // uscite diverse, e la ragione di nasconderlo era un'altra; ora è questa.
   document.getElementById("sp-btns").style.display = "none";
 }
 function mostraMetodiPagamento(){

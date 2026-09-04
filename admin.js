@@ -255,8 +255,29 @@ var _faseAperta = null;
 function faseAperta(){ return _faseAperta != null ? _faseAperta : faseCorrente(); }
 function toggleFase(n){
   vibra(10);
-  _faseAperta = (faseAperta() === n) ? 0 : n;   // 0 = tutte chiuse, e resta una scelta esplicita
+  var apre = faseAperta() !== n;
+  _faseAperta = apre ? n : 0;                   // 0 = tutte chiuse, e resta una scelta esplicita
   renderAdmin();
+  // Solo in apertura. `renderAdmin()` riscrive tutto l'HTML: la pagina si accorcia o si
+  // allunga SOPRA il punto in cui si sta guardando, ma lo scorrimento resta fermo in pixel
+  // assoluti, e la vista finisce più in basso della fase appena aperta. Si porta in cima
+  // l'intestazione, come fa `vaiAFase()` con la sua card; i 60 ms sono lì per lo stesso
+  // motivo: `renderAdmin()` deve aver finito di scrivere il DOM. In chiusura non si muove
+  // niente — non c'è nessun bersaglio da guardare.
+  if(!apre) return;
+  setTimeout(function(){
+    var t = document.getElementById("fase-testa-" + n);
+    if(!t) return;
+    // `scrollIntoView({block:"start"})` la porterebbe al bordo della finestra, cioè dietro
+    // `.top`, che sta appiccicato lì sopra. Il franco si misura sull'header vero invece di
+    // ricopiarne l'altezza a mano: cambia con la safe-area del telefono.
+    var testa = document.querySelector("#admin-screen .top");
+    var franco = (testa ? testa.getBoundingClientRect().height : 0) + 8;
+    window.scrollTo({
+      top: Math.max(0, window.pageYOffset + t.getBoundingClientRect().top - franco),
+      behavior: "smooth"
+    });
+  }, 60);
 }
 // Rimanda a una card che vive in un'altra fase: la apre e ci porta sopra, invece di
 // duplicare il campo in due posti (due input sulla stessa colonna si desincronizzano
@@ -274,11 +295,20 @@ function vaiAFase(n, cardId){
 function vaiAiPrezzi(){ vaiAFase(1, "card-prezzi"); }
 function vaiAlloScontrino(){ vaiAFase(3, "card-scontrino"); }
 
+// La pillola «← admin» nell'header: c'è un passo indietro da fare, o no?
+// Un punto solo che la tocca, così non può restare accesa su una schermata che non ha
+// nessun passo indietro — che è il modo in cui i bottoni di navigazione mentono.
+function mostraTornaAdmin(on){
+  var b = document.getElementById("btn-torna-admin");
+  if(b) b.style.display = on ? "" : "none";
+}
+
 function renderAdmin(){
+  mostraTornaAdmin(false);
   var el = document.getElementById("admin-content");
   if(!gruppo){
     el.innerHTML = '<div class="card"><div class="card-titolo">Nessun gruppo attivo</div>'
-      + '<p style="font-family:\'Nunito\',sans-serif;font-size:.85rem;color:var(--dim);margin-bottom:12px;">Crea il primo gruppo d\'acquisto per iniziare.</p>'
+      + '<p class="card-nota">Crea il primo gruppo d\'acquisto per iniziare.</p>'
       + '<button class="btn btn-cheese" onclick="apriNuovoGruppo()">🧀 Crea nuovo gruppo</button></div>'
       + renderArchivioHtml();
     return;
@@ -287,7 +317,7 @@ function renderAdmin(){
   var corrente = faseCorrente();
   var aperta = faseAperta();
   var corpi = {
-    1: cardGruppoHtml() + cardPrezziHtml() + cardScadenzaHtml(),
+    1: cardGruppoHtml() + cardPrezziHtml() + cardSpedizionePersoneHtml() + cardScadenzaHtml() + cardMessaggiHtml(),
     2: cardKgPerTipoHtml() + renderNegozianteHtml() + cardChiusuraHtml(),
     3: renderScontrinoHtml() + cardArrivoHtml(),
     4: cardConsegnaHtml() + renderQuadraturaHtml(),
@@ -305,7 +335,7 @@ function renderAdmin(){
   html += FASI.map(function(f){
     var cls = "fase" + (f.n === aperta ? " aperta" : "") + (f.n === corrente ? " corrente" : "");
     return '<div class="' + cls + '">'
-      + '<button class="fase-testa" onclick="toggleFase(' + f.n + ')" aria-expanded="' + (f.n === aperta) + '">'
+      + '<button class="fase-testa" id="fase-testa-' + f.n + '" onclick="toggleFase(' + f.n + ')" aria-expanded="' + (f.n === aperta) + '">'
       +   '<span class="fase-num">' + f.n + '</span>'
       +   '<span>' + escapeHtml(f.titolo) + '</span>'
       +   '<span class="fase-freccia">›</span>'
@@ -393,7 +423,7 @@ function cardPrezziHtml(){
       }).join("")
     + '<div class="m-row" style="margin-top:14px;"><label>Spedizione totale (€)</label>'
     + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="spedizione-totale" autocomplete="off" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
-    + '<div class="hint">Si divide tra i topini che partecipano. Cambia con i kg totali, quindi è normale ritoccarla in corso d\'opera: se qualcuno ha già pagato te lo dico prima di salvare.</div>'
+    + '<div class="hint">Si divide fra le <b>quote</b> di chi partecipa: una a testa, di più per chi ritira anche per amici fuori dal Clan. Cambia con i kg totali, quindi è normale ritoccarla in corso d\'opera: se qualcuno ha già pagato te lo dico prima di salvare.</div>'
     + '<button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button>'
     + '</div>';
 }
@@ -413,6 +443,95 @@ function cardScadenzaHtml(){
     + '</div></div>';
 }
 
+// ── FASE 1: i due messaggi pronti per il gruppo WhatsApp ──
+// DUE testi e due bottoni, non uno che si adatta: sono messaggi diversi, mandati in momenti
+// diversi della vita del Clan, e un testo che cambia da solo è un testo che l'admin deve
+// rileggere ogni volta prima di incollarlo per sapere cosa sta per mandare.
+// Stanno in fase ① perché è il momento in cui si mandano: il giro è appena aperto.
+
+// L'indirizzo dell'app com'è adesso, senza query e senza frammento. NON si scrive a mano:
+// un link incollato in un messaggio WhatsApp sopravvive più a lungo di qualunque altra cosa
+// — resta nella cronologia del gruppo per anni — e un indirizzo scritto qui dentro
+// continuerebbe a mandare i topini nel vuoto il giorno in cui l'app cambia posto.
+// `index.html` in coda si toglie: è lo stesso identico posto, ed è più corto da leggere.
+//
+// ⚠️ CON UNA SOLA ECCEZIONE, e non è un ripensamento: quando si guarda l'app da un indirizzo
+// di COLLAUDO — `localhost`, `127.0.0.1`, un IP di rete interna, un `file://` — `location`
+// darebbe un link che per il gruppo non esiste. È successo davvero, il 04/09/2026: il primo
+// collaudo dei messaggi ha prodotto `http://127.0.0.1:22318/SMB/0/…`. Lì, e solo lì, si
+// ripiega sull'indirizzo pubblico, così il messaggio si può provare per davvero.
+// In produzione comanda `location` come prima: se l'app cambia posto, il messaggio la segue.
+// `INDIRIZZO_PUBBLICO` è l'unico posto in cui l'indirizzo è scritto a mano, ed è l'indirizzo
+// di OGGI: se cambia, si cambia qui. La card lo mostra sempre prima di copiare, quindi un
+// valore diventato falso si vede invece di partire per il gruppo.
+var INDIRIZZO_PUBBLICO = "https://ilkajino.github.io/IlClanDelParmigiano/";
+
+function indirizzoDiCollaudo(){
+  var h = location.hostname;
+  return location.protocol === "file:" || !h
+      || h === "localhost" || h === "127.0.0.1" || h === "::1" || /\.local$/.test(h)
+      || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+}
+function linkApp(){
+  if(indirizzoDiCollaudo()) return INDIRIZZO_PUBBLICO;
+  return (location.origin + location.pathname).replace(/index\.html$/, "");
+}
+
+// Gli asterischi sono il grassetto di WhatsApp, e sono l'unico motivo per cui la prima riga
+// non è scritta in maiuscolo: là dentro si vedono come un titolo, qui come due asterischi.
+function testoPresentaApp(){
+  return "🧀 *Il Clan del Parmigiano*\n\n"
+    + "Ho messo su un'app per ordinare il parmigiano tutti insieme, direttamente dalla "
+    + "latteria.\n\n"
+    + "Apri il link, scrivi il tuo nome e dici quanti chili vuoi: ai conti pensa lei. "
+    + "Dentro c'è una guida che spiega tutto in due minuti.\n\n"
+    + "👉 " + linkApp();
+}
+// Volutamente corto, e senza scadenza: l'app non conosce nessuna data di chiusura del
+// gruppo WhatsApp e non deve fingere di conoscerla. La aggiunge l'admin a mano, e la nota
+// sotto al bottone glielo ricorda nel momento in cui copia.
+//
+// ⚠️ E senza link, per decisione di iL KaJiNo del 04/09/2026: a questo messaggio rispondono
+// topini che nel Clan ci sono già e che l'app ce l'hanno installata sul telefono. Un link in
+// fondo a ogni annuncio insegnerebbe ad aprire l'app dal browser invece che dall'icona, che
+// è il contrario di quello per cui l'invito all'installazione esiste. Chi è nuovo riceve
+// l'altro messaggio, che il link ce l'ha.
+function testoGiroAperto(){
+  return "🧀 *Ordini aperti!*\n\n"
+    + "Il Clan riparte. Entrate e dite quanto formaggio volete — poi chiudo e ordino alla "
+    + "latteria.";
+}
+
+function cardMessaggiHtml(){
+  return '<div class="card"><div class="card-titolo">💬 Messaggi per il gruppo</div>'
+    + '<div class="hint">Due testi pronti da incollare su WhatsApp, col link dell\'app già dentro.</div>'
+    + '<button class="btn btn-cheese btn-mini msg-btn" onclick="copiaPresentaApp()">📋 Presenta l\'app</button>'
+    + '<p class="card-nota">Una volta sola, o quando entra un topino nuovo: dice cos\'è il Clan '
+    +   'e come si ordina.</p>'
+    + '<button class="btn btn-cheese btn-mini msg-btn" onclick="copiaGiroAperto()">📋 Il giro è aperto</button>'
+    + '<p class="card-nota">A ogni giro nuovo, e <b>senza link</b>: chi è già nel Clan apre '
+    +   'l\'app dall\'icona. È corto apposta — <b>la scadenza aggiungila tu</b>, che l\'app '
+    +   'non la conosce.</p>'
+    // Il link si VEDE prima di copiare. Non è una decorazione: `linkApp()` riporta
+    // l'indirizzo da cui stai guardando l'app in questo momento, e chi collauda in locale
+    // guarda da `127.0.0.1` o da un IP di rete interna. Senza questa riga, il messaggio con
+    // dentro un indirizzo che non funziona per nessuno si scopre DOPO averlo mandato al
+    // gruppo. È l'unico pezzo dei due testi che può cambiare, quindi è l'unico da mostrare.
+    + '<div class="hint hint-link">'
+    +   (indirizzoDiCollaudo()
+        ? 'Stai guardando l\'app da un indirizzo di collaudo: nel primo messaggio finisce '
+          + 'comunque l\'<b>indirizzo pubblico</b>.<br>'
+        : 'Nel primo messaggio finisce questo indirizzo:<br>')
+    +   '<b class="hint-url">' + escapeHtml(linkApp()) + '</b></div>'
+    + '</div>';
+}
+// `copiaTesto()` è la stessa del documento per la latteria, ramo `execCommand` compreso:
+// fuori da HTTPS e su qualche WebView `navigator.clipboard` non esiste, e senza il ripiego
+// il bottone non direbbe niente a nessuno. La conferma «Copiato 📋» la fa già lei, sul
+// pallino di sincronia.
+function copiaPresentaApp(){ copiaTesto(testoPresentaApp()); }
+function copiaGiroAperto(){ copiaTesto(testoGiroAperto()); }
+
 // ── FASE 2: raccolgo gli ordini ──
 function cardKgPerTipoHtml(){
   var dati = kgPerTipo();
@@ -427,7 +546,18 @@ function cardKgPerTipoHtml(){
       h += '<div class="pc-riga"><span>' + escapeHtml(d.nome) + '</span><span>'
         + kgFmt(d.kg) + (d.kg > 0 ? ' · ' + pezziDa(d.kg) + ' pz' : '') + '</span></div>';
     });
-    h += '<div class="pc-riga grande"><span>Totale</span><span>' + kgFmt(tot) + '</span></div></div>';
+    h += '<div class="pc-riga grande"><span>Totale</span><span>' + kgFmt(tot) + '</span></div>';
+    // La spedizione si DECIDE nella fase ①, ma si RIVEDE qui: sale a scaglioni sui kg totali
+    // del gruppo, quindi il numero da guardare e quello da ritoccare vanno visti insieme.
+    // Stavano in due fasi diverse, e appena il primo topino ordinava la fisarmonica passava
+    // a questa e chiudeva l'altra. Qui è mostrata, non ri-digitata: un secondo campo sulla
+    // stessa colonna si desincronizza al primo salvataggio parziale — stessa ragione per
+    // cui lo scontrino mostra la spedizione senza ridigitarla. Il collegamento è lo stesso
+    // che usa lo scontrino, `vaiAiPrezzi()`, che apre la fase ① ed evidenzia la card.
+    h += '<div class="pc-riga"><span>Spedizione'
+      + '<button class="sc-mod" onclick="vaiAiPrezzi()">modifica</button></span><span>'
+      + eur(parseFloat(gruppo.spedizione_totale) || 0) + '</span></div>';
+    h += '</div>';
     h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + quanti + ' topini su '
       + persone.length + ' hanno già ordinato.</div>';
   }
@@ -471,8 +601,11 @@ function cardArrivoHtml(){
           + '</div>'
         : '<button class="btn btn-cheese" onclick="segnalaArrivoAlGruppo()">'
           + '<span class="svg-inv svg-formaggio-arrivato btn-ico-svg"></span> Segnala l\'arrivo al gruppo</button>'
-          + '<div class="hint" style="margin-bottom:0;">Accende il banner nell\'app per tutti e prepara il messaggio '
-          + 'WhatsApp con i totali: la chat e l\'invio li scegli tu.</div>')
+          // ⚠️ Questa frase DESCRIVE il messaggio: se cambia `testoPaccoArrivato()`,
+          // si rilegge. Diceva «con i totali» fino al 03/09/2026, quando i totali sono
+          // usciti dal messaggio.
+          + '<div class="hint" style="margin-bottom:0;">Accende il banner nell\'app per tutti e prepara '
+          + 'l\'annuncio su WhatsApp: la chat e l\'invio li scegli tu.</div>')
     + '</div>';
 }
 
@@ -514,16 +647,97 @@ function cardCoordinateHtml(){
 // l'AZIONE, `❌ non pagato` diceva lo STATO. Affiancate, una era un comando e l'altra una
 // constatazione — non un'etichetta infelice, grammatica incoerente. Due interruttori veri,
 // etichettati sempre con lo stato.
+// ── FASE ①: chi paga la spedizione, e per quante persone ──
+// Sta in fase ① e non in ⑤ perché è una decisione dell'IMPOSTAZIONE del giro, non della
+// riscossione: si sa chi partecipa prima di sapere chi ha pagato.
+// Le due cose stanno su una riga sola perché sono la stessa domanda posta due volte —
+// «questa persona paga la spedizione?» e «per quanti?». Separarle costringerebbe a
+// cercare in due posti la ragione di un solo numero.
+// ⚠️ L'admin qui non deve fare NIENTE perché il sistema funzioni: il default è 1 e
+// l'interruttore nasce acceso. Questa card serve a CORREGGERE — un 10 battuto per
+// sbaglio da un topino — non a configurare.
+function cardSpedizionePersoneHtml(){
+  var h = '<div class="card"><div class="card-titolo">🚚 Spedizione: chi partecipa</div>';
+  if(!persone.length){
+    return h + '<div class="empty">Nessun topino ancora.</div></div>';
+  }
+  h += '<div class="hint">Le <b>quote</b> dicono per quante persone ordina un topino, sé '
+    +  'stesso compreso: chi ritira anche per due amici fuori dal Clan conta 3, perché sono '
+    +  'tre consegne. Non c\'entrano con i kg né con il conto del formaggio. '
+    +  'Ognuno se le imposta da sé nella tab Ordina — qui si correggono.</div>';
+  h += persone.map(function(p){
+    var q = parseInt(p.quote_spedizione, 10) || QUOTE_MIN;
+    var esclusa = !p.partecipa_spedizione;
+    return '<div class="persona-blocco">'
+      + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome) + '</span></div>'
+      // Le parole restano «inclusa/esclusa» come prima: sono le stesse che `_swSposta()`
+      // rimette dopo un tocco, e farle divergere qui darebbe un'etichetta che cambia parola
+      // a seconda che tu abbia toccato l'interruttore o ricaricato la pagina.
+      + swRigaHtml("Partecipa", "sw-sped-" + p.id, p.partecipa_spedizione,
+                   "toggleSpedizionePersona('" + p.id + "', this)",
+                   p.partecipa_spedizione ? "inclusa" : "esclusa")
+      // Lo stepper resta attivo anche a spedizione esclusa: il valore resta scritto e
+      // tornerebbe a contare se la partecipazione si riaccendesse, quindi è proprio lì
+      // che un 10 sbagliato va potuto correggere. Lo dice l'etichetta, non un blocco.
+      + '<div class="sw-riga"><span class="sw-nome">Quote</span>'
+      +   '<div class="stepper">'
+      +     '<button class="step-btn meno" ' + (q > QUOTE_MIN ? "" : "disabled ")
+      +       'onclick="stepQuotePersona(\'' + p.id + '\',-1)" aria-label="Una quota in meno">−</button>'
+      +     '<span class="step-val" id="qv-' + p.id + '">' + q + '</span>'
+      +     '<button class="step-btn piu" ' + (q < QUOTE_MAX ? "" : "disabled ")
+      +       'onclick="stepQuotePersona(\'' + p.id + '\',1)" aria-label="Una quota in più">+</button>'
+      +   '</div>'
+      // Etichetta corta per forza: fra il nome (92px fissi) e lo stepper qui restano una
+      // novantina di pixel a 375px, e «non conta: esclusa» ci andava a capo tre volte.
+      // A una quota sola non dice niente: lo stepper mostra già 1, e ripeterlo a parole
+      // metterebbe una scritta su ogni riga della card per non aggiungere nulla.
+      +   '<span class="sw-stato' + (esclusa ? " spento" : "") + '">'
+      +     (esclusa ? "non conta" : (q === 1 ? "" : "+" + (q - 1) + " amici"))
+      +   '</span>'
+      + '</div>'
+      + '</div>';
+  }).join("");
+  return h + '</div>';
+}
+// Stesso mestiere di `toggleSpedizionePersona`: ottimistico, con rollback se il server
+// rifiuta. ⚠️ Scrive la STESSA colonna dello stepper del topino in tab Ordina: dopo il
+// salvataggio `caricaTutto()` rilegge, quindi le due viste convergono sullo stesso valore
+// e non esiste un ramo in cui una delle due tenga un numero suo.
+async function stepQuotePersona(id, dir){
+  var p = persone.find(function(x){ return x.id === id; });
+  if(!p) return;
+  var attuale = parseInt(p.quote_spedizione, 10) || QUOTE_MIN;
+  var q = attuale + dir;
+  if(q < QUOTE_MIN) q = QUOTE_MIN;
+  if(q > QUOTE_MAX) q = QUOTE_MAX;
+  if(q === attuale) return;
+  vibra(10);   // PRIMA di qualunque await: dopo, l'attivazione utente è già scaduta
+  p.quote_spedizione = q;
+  var cella = document.getElementById("qv-" + id);
+  if(cella) cella.textContent = q;
+  try{
+    await setQuoteSpedizione(id, q);
+    await caricaTutto(); renderAdmin();
+  }catch(e){
+    p.quote_spedizione = attuale;
+    if(cella) cella.textContent = attuale;
+    dot("err", "Errore");
+    alert("Errore: " + e.message);
+  }
+}
+
 function cardTopoliniHtml(){
   var h = '<div class="card"><div class="card-titolo">Topini registrati (' + persone.length + ')</div>';
   if(!persone.length){
     h += '<div class="empty">Nessun topino ancora.</div>';
   } else {
-    h += '<div class="hint">L\'interruttore <b>Admin</b> \u00e8 una <b>targhetta, non un '
-      +  'permesso</b>: dice al gruppo a chi chiedere, e non apre niente \u2014 chi amministra '
-      +  'davvero \u00e8 chi sta nella card Amministratori. <b>Si accende da sola</b> quando '
-      +  'quella persona entra in amministrazione con la sua email; da qui si pu\u00f2 solo '
-      +  '<b>spegnere</b>, per ripulire chi \u00e8 rimasto segnato dopo una revoca.</div>';
+    // Restava un solo interruttore su tre: gli altri due se ne sono andati dove servono —
+    // «Spedizione» in fase ①, con le quote, e «Admin» nella card Amministratori, dove sta
+    // già tutto il resto di chi amministra. Qui è la fase in cui si incassa, e «Pagato»
+    // è l'unica delle tre cose che appartenga a questo momento del giro.
+    h += '<div class="hint">Segna chi ha saldato. Accendere l\'interruttore vale come '
+      +  '<b>confermare</b> il pagamento: chi aveva segnalato sparisce dalla coda qui sopra. '
+      +  'Spegnerlo \u00e8 una smentita, e te lo chiedo prima di farlo.</div>';
     h += persone.map(function(p){
       return '<div class="persona-blocco">'
         + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
@@ -532,18 +746,9 @@ function cardTopoliniHtml(){
         +     '<button class="btn-pill" title="Rinomina" onclick="apriRinomina(\'' + p.id + '\')">✏️</button>'
         +     '<button class="btn-pill" title="Elimina" onclick="confermaEliminaPersona(\'' + p.id + '\')">🗑️</button>'
         +   '</div></div>'
-        + swRigaHtml("Spedizione", "sw-sped-" + p.id, p.partecipa_spedizione,
-                     "toggleSpedizionePersona('" + p.id + "', this)",
-                     p.partecipa_spedizione ? "inclusa" : "esclusa")
         + swRigaHtml("Pagato", "sw-pag-" + p.id, p.pagato,
                      "togglePagatoPersona('" + p.id + "', this)",
                      p.pagato ? "sì" : "no")
-        + swRigaHtml("Admin", "sw-adm-" + p.id, p.is_admin,
-                     "toggleAdminPersona('" + p.id + "', this)",
-                     p.is_admin ? "sì" : "no",
-                     { disabilitato: !p.is_admin,
-                       titolo: "La targhetta si accende da sola al primo accesso "
-                             + "amministrativo di questa persona. Da qui si può solo spegnere." })
         + '</div>';
     }).join("");
   }
@@ -607,6 +812,7 @@ function cardAmministratoriHtml(){
       +   'onclick="confermaRevocaAdmin(' + i + ')">🗑️</button>'
       + '</div></div>';
   }).join("");
+  h += targhetteHtml();
   h += '<div class="m-row" style="margin-top:12px;"><label>Autorizza un altro amministratore</label>'
     +   '<input class="inp" id="aa-email" name="email-nuovo-admin" type="email" inputmode="email"'
     +   ' autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"'
@@ -620,6 +826,35 @@ function cardAmministratoriHtml(){
     +   'con cui entrare.</div>'
     + '</div>';
   return h;
+}
+// ── LA TARGHETTA «admin» NELLA TABELLA ──
+// Sta qui e non fra i topini della fase ⑤ perché è la stessa materia dell'elenco qui sopra:
+// mettendola accanto, tutto ciò che riguarda «chi è admin» sta in un punto solo. E questa
+// card è fuori dalla fisarmonica, quindi è sempre raggiungibile — la pulizia dopo una
+// revoca non deve dipendere dalla fase in cui ci si trova.
+// ⚠️ L'interruttore si muove in UNA DIREZIONE SOLA: si può solo spegnere. Non è una
+// limitazione da togliere — è tutta la sua funzione. La targhetta si accende da sé quando
+// quella persona amministra davvero; qui si ripulisce chi è rimasto segnato dopo una revoca.
+// Trasformarlo in un'etichetta di sola lettura perderebbe esattamente quello, e con esso
+// il `title` che lo spiega a chi ci mette il dito sopra.
+function targhetteHtml(){
+  var segnati = persone.filter(function(p){ return p.is_admin; });
+  var h = '<div class="sotto-card"><div class="sc-titolo">La targhetta nella tabella</div>'
+    + '<div class="hint">È una <b>targhetta, non un permesso</b>: dice al gruppo a chi '
+    +   'chiedere, e non apre niente — chi amministra davvero è chi sta nell\'elenco qui '
+    +   'sopra. <b>Si accende da sola</b> quando quella persona entra in amministrazione con '
+    +   'la sua email; da qui si può solo <b>spegnere</b>, per ripulire chi è rimasto '
+    +   'segnato dopo una revoca.</div>';
+  if(!segnati.length){
+    return h + '<div class="empty">Nessun topino porta la targhetta.</div></div>';
+  }
+  h += segnati.map(function(p){
+    return swRigaHtml(escapeHtml(p.nome), "sw-adm-" + p.id, true,
+                      "toggleAdminPersona('" + p.id + "', this)", "sì",
+                      { titolo: "La targhetta si accende da sola al primo accesso "
+                              + "amministrativo di questa persona. Da qui si può solo spegnere." });
+  }).join("");
+  return h + '</div>';
 }
 async function autorizzaNuovoAdmin(){
   var err = document.getElementById("aa-errore");
@@ -670,7 +905,11 @@ function renderDaConfermareHtml(){
   h += '<div class="hint">Hanno segnalato di aver pagato. Confermi tu dopo aver verificato: '
     + 'la segnalazione da sola non li marca come pagati.</div>';
   h += attesa.map(function(p){
+    // Qui c'è un totale da confermare: se è più alto degli altri, l'admin deve poter
+    // leggere subito perché, invece di andarselo a cercare in un'altra schermata.
+    var etQ = etichettaQuote(p);
     return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
+      + (etQ ? ' <span class="pill-quote">' + etQ + '</span>' : '')
       + '<div class="ar-sub">' + escapeHtml(nomeMetodo(p.metodo_segnalato)) + ' \u00b7 '
       + eur(totaleDovuto(p)) + '</div></span>'
       + '<div class="ar-actions">'
@@ -773,7 +1012,9 @@ function renderScontrinoHtml(){
       + '</div>';
   }
 
-  h += '<div class="hint" style="margin-top:12px;margin-bottom:0;">' + (conSped
+  // Il margine sopra lo dà `.ar-actions + .hint` / `.scontrino-calc + .hint` in style.css:
+  // questa spiegazione segue il bottone «Salva scontrino» in entrambi i rami.
+  h += '<div class="hint" style="margin-bottom:0;">' + (conSped
       ? 'Scrivi il totale della fattura così com\'è. La spedizione la scorporo io: quello che resta è il formaggio, e diventa il controllo automatico su tutte le etichette.'
       : 'La spesa l\'hai anticipata tu, quindi il totale del parmigiano lo conosci già. Scrivilo qui e diventa un controllo automatico su tutti gli importi delle etichette.')
     + '</div>';
@@ -847,14 +1088,14 @@ function renderNegozianteHtml(){
   var h = '<div class="card"><div class="card-titolo">\uD83D\uDCE7 Ordine per il negoziante</div>';
   h += '<div class="hint">Aggregato per stagionatura, senza nomi e senza prezzi. Si copia e si incolla in una email.</div>';
   h += '<div class="m-row"><label>Note per il negoziante (finiscono in fondo al testo)</label>'
-    + '<textarea id="inp-note-negoziante" class="nota-textarea" rows="2" maxlength="500" oninput="notaAuto(this)"'
+    + '<textarea id="inp-note-negoziante" class="nota-textarea nota-libera" rows="2" maxlength="500" oninput="notaAuto(this)"'
     + ' placeholder="es. se possibile un pezzo da 1 kg al posto di due da mezzo">'
     + escapeHtml(gruppo.note_negoziante || "") + '</textarea></div>';
   h += '<div class="ar-actions" style="margin-bottom:14px;">'
     + '<button class="btn btn-ghost btn-mini" onclick="salvaNoteNegoziante()">Salva le note</button></div>';
   h += '<pre class="doc-testo" id="doc-negoziante">' + escapeHtml(testoOrdineNegoziante()) + '</pre>';
   h += '<button class="btn btn-cheese" onclick="copiaOrdineNegoziante()">\uD83D\uDCCB Copia il testo</button>';
-  h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">Ai nostri prezzi farebbe <b>'
+  h += '<div class="hint" style="margin-bottom:0;">Ai nostri prezzi farebbe <b>'
     + eur(ipotetico) + '</b> per ' + kgFmt(kgTot) + '. Questo numero <b>non</b> entra nel testo copiato.</div>';
   h += '</div>';
   return h;
@@ -905,11 +1146,11 @@ async function salvaSpedizione(){
   if(Math.abs(v - vecchia) < 0.005){ dot("ok", "Già così 🧀"); return; }
 
   var avvisi = [];
-  var n = numeroPartecipantiSpedizione();
+  var n = quoteSpedizioneTotali();
   var pagati = persone.filter(function(p){ return p.pagato && p.partecipa_spedizione; }).length;
   if(pagati && n){
     avvisi.push("⚠️ " + pagati + (pagati === 1 ? " topino ha" : " topini hanno")
-      + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " a testa → "
+      + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " " + paroleATesta() + " → "
       + eurTesto(v / n) + "). Cambiandola i loro conti non tornano più.");
   }
   // Senza fattura registrata non c'è nulla da tenere fermo e nulla da ricalcolare: in fase ①
@@ -1208,15 +1449,26 @@ async function apriDettaglioArchivio(gruppoId){
       var t = d.tipi.find(function(x){ return x.id === r.tipo_id; });
       return a + (t ? parseFloat(t.prezzo_kg) : 0) * parseFloat(r.kg_nominale);
     }, 0);
-    var nPart = d.persone.filter(function(x){ return x.partecipa_spedizione; }).length;
-    var quota = p.partecipa_spedizione && nPart ? (parseFloat(d.gruppo.spedizione_totale) || 0) / nPart : 0;
+    // L'unico punto che NON chiama `quotaSpedizione()`: qui si conta su una fotografia
+    // (`d.persone`), non sulle persone vive. La formula però dev'essere la stessa — quote,
+    // non teste — altrimenti l'archivio e il giro in corso userebbero due aritmetiche.
+    // ⚠️ Il `|| 1` è ciò che protegge la storia: i giri chiusi prima della colonna
+    // `quote_spedizione` non ce l'hanno, e con il fallback mostrano ESATTAMENTE le cifre
+    // di prima. Un archivio che cambia numeri a posteriori è il danno peggiore possibile.
+    var quoteDiFoto = function(x){
+      return x.partecipa_spedizione ? (parseInt(x.quote_spedizione, 10) || 1) : 0;
+    };
+    var nQuote = d.persone.reduce(function(a, x){ return a + quoteDiFoto(x); }, 0);
+    var mieQuote = quoteDiFoto(p);
+    var quota = mieQuote && nQuote ? (parseFloat(d.gruppo.spedizione_totale) || 0) * mieQuote / nQuote : 0;
     return '<tr><td>' + escapeHtml(p.nome) + '</td><td>' + escapeHtml(dettaglio) + '</td><td>' + eur(tot + quota) + '</td>'
       + '<td>' + (p.pagato ? '<span class="badge ok">pagato</span>' : '<span class="badge no">non pagato</span>') + '</td></tr>';
   }).join("");
   var body = document.getElementById("admin-content");
   var backup = body.innerHTML;
-  body.innerHTML = '<button class="btn-pill" onclick="renderAdmin()">\u2190 Torna all\'admin</button>'
-    + '<div class="card" style="margin-top:12px;"><div class="card-titolo">' + escapeHtml(d.gruppo.titolo) + '</div>'
+  // Il ritorno all'admin sta nell'header, accanto all'altra uscita (vedi index.html).
+  mostraTornaAdmin(true);
+  body.innerHTML = '<div class="card"><div class="card-titolo">' + escapeHtml(d.gruppo.titolo) + '</div>'
     + '<div class="tabella-wrap"><table class="tb"><thead><tr><th>Nome</th><th>Ordine</th><th>Totale</th><th>Stato</th></tr></thead><tbody>'
     + righeHtml + '</tbody></table></div></div>';
 }
@@ -1316,6 +1568,13 @@ function apriReali(personaId){
   _realiPersona = personaId;
   var mie = righeDi(personaId);
   document.getElementById("mr-titolo").textContent = "\uD83D\uDC2D " + p.nome;
+  // Il totale dei pezzi PRIMA delle istruzioni: è il numero che serve subito, con il topino
+  // sulla porta e il sacchetto da riempire. I chili restano nelle righe, per il conto.
+  var totPezzi = mie.reduce(function(a, r){ return a + pezziDa(parseFloat(r.kg_nominale)); }, 0);
+  document.getElementById("mr-sub").innerHTML = mie.length
+    ? "<b>" + escapeHtml(pezziBreve(totPezzi * PEZZATURA_KG)) + "</b> in tutto. "
+      + "Leggi l'importo dall'etichetta di ogni pezzo; se una riga \u00e8 fatta di pi\u00f9 pezzi, sommali con la \uD83E\uDDEE."
+    : "";
   document.getElementById("mr-errore").textContent = "";
   var el = document.getElementById("mr-righe");
   el.innerHTML = mie.length ? mie.map(function(r){
@@ -1323,7 +1582,8 @@ function apriReali(personaId){
     var atteso = (t ? parseFloat(t.prezzo_kg) : 0) * parseFloat(r.kg_nominale);
     return '<div class="mr-riga">'
       + '<div class="mr-info"><div class="mr-tipo">' + escapeHtml(nomeTipo(r.tipo_id)) + '</div>'
-      +   '<div class="mr-kg">' + kgFmt(parseFloat(r.kg_nominale)) + ' \u00b7 atteso ' + eur(atteso) + '</div>'
+      +   '<div class="mr-kg"><b>' + escapeHtml(pezziBreve(parseFloat(r.kg_nominale))) + '</b> \u00b7 '
+      +     kgFmt(parseFloat(r.kg_nominale)) + ' \u00b7 atteso ' + eur(atteso) + '</div>'
       +   '<div class="mr-scarto" id="mr-scarto-' + r.id + '">' + testoScartoRiga(r, r.prezzo_reale) + '</div>'
       + '</div>'
       + '<div class="mr-campo inp-euro-wrap">'
@@ -1400,26 +1660,23 @@ async function riapriOrdini(){
 //
 // Non si può inviare in automatico senza WhatsApp Business API (sproporzionato qui):
 // si prepara il testo e si apre WhatsApp, la chat e l'invio li sceglie l'utente.
+// È un ANNUNCIO, non un estratto conto. Riscritto il 03/09/2026 su indicazione di
+// iL KaJiNo: fuori i totali per persona, fuori l'elenco dei topini, fuori la spedizione
+// e i riferimenti di pagamento.
+//
+// Perché è giusto anche al di là del gusto: questo testo finisce in una chat di gruppo,
+// cioè nel posto MENO adatto a tenere dei numeri. Ogni cifra scritta qui è una copia che
+// invecchia da sola — l'admin batte un'etichetta e il messaggio di ieri dice il prezzo
+// sbagliato, ma resta lassù da leggere. I numeri vivi stanno nell'app, che è l'unico
+// posto dove si aggiornano. E ci finiva dentro chi ha pagato e chi no, davanti a tutti.
+//
+// Il nome dell'app è scritto a mano e non viene da `gruppo`: è l'insegna del Clan, uguale
+// per ogni giro. Quello che cambia è `gruppo.titolo`, la riga sotto.
 function testoPaccoArrivato(){
-  var righeMsg = persone.map(function(p){
-    return "\u2022 " + p.nome + ": " + eur(totaleDovuto(p)).replace("\u00a0", " ") + (p.pagato ? " (gi\u00e0 pagato)" : "");
-  }).join("\n");
-  var quota = numeroPartecipantiSpedizione()
-    ? (parseFloat(gruppo.spedizione_totale) || 0) / numeroPartecipantiSpedizione() : 0;
-  var t = "\uD83E\uDDC0 Il parmigiano \u00e8 arrivato!\n\n"
+  return "\uD83E\uDDC0 Il parmigiano \u00e8 arrivato!\n\n"
+    + "*Il Clan del Parmigiano*\n"
     + gruppo.titolo + "\n\n"
-    + righeMsg + "\n\n"
-    + "Spedizione: " + eur(gruppo.spedizione_totale).replace("\u00a0", " ")
-    + " divisa tra " + numeroPartecipantiSpedizione() + " topini = " + eur(quota).replace("\u00a0", " ") + " a testa.\n"
-    + (impostazioni.iban ? "\nIBAN: " + impostazioni.iban : "")
-    // Il link PayPal va NUDO, senza importo: `linkPayPalConImporto` esiste per la tab
-    // Pagamenti, dove il link si costruisce per persona. Qui il messaggio è uno solo per
-    // tutti, e un paypal.me con l'importo dentro sarebbe l'importo sbagliato per chiunque
-    // tranne uno. L'ordine IBAN → PayPal → Satispay è lo stesso del PDF e della tab.
-    + (impostazioni.paypal_link ? "\nPayPal: " + impostazioni.paypal_link : "")
-    + (impostazioni.satispay_link ? "\nSatispay: " + impostazioni.satispay_link : "")
-    + "\n\nControllate il vostro totale nell'app prima di pagare!";
-  return t;
+    + "Tutti i topini a raccolta!! \uD83D\uDC01";
 }
 // Ritorna false se il browser ha rifiutato di aprire qualcosa: chi chiama deve
 // avere un piano B, perché a quel punto il flag è già acceso.
@@ -1580,7 +1837,10 @@ function _generaPDF(){
     var righeDett = doc.splitTextToSize(dettaglio, col.wOrdine);
 
     doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(DARK[0], DARK[1], DARK[2]);
-    doc.text(p.nome, margin, y);
+    // Il «+2» anche qui: il PDF è la riga che porta il totale di ciascuno, ed è il foglio
+    // che gira fuori dall'app. Dove si vede un totale si deve vedere perché è più alto.
+    var etQ = etichettaQuote(p);
+    doc.text(p.nome + (etQ ? " " + etQ : ""), margin, y);
 
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
     doc.text(righeDett, col.ordine, y);
@@ -1619,13 +1879,15 @@ function _generaPDF(){
   var totGruppo = persone.reduce(function(a, p){ return a + totaleDovuto(p); }, 0);
   var kgGruppo = persone.reduce(function(a, p){ return a + kgTotaliDi(p.id); }, 0);
   var nPagati = persone.filter(function(p){ return p.pagato; }).length;
+  var nQuotePdf = quoteSpedizioneTotali();
   doc.setTextColor(DARK[0], DARK[1], DARK[2]);
   doc.setFontSize(11); doc.setFont("helvetica", "bold");
   doc.text("Totale gruppo: " + eurTesto(totGruppo), margin, y);
   doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
   doc.text(kgTesto(kgGruppo) + " di parmigiano \u00b7 spedizione "
-    + eurTesto(parseFloat(gruppo.spedizione_totale) || 0) + " divisa tra "
-    + numeroPartecipantiSpedizione() + " \u00b7 " + nPagati + " su " + persone.length + " hanno pagato",
+    + eurTesto(parseFloat(gruppo.spedizione_totale) || 0) + " divisa fra "
+    + nQuotePdf + " " + paroleDivisore(nQuotePdf)
+    + " \u00b7 " + nPagati + " su " + persone.length + " hanno pagato",
     margin, y + 4.5);
   y += 14;
 

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sonda 2 — perché l'install fallisce</title>
+<style>
+:root{--bg:#241708;--card:#33210c;--line:#5a3d18;--text:#f7ecd8;--dim:#c3a97f;
+      --ok:#7dc47d;--no:#e08b6a;--gi:#F2B33D;}
+*{box-sizing:border-box;}
+body{margin:0;padding:18px 14px 40px;background:var(--bg);color:var(--text);
+  font:15px/1.5 system-ui,-apple-system,sans-serif;}
+h1{font-size:1.15rem;margin:0 0 2px;color:var(--gi);}
+.sub{color:var(--dim);font-size:.82rem;margin-bottom:18px;}
+.sez{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;}
+.sez h2{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin:0 0 8px;font-weight:700;}
+.r{display:flex;gap:10px;padding:3px 0;font-size:.85rem;align-items:baseline;}
+.r b{flex:0 0 38%;font-weight:600;color:var(--dim);}
+.r span{flex:1 1 auto;word-break:break-all;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.79rem;}
+.si{color:var(--ok);font-weight:700;} .no{color:var(--no);font-weight:700;}
+.riga{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.76rem;
+  padding:3px 0;word-break:break-all;border-bottom:1px solid rgba(90,61,24,.5);}
+#verdetto{border:2px solid var(--gi);background:#3a2a10;}
+#verdetto h2{color:var(--gi);} #verdetto p{margin:0;font-size:.95rem;line-height:1.55;}
+button{width:100%;height:48px;margin-top:9px;border-radius:12px;border:1.5px solid var(--line);
+  background:var(--card);color:var(--text);font-size:.93rem;font-weight:700;}
+button:active{transform:scale(.98);}
+.pericolo{border-color:#8a4a2e;color:#e08b6a;}
+</style></head>
+<body>
+<h1>🔬 Sonda 2 — perché l'install fallisce</h1>
+<div class="sub">Apri questo file <b>come apri l'app</b>, dalla stessa cartella.
+Legge il tuo <code>sw.js</code> vero e prova a scaricare i suoi file uno per uno.</div>
+
+<div class="sez" id="verdetto"><h2>Verdetto</h2><p id="v">sto leggendo…</p></div>
+
+<div class="sez"><h2>Il tuo sw.js</h2><div id="swjs"></div></div>
+<div class="sez"><h2>Cosa c'è dentro le cache</h2><div id="cache"></div></div>
+
+<div class="sez"><h2>I file di ASSETS, uno per uno</h2>
+  <div id="assets"><div class="r"><span class="dim">premi il bottone qui sotto</span></div></div>
+  <button onclick="provaAssets()">🧪 Prova a scaricarli tutti</button>
+</div>
+
+<div class="sez"><h2>Registra e guarda cosa gli succede</h2>
+  <div id="ciclo"><div class="r"><span>non ancora provato</span></div></div>
+  <button onclick="osserva()">⏱️ Registra ./sw.js e segui il ciclo di vita</button>
+</div>
+
+<button onclick="copia()">📋 Copia tutto</button>
+<button class="pericolo" onclick="pulisci()">🧹 Deregistra tutto e cancella le cache</button>
+
+<script>
+var righe = [], ASSETS = [], NOME = null;
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
+function r(dove, et, val, stato){
+  righe.push(et + ": " + val);
+  var c = stato === true ? "si" : (stato === false ? "no" : "");
+  document.getElementById(dove).insertAdjacentHTML("beforeend",
+    '<div class="r"><b>' + et + '</b><span class="' + c + '">' + esc(val) + '</span></div>');
+}
+function linea(dove, testo, stato){
+  righe.push("  " + testo);
+  var c = stato === true ? "si" : (stato === false ? "no" : "");
+  document.getElementById(dove).insertAdjacentHTML("beforeend",
+    '<div class="riga ' + c + '">' + esc(testo) + '</div>');
+}
+function verdetto(t){ document.getElementById("v").innerHTML = t; righe[0] = "VERDETTO: " + t.replace(/<[^>]+>/g,""); }
+righe.push("VERDETTO: —");
+
+// 1. Leggo il sw.js VERO di questa cartella: nome della cache e lista dei file.
+fetch("./sw.js", { cache: "no-store" }).then(function(res){
+  r("swjs", "sw.js scaricabile", res.status + " " + res.statusText, res.ok);
+  r("swjs", "tipo dichiarato", res.headers.get("content-type") || "(nessuno)");
+  return res.text();
+}).then(function(t){
+  var m = /CACHE_NAME\s*=\s*['"]([^'"]+)['"]/.exec(t);
+  NOME = m ? m[1] : null;
+  r("swjs", "CACHE_NAME nel file", NOME || "non trovato", !!NOME);
+  var a = /ASSETS\s*=\s*\[([\s\S]*?)\]/.exec(t);
+  if(a){
+    var q = a[1].match(/['"][^'"]+['"]/g) || [];
+    ASSETS = q.map(function(s){ return s.slice(1, -1); });
+  }
+  r("swjs", "file in ASSETS", ASSETS.length, ASSETS.length > 0);
+  leggiCache();
+}).catch(function(e){
+  r("swjs", "errore", e.name + ": " + e.message, false);
+  verdetto("Non riesco nemmeno a leggere <code>./sw.js</code> da qui. Sei sicuro che questo file "
+         + "sia nella stessa cartella dell'app?");
+  leggiCache();
+});
+
+// 2. Le cache: quante voci contengono davvero. È la domanda che decide tutto.
+function leggiCache(){
+  if(!("caches" in window)){ r("cache", "Cache API", "assente", false); return; }
+  caches.keys().then(function(ks){
+    if(!ks.length){ r("cache", "cache esistenti", "nessuna"); decidi(null); return; }
+    var fatte = 0, vuote = 0;
+    ks.forEach(function(k){
+      caches.open(k).then(function(c){ return c.keys(); }).then(function(voci){
+        r("cache", k, voci.length + " voci", voci.length > 0);
+        voci.slice(0, 4).forEach(function(v){ linea("cache", "   · " + v.url.split("/").pop()); });
+        if(voci.length > 4) linea("cache", "   · …e altre " + (voci.length - 4));
+        if(voci.length === 0) vuote++;
+        if(++fatte === ks.length) decidi(vuote);
+      });
+    });
+  });
+}
+
+function decidi(vuote){
+  if(vuote === null){
+    verdetto("Non c'è nessuna cache. Il service worker qui non ha mai finito un install.");
+  } else if(vuote > 0){
+    verdetto("<b>Cache VUOTA.</b> È la prova: <code>addAll</code> è atomico — o entra tutto o non "
+           + "entra niente. Una cache che esiste ma è vuota vuol dire che <code>caches.open()</code> "
+           + "l'ha creata e poi <b>il download dei file è fallito</b>, quindi l'install è fallito e "
+           + "Chrome ha buttato la registrazione. Premi «Prova a scaricarli tutti» qui sotto: "
+           + "trova il file colpevole.");
+  } else {
+    verdetto("Le cache sono <b>piene</b>. Allora l'install a un certo punto è riuscito, e la "
+           + "registrazione è sparita per un altro motivo. Premi «Registra e segui il ciclo di "
+           + "vita»: si vede in diretta cosa gli succede.");
+  }
+}
+
+// 3. Ogni file di ASSETS, con la stessa modalità che userebbe addAll.
+function provaAssets(){
+  var box = document.getElementById("assets");
+  box.innerHTML = "";
+  if(!ASSETS.length){ linea("assets", "nessun ASSETS letto da sw.js", false); return; }
+  righe.push("--- PROVA DEI FILE DI ASSETS ---");
+  var falliti = 0, fatti = 0;
+  ASSETS.forEach(function(u){
+    var t0 = Date.now();
+    fetch(u, { cache: "no-store" }).then(function(res){
+      var ms = Date.now() - t0;
+      linea("assets", (res.ok ? "OK  " : "NO  ") + res.status + "  " + ms + "ms  " + u, res.ok);
+      if(!res.ok) falliti++;
+    }).catch(function(e){
+      linea("assets", "NO  " + e.name + ": " + e.message + "  " + u, false);
+      falliti++;
+    }).then(function(){
+      if(++fatti === ASSETS.length){
+        linea("assets", "———");
+        linea("assets", falliti ? (falliti + " file su " + ASSETS.length + " NON si scaricano: "
+              + "basta questo a far fallire tutto l'install")
+            : "tutti e " + ASSETS.length + " si scaricano", falliti === 0);
+      }
+    });
+  });
+}
+
+// 4. Il ciclo di vita in diretta: `redundant` = install fallito.
+function osserva(){
+  var box = document.getElementById("ciclo");
+  box.innerHTML = "";
+  righe.push("--- CICLO DI VITA ---");
+  if(!("serviceWorker" in navigator)){ linea("ciclo", "niente serviceWorker", false); return; }
+  var t0 = Date.now();
+  function log(t, ok){ linea("ciclo", "+" + (Date.now() - t0) + "ms  " + t, ok); }
+  log("registro ./sw.js…");
+  navigator.serviceWorker.register("./sw.js").then(function(reg){
+    log("register() riuscito — ambito " + reg.scope, true);
+    var w = reg.installing || reg.waiting || reg.active;
+    if(!w){ log("…ma non c'è nessun worker attaccato", false); return; }
+    log("stato: " + w.state);
+    w.addEventListener("statechange", function(){
+      if(w.state === "redundant")
+        log("stato: REDUNDANT — l'install è FALLITO, la registrazione viene buttata", false);
+      else if(w.state === "activated")
+        log("stato: ATTIVATO — l'install è riuscito", true);
+      else log("stato: " + w.state);
+    });
+    [3000, 8000].forEach(function(ms){
+      setTimeout(function(){
+        navigator.serviceWorker.getRegistrations().then(function(rs){
+          log("dopo " + (ms/1000) + "s: registrazioni = " + rs.length
+            + ", controller " + (navigator.serviceWorker.controller ? "presente" : "assente"),
+            rs.length > 0);
+          if(NOME) caches.open(NOME).then(function(c){ return c.keys(); }).then(function(v){
+            log("dopo " + (ms/1000) + "s: " + NOME + " contiene " + v.length + " voci", v.length > 0);
+          });
+        });
+      }, ms);
+    });
+  }).catch(function(e){
+    log("register() RIFIUTATO — " + e.name + ": " + e.message, false);
+  });
+}
+
+function pulisci(){
+  if(!confirm("Deregistra i service worker e cancella tutte le cache di questa origine. "
+            + "Non tocca localStorage. Procedo?")) return;
+  var box = document.getElementById("ciclo"); box.innerHTML = "";
+  navigator.serviceWorker.getRegistrations().then(function(rs){
+    return Promise.all(rs.map(function(g){ return g.unregister(); })).then(function(){
+      linea("ciclo", "deregistrati: " + rs.length, true);
+    });
+  }).then(function(){
+    return caches.keys().then(function(ks){
+      return Promise.all(ks.map(function(k){ return caches.delete(k); })).then(function(){
+        linea("ciclo", "cache cancellate: " + (ks.join(", ") || "nessuna"), true);
+        linea("ciclo", "ricarica la pagina per rileggere lo stato pulito");
+      });
+    });
+  }).catch(function(e){ linea("ciclo", "errore: " + e.message, false); });
+}
+
+function copia(){
+  var t = righe.join("\n");
+  function vecchio(){
+    var a = document.createElement("textarea");
+    a.value = t; a.style.position = "fixed"; a.style.top = "-1000px";
+    document.body.appendChild(a); a.select();
+    try{ document.execCommand("copy"); alert("Copiato."); }catch(e){ alert("Fai uno screenshot."); }
+    document.body.removeChild(a);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(function(){ alert("Copiato."); }, vecchio);
+  else vecchio();
+}
+</script>
+</body></html>
