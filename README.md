@@ -151,16 +151,29 @@ Come si legge — prima riga:
 | `… — arrivata a metà: manca …` | l'app funziona, ma quei pezzi non sono in cache e li richiede alla rete a ogni apertura: **senza rete non ci sono** |
 | `⚠️ installazione FALLITA — … è una cache vuota` | **non è una versione, è un rottame.** Il service worker non ce l'ha fatta: quel numero non dice quale versione stai usando, e senza rete l'app non si apre |
 | `⚠️ … non dice com'è andata l'installazione` | cache di prima della v52, quando l'esito non si scriveva: non si può sapere se è intera |
-| `…v10 → …v11 — aggiornamento in corso` | il deploy nuovo è arrivato e si installa dietro: **chiudi e riapri**, poi rileggi la riga |
+| `⚠️ resta in giro anche «…v10» (20 file)` | c'è più di una cache. Il **numero fra parentesi** dice quale dei tre casi è: tante voci = una vecchia che `activate` non ha cancellato; `vuota` = un install fallito che ha lasciato il guscio; e se sparisce riaprendo, era davvero un aggiornamento in corso |
 | `nessuna cache: … dalla rete` | nessun service worker attivo — normale dopo `/pulisci`, non normale sull'app installata |
 | `aperta come file sul disco` | l'hai aperta con un `file://`: lì un service worker non può esistere. Serve un server, anche locale |
 
-Seconda riga — **`pagina aperta da …`**: `127.0.0.1:22318` è il telefono via CX Explorer,
-`192.168.x.x` il PC via `serve-locale.py`, `…github.io` GitHub Pages. Non è un dettaglio:
-questi tre ambienti si comportano in modo **diverso** proprio sulle cache — su CX la cartella
-nuda risponde 403, Pages ha intestazioni di cache tutte sue — e per quattro sessioni sono stati
-chiamati con lo stesso nome. La riga esiste per rendere impossibile la domanda *«ma questa prova
-dove l'hai fatta?»*.
+Seconda riga — **`pagina aperta da …`**: `…github.io` è GitHub Pages, `localhost:8777` il PC
+via `serve-locale.py`, `127.0.0.1:22318` il telefono via CX Explorer, `file` un doppio clic
+sulla cartella. Non è un dettaglio: questi ambienti si comportano in modo **diverso** proprio
+sulle cache, e per quattro sessioni sono stati chiamati con lo stesso nome. La riga esiste per
+rendere impossibile la domanda *«ma questa prova dove l'hai fatta?»*.
+
+⚠️ **Dove NON si collauda niente che riguardi cache o service worker** — deciso il 05/09/2026,
+dopo che due ambienti su tre avevano prodotto letture inconfrontabili:
+
+- **doppio clic sulla cartella (`file://`)**: lì un service worker **non può esistere**. Qualunque
+  cosa si osservi sulle cache, non riguarda l'app pubblicata.
+- **CX Explorer sul telefono**: comodissimo per guardare grafica e testi al volo, e va benissimo
+  per quello. Ma CX serve **tutto** da un solo indirizzo, `127.0.0.1:22318`, e cache e
+  registrazioni stanno appese all'indirizzo, non alla cartella: su quell'origine si accumula la
+  storia di ogni copia dell'app mai aperta da lì, comprese quelle di mesi fa. Ci si trovano cache
+  vecchie che su `…github.io` non possono esistere. Ha già dato quello che aveva da dare — il 403
+  sulla cartella nuda, che ha portato alla riparazione della v52.
+
+Gli ambienti veri sono **Pages** (installata e non) e **`serve-locale.py`**.
 
 **Dopo un deploy, la riga è il collaudo di sé stessa:** se mostra il numero nuovo, il marcatore
 funziona *e* il deploy è arrivato, in un colpo solo.

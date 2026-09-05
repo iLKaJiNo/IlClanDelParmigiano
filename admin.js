@@ -77,11 +77,27 @@ async function rigaCache(){
     var controllata = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
     if(!nostre.length)
       return "nessuna cache: l'app sta arrivando dalla rete, non dal service worker";
-    if(nostre.length > 1)
-      // ⚠️ Questa frase descrive la riapertura a mano. Quando il ricaricamento diventa
-      // automatico (R3 passo 2) va riscritta: una frase che chiede un gesto non più
-      // necessario è peggio di nessuna frase.
-      return nostre.join(" → ") + " — aggiornamento in corso, chiudi e riapri l'app";
+    if(nostre.length > 1){
+      // ⚠️ QUI IL MARCATORE ERA ANCORA CIECO, e ci è costato un'altra fermata. Con due
+      // cache diceva «vNN → vMM — aggiornamento in corso» e si fermava lì: non apriva
+      // nessuna delle due. Ma DUE CACHE NON VUOL DIRE AGGIORNAMENTO. Vuol dire una di tre
+      // cose, e sono tre cose diverse da fare:
+      //   · la nuova si sta installando davvero        → aspetta, si sistema da sé
+      //   · la vecchia non è mai stata cancellata      → `activate` non ha fatto il suo giro
+      //   · l'install della nuova è fallito            → la nuova è un guscio vuoto
+      // Il 05/09 su CX questa frase è uscita tre volte di fila, anche dopo una chiusura
+      // vera dell'app, e non permetteva di distinguerle. È lo stesso difetto che il passo 1
+      // esiste per togliere — tolto dal caso a una cache e lasciato in piedi in questo ramo.
+      // ⚠️ La frase dice ancora «chiudi e riapri». Quando il ricaricamento diventa
+      // automatico (R3 passo 2) va riscritta: chiedere un gesto non più necessario è
+      // peggio che non dire niente.
+      var viva = nostre[nostre.length - 1];   // la più alta di numero: `nostre` è ordinata
+      var resti = [];
+      for(var i = 0; i < nostre.length - 1; i++) resti.push(await quantaRoba(nostre[i]));
+      return (await descriviCache(viva, controllata))
+           + "\n⚠️ resta in giro anche " + elenco(resti) + ". Chiudi e riapri: se non "
+           + "sparisce, non è un aggiornamento in corso — è un residuo che nessuno cancella.";
+    }
     return await descriviCache(nostre[0], controllata);
   }catch(e){
     return "versione non leggibile su questo browser";
@@ -114,6 +130,15 @@ function nomeUmano(u){
   if(u.indexOf("fonts.googleapis") >= 0)  return "i caratteri";
   if(u.indexOf("jspdf") >= 0)             return "il generatore dei PDF";
   return u.replace(/^\.\//, "").replace(/^.*\//, "");
+}
+
+// Quanta roba c'è DENTRO una cache che non è quella viva, detta di fila in una frase.
+// Una cache vecchia piena è un residuo di `activate`; una vuota è un install fallito. Il
+// numero è la differenza fra le due, e senza il numero la frase non serve a niente.
+async function quantaRoba(nome){
+  var c = await caches.open(nome);
+  var n = (await c.keys()).filter(function(r){ return r.url !== URL_ESITO; }).length;
+  return "«" + nome + "» (" + (n ? n + " file" : "vuota") + ")";
 }
 
 // "a, b e c" — perché "a, b, c" in mezzo a una frase si legge come se la frase continuasse.
