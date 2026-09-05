@@ -5,7 +5,7 @@
 // sale a ogni passo dell'handoff estetico, così il service worker riscarica TUTTI
 // gli asset insieme invece di aggiornarli uno alla volta in sottofondo. A fine fase
 // resta un normale `clan-parmigiano-vNN`.
-const CACHE_NAME = 'clan-parmigiano-v55';
+const CACHE_NAME = 'clan-parmigiano-v56';
 
 // ── DUE LISTE, E NON È PEDANTERIA ───────────────────────────────────────────
 // `addAll` è tutto-o-niente: UN solo file che non si scarica e l'install intero viene
