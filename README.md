@@ -113,15 +113,23 @@ L'hosting è GitHub Pages e non c'è nessun passaggio di build: si caricano i fi
 È la riga che dice al service worker che quello che ha in cache è vecchio. Senza, chi ha l'app
 installata in home continua a vedere la versione di prima, e non per qualche minuto.
 
-**Dopo aver pubblicato, apri l'app due volte prima di concludere qualcosa.** Non è scaramanzia:
-il service worker serve dalla cache e aggiorna in sottofondo (`return r || n` in `sw.js`). Alla
-prima apertura la pagina è già stata servita dalla cache vecchia mentre il worker nuovo si
-installava dietro; alla seconda il worker nuovo è al suo posto e i file sono quelli appena
-pubblicati.
+⚠️ **E il numero, da solo, non basta.** `cache.add()` passa per la cache HTTP del browser: con
+un `max-age` come quello di Pages, il worker nuovo può farsi dare dal browser i file **vecchi** e
+nascere con una cache che ha il nome nuovo e il contenuto vecchio. Per questo l'install chiede i
+file con `cache: "reload"` (vedi `fresca()` in `sw.js`) — misurato il 05/09/2026: senza,
+la cache `v57` conteneva l'`index.html` della `v56`.
 
-Non è un difetto da riparare — è il compromesso che fa funzionare l'app senza rete — ma è una
-**procedura da sapere, non un sintomo da scoprire**: se dopo un deploy vedi ancora la schermata di
-ieri, quasi sempre è questo e non la cosa che hai appena cambiato.
+**Dopo aver pubblicato, apri l'app una volta.** Si ricarica da sola: quando il service worker
+nuovo prende il comando della scheda scatta `controllerchange`, e il blocco nel `<head>` di
+`index.html` fa un ricaricamento una tantum. La seconda apertura la fa il browser al posto tuo.
+Fra l'apertura e il ricaricamento passano dai 2 ai 10 secondi — **aspetta che sia successo prima
+di concludere qualcosa**, e la riga in fondo all'admin te lo conferma con `↻ si è ricaricata da
+sola N secondi fa`.
+
+*Fino al 05/09/2026 qui c'era scritto «apri l'app due volte»: era una procedura manuale, e una
+procedura manuale la fa chi se la ricorda. Aveva già fatto collaudare tre volte il deploy
+sbagliato. Se dopo un deploy vedi ancora la schermata di ieri, guarda i due marcatori prima di
+sospettare la modifica che hai appena fatto.*
 
 ### Quale versione sto guardando: la riga in fondo all'admin
 
