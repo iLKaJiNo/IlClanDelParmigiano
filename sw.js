@@ -5,7 +5,7 @@
 // sale a ogni passo dell'handoff estetico, così il service worker riscarica TUTTI
 // gli asset insieme invece di aggiornarli uno alla volta in sottofondo. A fine fase
 // resta un normale `clan-parmigiano-vNN`.
-const CACHE_NAME = 'clan-parmigiano-v57';
+const CACHE_NAME = 'clan-parmigiano-v58';
 
 // ── DUE LISTE, E NON È PEDANTERIA ───────────────────────────────────────────
 // `addAll` è tutto-o-niente: UN solo file che non si scarica e l'install intero viene
@@ -54,6 +54,25 @@ const UTILI = [
 // aggiornamento è arrivato monco, invece di lasciarlo credere completo.**
 const ESITO_INSTALL = 'https://clan-parmigiano.local/esito-install';
 
+// ── I FILE VANNO CHIESTI ALLA RETE, NON AL BROWSER ──────────────────────────
+// ⚠️ `cache.add()` e `cache.addAll()` passano per la CACHE HTTP DEL BROWSER. Sembra un
+// dettaglio e non lo è: GitHub Pages manda i file con un `max-age`, quindi quando il worker
+// nuovo si installa e chiede `index.html`, il browser può servirgli quello vecchio che ha
+// ancora in tasca — e la cache «nuova» nasce con dentro la versione vecchia.
+//
+// Non è teoria. Misurato il 05/09/2026 sulla PWA da Pages: la cache `v57` conteneva
+// l'`index.html` della `v56`. Dopo il ricaricamento automatico la pillola diceva ancora
+// `passo R3·5 · cache v56` mentre la riga in fondo all'admin diceva `clan-parmigiano-v57 —
+// completa` **senza cache di troppo**: cioè il worker v57 era al comando e stava servendo
+// la pagina della v56, presa dalla propria cache. Era già successo fra la v52 e la v53, con
+// `index.html` nuovo e `admin.js` vecchio dentro la stessa cache. Il report del 05/09 lo
+// aveva escluso, ma aveva misurato «ogni caricamento viene da UN solo worker»: altra domanda.
+//
+// `cache: "reload"` obbliga la richiesta a saltare la cache HTTP e ad andare in rete.
+// ⚠️ Senza questa riga `CACHE_NAME` non garantisce più niente: il numero sale e il contenuto
+// no. È il difetto che ha fatto sembrare rotto il ricaricamento una tantum mentre funzionava.
+function fresca(u){ return new Request(u, { cache: "reload" }); }
+
 function scriviEsito(c, mancati){
   return c.put(new Request(ESITO_INSTALL), new Response(JSON.stringify({
     versione: CACHE_NAME, quando: Date.now(), mancati: mancati
@@ -63,11 +82,11 @@ function scriviEsito(c, mancati){
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c =>
     // Il guscio: tutto-o-niente, e qui è giusto così.
-    c.addAll(ESSENZIALI)
+    c.addAll(ESSENZIALI.map(fresca))
       // Il resto: uno per uno, così chi cade cade da solo. `c.add(u)` restituisce il
       // nome del file se fallisce, `null` se va bene: quello che resta è l'elenco dei
       // mancanti, ed è l'elenco che vogliamo poter leggere dopo.
-      .then(() => Promise.all(UTILI.map(u => c.add(u).then(() => null, () => u))))
+      .then(() => Promise.all(UTILI.map(u => c.add(fresca(u)).then(() => null, () => u))))
       .then(mancati => scriviEsito(c, mancati.filter(Boolean)))
   ).then(() => self.skipWaiting()));
 });
