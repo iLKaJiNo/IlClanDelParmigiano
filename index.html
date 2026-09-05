@@ -45,6 +45,63 @@ if("serviceWorker" in navigator){
     navigator.serviceWorker.register("./sw.js").catch(function(e){ console.log("Errore SW:", e); });
   });
 }
+
+// ── IL RICARICAMENTO UNA TANTUM (R3) ────────────────────────────────────────
+// IL DIFETTO. Il service worker serve prima dalla cache e aggiorna in sottofondo. Alla
+// prima apertura dopo un deploy la pagina è GIÀ arrivata dalla cache vecchia mentre il
+// worker nuovo si installava dietro: si vede la versione di ieri. Alla seconda tutto è a
+// posto. Per sette handoff la riparazione è stata «apri l'app due volte», cioè una
+// procedura manuale scritta in un README — e una procedura manuale la fa chi se la
+// ricorda. Ha già fatto collaudare tre volte il deploy sbagliato.
+//
+// LA RIPARAZIONE. Quando il worker nuovo prende il comando della scheda, scatta
+// `controllerchange`. A quel punto la pagina in mano è vecchia di due secondi: si ricarica
+// una volta, e la seconda apertura la fa il browser invece della persona.
+// L'evento c'è già e non serve `clients.claim()`: misurato il 05/09/2026, scatta fra +1,6
+// e +2,1 s dall'apertura perché `skipWaiting()` il comando delle schede già controllate lo
+// prende da solo. ⚠️ NON aggiungere `clients.claim()`: non ripara niente qui, e farebbe
+// scattare `controllerchange` anche sulle schede che un controller non l'avevano — cioè il
+// primissimo ingresso di un topino nuovo — trasformando la guardia ② da prudenza in unica
+// difesa contro un lampeggio in faccia a chi apre l'app per la prima volta.
+//
+// ⚠️ STA NEL <head>, prima degli script in fondo al body, perché `controllerchange` può
+// scattare prima che quelli siano stati eseguiti.
+//
+// ⚠️ COSA SI PERDE. Un ricaricamento butta lo stato non salvato. Gli stepper salvano da
+// soli e non c'è nessun modulo lungo, ma la nota della bacheca mezza scritta si perde, e
+// così un campo di un modale aperto. Succede una volta per deploy, in un'app che si usa
+// poche volte l'anno: l'Architetto lo ha considerato accettabile il 05/09/2026.
+if("serviceWorker" in navigator){
+  // ⚠️ LETTO ADESSO, NON DENTRO L'EVENTO. Quando `controllerchange` scatta,
+  // `navigator.serviceWorker.controller` è GIÀ quello nuovo: chiederglielo lì darebbe
+  // sempre «sì», e la guardia ② non guarderebbe niente.
+  var _avevaController = !!navigator.serviceWorker.controller;
+  var _giaRicaricato = false;
+  navigator.serviceWorker.addEventListener("controllerchange", function(){
+    // GUARDIA ① — mai più di un ricaricamento per caricamento di pagina.
+    if(_giaRicaricato) return;
+    // GUARDIA ② — niente ricaricamento se all'apertura un controller non c'era. È il
+    // primissimo ingresso: lì il controller passa da assente a presente ed è normale.
+    // Ricaricare vorrebbe dire far lampeggiare l'app in faccia a un topino nuovo proprio
+    // mentre gli si apre la guida davanti.
+    if(!_avevaController) return;
+    // GUARDIA ③ — non chiesta dall'handoff, e la scrivo perché le prime due, da sole, non
+    // possono fermare un anello che attraversa i ricaricamenti: `_giaRicaricato` nasce di
+    // nuovo `false` a ogni caricamento. Se per una ragione qualsiasi ogni pagina nuova
+    // ricevesse subito un altro `controllerchange`, l'app si ricaricherebbe all'infinito e
+    // diventerebbe inutilizzabile — un guasto molto peggiore di quello che stiamo
+    // riparando. Venti secondi non tolgono niente al caso vero (fra due deploy passano
+    // giorni) e tagliano l'anello, che è istantaneo per costruzione.
+    // `sessionStorage` perché deve valere per questa scheda e sparire con lei.
+    try{
+      var ora = Date.now(), ultimo = +(sessionStorage.getItem("clan_parm_ricarica") || 0);
+      if(ora - ultimo < 20000) return;
+      sessionStorage.setItem("clan_parm_ricarica", String(ora));
+    }catch(e){}   // navigazione privata, quota piena: si ricarica lo stesso, ① e ② tengono
+    _giaRicaricato = true;
+    location.reload();
+  });
+}
 </script>
 </head>
 <body>
@@ -144,7 +201,7 @@ if("serviceWorker" in navigator){
            PER TOGLIERLO TUTTO:  grep -rn "MARCATORE DI PASSO" .
            Sono tre punti: questo blocco, la regola `.marcatore-passo` in style.css,
            e il suffisso del passo in `CACHE_NAME` dentro sw.js. -->
-      <div class="marcatore-passo">🔧 passo R3·3 · cache v54</div>
+      <div class="marcatore-passo">🔧 passo R3·4 · cache v55</div>
       <div class="banner-arrivo" id="banner-arrivo" style="display:none;"></div>
       <div class="card">
         <div class="card-titolo">Il tuo ordine</div>

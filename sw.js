@@ -5,7 +5,7 @@
 // sale a ogni passo dell'handoff estetico, così il service worker riscarica TUTTI
 // gli asset insieme invece di aggiornarli uno alla volta in sottofondo. A fine fase
 // resta un normale `clan-parmigiano-vNN`.
-const CACHE_NAME = 'clan-parmigiano-v54';
+const CACHE_NAME = 'clan-parmigiano-v55';
 
 // ── DUE LISTE, E NON È PEDANTERIA ───────────────────────────────────────────
 // `addAll` è tutto-o-niente: UN solo file che non si scarica e l'install intero viene
@@ -72,6 +72,16 @@ self.addEventListener('install', e => {
   ).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
+  // ⚠️ QUI QUALCUNO VORRÀ AGGIUNGERE `clients.claim()`. Non farlo, ed è già costata mezza
+  // sessione la volta scorsa. L'idea è che serva a far prendere al worker nuovo il comando
+  // delle schede aperte, e quindi a riparare R3. **Misurato il 05/09/2026, 3 prove su 3:
+  // `controllerchange` scatta già senza, fra +1,6 e +2,1 s dall'apertura** — `skipWaiting()`
+  // il comando delle schede GIÀ CONTROLLATE lo prende da solo.
+  // `clients.claim()` serve alle schede che un controller non ce l'hanno: cioè il primissimo
+  // ingresso, esattamente il caso in cui il ricaricamento una tantum in `index.html` deve
+  // NON scattare. Aggiungerlo non ripara niente e alza la posta della guardia ②: da prudenza
+  // diventerebbe l'unica cosa che impedisce all'app di lampeggiare in faccia a un topino
+  // nuovo mentre gli si apre la guida davanti.
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))));
 });
 self.addEventListener('fetch', e => {
