@@ -32,6 +32,15 @@ function apriAdmin(){
 // esattamente il difetto che questa riga esiste per togliere.
 var PREFISSO_CACHE = "clan-parmigiano-";   // il resto del nome è la versione, e sta in sw.js
 
+// L'esito dell'install, che `sw.js` scrive DENTRO la cache dell'app: versione, quando, e
+// l'elenco dei file che non ce l'hanno fatta. È un indirizzo finto — nessun
+// `clan-parmigiano.local` esiste — e serve solo come chiave.
+// ⚠️ La stessa stringa sta in `sw.js` (`ESITO_INSTALL`). Sono due file che devono dire la
+// stessa identica cosa: se cambia l'una senza l'altra, la riga qui sotto torna a non
+// saper distinguere una versione viva da un rottame, che è il difetto che ha appena finito
+// di costare quattro sessioni.
+var URL_ESITO = "https://clan-parmigiano.local/esito-install";
+
 // "clan-parmigiano-v10" → 10. Un nome che non finisce con un numero vale -1 e finisce
 // in cima: non è un caso previsto, ma non deve far scomparire gli altri.
 function numeroCache(nome){
@@ -42,9 +51,23 @@ function numeroCache(nome){
 async function aggiornaVersioneViva(){
   var el = document.getElementById("versione-viva");
   if(!el) return;
-  var testo;
+  el.textContent = (await rigaCache()) + "\n" + indirizzoPagina();
+}
+
+// La prima riga: com'è andata l'installazione. Sta in una funzione sua perché ha sei uscite
+// e una sola di quelle è la buona: infilarle tutte dentro `aggiornaVersioneViva()` fra un
+// `textContent` e l'altro era il modo per non accorgersi che una mancava.
+async function rigaCache(){
+  // ⚠️ Prima di tutto il resto: `file://`. Lì un service worker non PUÒ esistere — non è
+  // un contesto sicuro — e `caches` o manca o solleva. Senza questa riga il caso finiva in
+  // «nessuna cache: l'app sta arrivando dalla rete» oppure in «versione non leggibile su
+  // questo browser»: due frasi che mandano a cercare un guasto dove non ce n'è.
+  // È la stessa classe di errore del rottame letto come versione, e costa allo stesso modo.
+  if(location.protocol === "file:")
+    return "aperta come file sul disco: qui un service worker non può esistere, e nessuna "
+         + "cache nemmeno. Non è un guasto dell'app, è l'indirizzo: serve un server, anche locale.";
   try{
-    if(!("caches" in window)) throw new Error("niente Cache API");
+    if(!("caches" in window)) return "versione non leggibile su questo browser";
     // Ordinate per NUMERO, non alfabeticamente: `sort()` senza comparatore metterebbe
     // "…-v10" prima di "…-v9" e la riga si leggerebbe al contrario proprio nel momento
     // in cui serve — durante un aggiornamento.
@@ -53,15 +76,99 @@ async function aggiornaVersioneViva(){
       .sort(function(a, b){ return numeroCache(a) - numeroCache(b); });
     var controllata = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
     if(!nostre.length)
-      testo = "nessuna cache: l'app sta arrivando dalla rete, non dal service worker";
-    else if(nostre.length > 1)
-      testo = nostre.join(" \u2192 ") + " \u2014 aggiornamento in corso, chiudi e riapri l'app";
-    else
-      testo = nostre[0] + (controllata ? "" : " \u2014 non ancora attiva su questa scheda");
+      return "nessuna cache: l'app sta arrivando dalla rete, non dal service worker";
+    if(nostre.length > 1)
+      // ⚠️ Questa frase descrive la riapertura a mano. Quando il ricaricamento diventa
+      // automatico (R3 passo 2) va riscritta: una frase che chiede un gesto non più
+      // necessario è peggio di nessuna frase.
+      return nostre.join(" → ") + " — aggiornamento in corso, chiudi e riapri l'app";
+    return await descriviCache(nostre[0], controllata);
   }catch(e){
-    testo = "versione non leggibile su questo browser";
+    return "versione non leggibile su questo browser";
   }
-  el.textContent = testo;
+}
+
+// ── DOVE SEI ────────────────────────────────────────────────────────────────
+// Metà della confusione di quattro sessioni nasce dall'aver chiamato con lo stesso nome
+// tre ambienti che su questo difetto si comportano in modo DIVERSO: il telefono via CX
+// (`127.0.0.1:22318`, con il suo 403 sulla cartella nuda), il PC via `serve-locale.py`
+// (`192.168.x.x`), GitHub Pages (`…github.io`, con intestazioni di cache tutte sue).
+// Le osservazioni dei lotti 4, 5 e 6 mescolano i tre, e la contraddizione fra loro
+// sembrava intermittenza. Questa riga serve a rendere impossibile la domanda «ma questa
+// prova dove l'hai fatta?», che è la domanda che nessuno si è fatto per quattro sessioni.
+//
+// `file://` non ha host: lì il protocollo È la risposta, perché un service worker non può
+// esistere e nessun'altra riga della schermata lo spiegherebbe.
+function indirizzoPagina(){
+  return "pagina aperta da " + (location.host || location.protocol.replace(":", ""));
+}
+
+// I nomi dei file come li direbbe una persona. L'elenco dei mancanti arriva da `sw.js` e
+// contiene INDIRIZZI: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/…" non dice
+// niente a chi legge, e questa riga esiste per essere letta da chi collauda, non da chi
+// l'ha scritta. Un indirizzo che non riconosciamo esce col suo nome di file: meglio un
+// nome brutto che nessun nome.
+function nomeUmano(u){
+  if(u === "./")                          return "l'indirizzo corto dell'app";
+  if(u.indexOf("supabase") >= 0)          return "il collegamento al database";
+  if(u.indexOf("fonts.googleapis") >= 0)  return "i caratteri";
+  if(u.indexOf("jspdf") >= 0)             return "il generatore dei PDF";
+  return u.replace(/^\.\//, "").replace(/^.*\//, "");
+}
+
+// "a, b e c" — perché "a, b, c" in mezzo a una frase si legge come se la frase continuasse.
+function elenco(a){
+  return a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " e " + a[a.length - 1];
+}
+
+// ── COSA C'È DAVVERO DENTRO QUELLA CACHE ────────────────────────────────────
+// Il nome della cache dice solo che QUALCUNO ha chiamato `caches.open()`. Non dice se
+// l'install è finito, e nemmeno se dentro c'è un file. Da qui in avanti la riga apre la
+// cache e guarda: quante voci ha, e cosa dice l'esito che `sw.js` ci scrive dentro.
+async function descriviCache(nome, controllata){
+  var c = await caches.open(nome);   // esiste già: il nome arriva da `caches.keys()`
+  var voci = (await c.keys()).filter(function(r){ return r.url !== URL_ESITO; }).length;
+  var esito = null;
+  var r = await c.match(URL_ESITO);
+  if(r) try{ esito = await r.json(); }catch(e){}
+
+  // ⚠️ IL CASO CHE CI HA INGANNATI PER GIORNI, e il motivo per cui esiste questa
+  // riparazione. Una cache vuota, a `caches.keys()`, sembra una cache: fino al 05/09
+  // qui si leggeva «clan-parmigiano-v51 — non ancora attiva su questa scheda», cioè
+  // «fra un attimo si sistema», mentre la verità era «il service worker non è mai
+  // esistito e quella è un guscio vuoto». Tre diagnosi sono partite di lì.
+  // Il numero NON viene per primo, ed è deliberato: letto per primo, quel numero è la
+  // bugia. Prima si dice che è fallito, poi si dice come si chiama il rottame.
+  if(!voci)
+    return "⚠️ installazione FALLITA — «" + nome + "» è una cache vuota, "
+         + "non una versione. Il service worker non ce l'ha fatta: l'app sta arrivando tutta "
+         + "dalla rete, senza rete non si apre, e quel numero non dice quale versione stai usando.";
+
+  // Una cache piena ma senza esito è roba di prima della v52, quando l'esito non si
+  // scriveva. Non è un rottame, ma non si può nemmeno dire che sia intera: e una riga che
+  // non sa non deve fingere di sapere.
+  if(!esito)
+    return "⚠️ «" + nome + "» non dice com'è andata l'installazione: è una "
+         + "cache di prima della v52. Non si può sapere se è arrivata intera — "
+         + "il prossimo aggiornamento la sostituisce.";
+
+  var mancati = (esito.mancati || []).map(nomeUmano);
+  if(mancati.length){
+    // L'accordo si fa a mano perché il caso di UN solo mancante è il più frequente: il
+    // 05/09 su CX il mancante era uno, `'./'`. Una frase al plurale su un file solo si
+    // legge come una frase scritta da un programma, e una riga che sembra scritta da un
+    // programma non la legge nessuno.
+    var uno = mancati.length === 1;
+    return nome + " — arrivata a metà: " + (uno ? "manca " : "mancano ") + elenco(mancati)
+         + ". L'app funziona lo stesso, ma " + (uno ? "quel pezzo lo richiede" : "quei pezzi li richiede")
+         + " alla rete a ogni apertura: " + (uno ? "senza rete non c'è." : "senza rete non ci sono.");
+  }
+
+  // Tutto a posto. Qui la riga resta asciutta: una parola sola oltre al nome, che serve a
+  // sapere che l'esito è stato letto davvero e non che manca il codice per leggerlo.
+  // Senza controller la frase adesso è onesta: l'esito c'è, quindi l'install È riuscito e
+  // «non ancora attiva» vuol dire davvero «fra un attimo».
+  return nome + " — completa" + (controllata ? "" : ", ma non ancora attiva su questa scheda");
 }
 function chiudiAdmin(){
   mostraSchermataGiusta();

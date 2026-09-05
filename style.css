@@ -1018,6 +1018,12 @@ body.modal-aperto{overflow:hidden;}
   padding:0 var(--sp-8) var(--sp-8); padding-bottom:max(var(--sp-8), env(safe-area-inset-bottom));
   font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:600;
   color:var(--dim); text-align:center; line-height:1.4;
+  /* La riga è composta a mano con un "\n" in `aggiornaVersioneViva()`: la prima riga dice
+     com'è andata l'installazione, la seconda da quale indirizzo è aperta la pagina. Due
+     cose che si leggono insieme ma non si leggono di fila, e `pre-line` è l'unico modo di
+     tenerle in un `textContent` — che è quello che rende la riga incollabile in un
+     messaggio, cioè il motivo per cui esiste `user-select:text` qui sotto. */
+  white-space:pre-line;
   user-select:text; -webkit-user-select:text;}
 
 /* ⚠️ TEMPORANEO — MARCATORE DI PASSO (vedi index.html, tab Ordina).

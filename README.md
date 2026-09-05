@@ -125,23 +125,42 @@ ieri, quasi sempre è questo e non la cosa che hai appena cambiato.
 
 ### Quale versione sto guardando: la riga in fondo all'admin
 
-**In fondo alla schermata admin c'è una riga piccola con il nome della cache viva** — per esempio
-`clan-parmigiano-v10`. È il posto dove si guarda quando una diagnosi comincia da *«ma è il codice
-giusto?»*, e si legge senza entrare: c'è anche sulla schermata di accesso, sotto i due campi.
+**In fondo alla schermata admin ci sono due righe piccole**: la prima dice com'è andata
+l'installazione della cache viva, la seconda **da quale indirizzo è aperta la pagina**. È il posto
+dove si guarda quando una diagnosi comincia da *«ma è il codice giusto?»*, e si legge senza
+entrare: c'è anche sulla schermata di accesso, sotto i due campi.
 
 Il valore **non è una costante nel sorgente**: lo legge da `caches.keys()`, cioè dice **cosa il
 service worker sta servendo**, non cosa c'è nei file. Sono due cose diverse ogni volta che si
 pubblica, ed è esattamente la differenza che ha fatto collaudare più di una volta il deploy
 precedente credendolo quello nuovo.
 
-Come si legge:
+⚠️ **Un nome di cache, da solo, non è una prova.** Fino al 05/09/2026 questa riga mostrava il
+nome e basta, e una cache **vuota** — quella che resta quando l'install fallisce — le sembrava una
+versione come le altre. Sul telefono ha detto per giorni *«v51 — non ancora attiva su questa
+scheda»*, che si legge *«fra un attimo si sistema»*, mentre il service worker non era mai
+esistito: tre diagnosi sono partite di lì. Adesso la riga **apre la cache e guarda dentro**, e
+legge l'esito che `sw.js` ci scrive alla fine dell'install.
+
+Come si legge — prima riga:
 
 | la riga dice | vuol dire |
 |---|---|
-| `clan-parmigiano-v10` | stai guardando la v10, ed è quella che ti sta servendo |
-| `…v10 — non ancora attiva su questa scheda` | il worker è installato ma questa pagina è arrivata dalla rete: ricarica |
+| `clan-parmigiano-v11 — completa` | tutto a posto: la v11 è installata intera ed è quella che ti sta servendo |
+| `… — completa, ma non ancora attiva su questa scheda` | l'install è riuscito, ma questa pagina è arrivata dalla rete: ricarica |
+| `… — arrivata a metà: manca …` | l'app funziona, ma quei pezzi non sono in cache e li richiede alla rete a ogni apertura: **senza rete non ci sono** |
+| `⚠️ installazione FALLITA — … è una cache vuota` | **non è una versione, è un rottame.** Il service worker non ce l'ha fatta: quel numero non dice quale versione stai usando, e senza rete l'app non si apre |
+| `⚠️ … non dice com'è andata l'installazione` | cache di prima della v52, quando l'esito non si scriveva: non si può sapere se è intera |
 | `…v10 → …v11 — aggiornamento in corso` | il deploy nuovo è arrivato e si installa dietro: **chiudi e riapri**, poi rileggi la riga |
 | `nessuna cache: … dalla rete` | nessun service worker attivo — normale dopo `/pulisci`, non normale sull'app installata |
+| `aperta come file sul disco` | l'hai aperta con un `file://`: lì un service worker non può esistere. Serve un server, anche locale |
+
+Seconda riga — **`pagina aperta da …`**: `127.0.0.1:22318` è il telefono via CX Explorer,
+`192.168.x.x` il PC via `serve-locale.py`, `…github.io` GitHub Pages. Non è un dettaglio:
+questi tre ambienti si comportano in modo **diverso** proprio sulle cache — su CX la cartella
+nuda risponde 403, Pages ha intestazioni di cache tutte sue — e per quattro sessioni sono stati
+chiamati con lo stesso nome. La riga esiste per rendere impossibile la domanda *«ma questa prova
+dove l'hai fatta?»*.
 
 **Dopo un deploy, la riga è il collaudo di sé stessa:** se mostra il numero nuovo, il marcatore
 funziona *e* il deploy è arrivato, in un colpo solo.
