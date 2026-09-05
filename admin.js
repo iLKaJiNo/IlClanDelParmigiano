@@ -400,11 +400,11 @@ function faseCorrente(){
 
 var FASI = [
   { n: 1, titolo: "Preparo il gruppo",
-    tocca: "Metti i prezzi al kg e la spedizione, poi gira il link e la password sul gruppo WhatsApp." },
+    tocca: "Metti i prezzi al kg, poi gira il link e la password sul gruppo WhatsApp." },
   { n: 2, titolo: "Raccolgo gli ordini",
     tocca: "Lascia ordinare i topini. Quando sei pronto, copia l'ordine e mandalo al negoziante." },
   { n: 3, titolo: "Aspetto il negoziante",
-    tocca: "Scrivi il totale della fattura appena il negoziante te lo manda." },
+    tocca: "Scrivi la spedizione e il totale della fattura appena il negoziante te li manda." },
   { n: 4, titolo: "Consegno",
     tocca: "Apri un sacchetto per volta e batti gli importi letti dalle etichette." },
   { n: 5, titolo: "Incasso",
@@ -458,7 +458,6 @@ function vaiAFase(n, cardId){
     c.classList.add("evidenzia");
   }, 60);
 }
-function vaiAiPrezzi(){ vaiAFase(1, "card-prezzi"); }
 function vaiAlloScontrino(){ vaiAFase(3, "card-scontrino"); }
 
 // La pillola «← admin» nell'header: c'è un passo indietro da fare, o no?
@@ -561,7 +560,11 @@ function fasiTestaHtml(corrente){
 function cardGruppoHtml(){
   var haPassword = !!passwordGruppoHash();
   return '<div class="card"><div class="card-titolo">Gruppo attivo</div>'
-    + '<div class="m-row"><label>Titolo</label><div style="font-weight:800;">' + escapeHtml(gruppo.titolo) + '</div></div>'
+    + '<div class="m-row"><label>Titolo</label>'
+    + '<input class="inp" id="inp-titolo" name="titolo-gruppo" type="text" autocomplete="off" maxlength="80"'
+    +   ' value="' + escapeHtml(gruppo.titolo) + '"></div>'
+    + '<div class="ar-actions" style="margin-bottom:14px;">'
+    +   '<button class="btn btn-cheese btn-mini" onclick="salvaTitoloGruppo()">Salva titolo</button></div>'
     + '<div class="m-row"><label>Password d\'accesso</label>'
     + '<input class="inp" id="inp-password" name="chiave-gruppo-admin" type="text"'
     +   ' autocapitalize="none" autocorrect="off"'
@@ -577,20 +580,18 @@ function cardGruppoHtml(){
     + '</div></div>';
 }
 
-// Prezzi al kg e spedizione stanno insieme: sono i numeri che fanno il conto di tutti, e
-// `gruppo.spedizione_totale` ha QUI la sua unica fonte di verità — lo scontrino della
-// fase ③ la mostra e basta, con un rimando a questa card.
+// Solo i prezzi al kg: sono i numeri che si sanno PRIMA, quando si prepara il giro.
+// ⚠️ Qui stava anche `#inp-spedizione`. È andato nella card dello scontrino, fase ③ —
+// decisione di iL KaJiNo del 05/09/2026: la spedizione la si conosce con lo scontrino, e
+// con lo scontrino si scrive. Prima il numero stava qui e altre due card lo mostravano con
+// un bottone «modifica» che riportava indietro: tre posti da guardare per un numero solo.
 function cardPrezziHtml(){
-  return '<div class="card" id="card-prezzi"><div class="card-titolo">Prezzi al kg e spedizione</div>'
+  return '<div class="card"><div class="card-titolo">Prezzi al kg</div>'
     + tipi.map(function(t){
         return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(t.nome) + '</span>'
           + '<div class="ar-actions"><input class="inp" style="width:110px;height:38px;" type="number" min="0" step="0.01" name="prezzo-kg" autocomplete="off" id="prezzo-' + t.id + '" value="' + t.prezzo_kg + '">'
           + '<button class="btn btn-cheese btn-mini" onclick="salvaPrezzoTipo(\'' + t.id + '\')">Salva</button></div></div>';
       }).join("")
-    + '<div class="m-row" style="margin-top:14px;"><label>Spedizione totale (€)</label>'
-    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="spedizione-totale" autocomplete="off" id="inp-spedizione" value="' + gruppo.spedizione_totale + '"></div>'
-    + '<div class="hint">Si divide fra le <b>quote</b> di chi partecipa: una a testa, di più per chi ritira anche per amici fuori dal Clan. Cambia con i kg totali, quindi è normale ritoccarla in corso d\'opera: se qualcuno ha già pagato te lo dico prima di salvare.</div>'
-    + '<button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button>'
     + '</div>';
 }
 
@@ -713,16 +714,10 @@ function cardKgPerTipoHtml(){
         + kgFmt(d.kg) + (d.kg > 0 ? ' · ' + pezziDa(d.kg) + ' pz' : '') + '</span></div>';
     });
     h += '<div class="pc-riga grande"><span>Totale</span><span>' + kgFmt(tot) + '</span></div>';
-    // La spedizione si DECIDE nella fase ①, ma si RIVEDE qui: sale a scaglioni sui kg totali
-    // del gruppo, quindi il numero da guardare e quello da ritoccare vanno visti insieme.
-    // Stavano in due fasi diverse, e appena il primo topino ordinava la fisarmonica passava
-    // a questa e chiudeva l'altra. Qui è mostrata, non ri-digitata: un secondo campo sulla
-    // stessa colonna si desincronizza al primo salvataggio parziale — stessa ragione per
-    // cui lo scontrino mostra la spedizione senza ridigitarla. Il collegamento è lo stesso
-    // che usa lo scontrino, `vaiAiPrezzi()`, che apre la fase ① ed evidenzia la card.
-    h += '<div class="pc-riga"><span>Spedizione'
-      + '<button class="sc-mod" onclick="vaiAiPrezzi()">modifica</button></span><span>'
-      + eur(parseFloat(gruppo.spedizione_totale) || 0) + '</span></div>';
+    // ⚠️ Qui c'era una riga «Spedizione … modifica» che rimandava alla fase ①. Tolta il
+    // 05/09/2026 insieme a tutti gli altri richiami: mentre si raccolgono gli ordini quel
+    // numero è quasi sempre zero, e una riga che mostra uno zero con accanto un bottone per
+    // andarlo a cambiare altrove è rumore in cima al lavoro vero, che qui sono i kg.
     h += '</div>';
     h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + quanti + ' topini su '
       + persone.length + ' hanno già ordinato.</div>';
@@ -836,12 +831,17 @@ function cardSpedizionePersoneHtml(){
     var esclusa = !p.partecipa_spedizione;
     return '<div class="persona-blocco">'
       + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome) + '</span></div>'
-      // Le parole restano «inclusa/esclusa» come prima: sono le stesse che `_swSposta()`
-      // rimette dopo un tocco, e farle divergere qui darebbe un'etichetta che cambia parola
-      // a seconda che tu abbia toccato l'interruttore o ricaricato la pagina.
-      + swRigaHtml("Partecipa", "sw-sped-" + p.id, p.partecipa_spedizione,
+      // ⚠️ DUE PUNTI, DUE PAROLE SOLE. Qui c'era «Partecipa» con stato «inclusa/esclusa»:
+      // due parole che non dicevano a cosa si riferissero (inclusa… in cosa?). Decisione di
+      // iL KaJiNo del 05/09/2026: il nome della riga dice la cosa, lo stato dice sì o no.
+      // Niente domanda: l'etichetta è un nome, non una frase.
+      // Le due parole dello stato le RISCRIVE `toggleSpedizionePersona()` tramite
+      // `_swSposta()` al tocco: cambiarne uno solo darebbe un'etichetta che dice una parola
+      // diversa a seconda che tu abbia toccato l'interruttore o ricaricato la pagina — un
+      // difetto che si vede solo toccando, e che quindi sfugge a chi rilegge il codice.
+      + swRigaHtml("Spedizione", "sw-sped-" + p.id, p.partecipa_spedizione,
                    "toggleSpedizionePersona('" + p.id + "', this)",
-                   p.partecipa_spedizione ? "inclusa" : "esclusa")
+                   p.partecipa_spedizione ? "s\u00ec" : "no")
       // Lo stepper resta attivo anche a spedizione esclusa: il valore resta scritto e
       // tornerebbe a contare se la partecipazione si riaccendesse, quindi è proprio lì
       // che un 10 sbagliato va potuto correggere. Lo dice l'etichetta, non un blocco.
@@ -1152,7 +1152,21 @@ function renderScontrinoHtml(){
   var valore = scontrino == null ? "" : (Math.round((scontrino + (conSped ? sped : 0)) * 100) / 100);
 
   var h = '<div class="card" id="card-scontrino"><div class="card-titolo">🧾 Lo scontrino del negoziante</div>';
-  h += '<div class="m-row"><label>' + (conSped
+  // ⚠️ `gruppo.spedizione_totale` ha QUI la sua unica fonte di verità, e da nessun'altra
+  // parte — decisione di iL KaJiNo del 05/09/2026. Prima stava in fase ①, mentre questa
+  // card e quella dei kg la mostravano con un bottone «modifica» che riportava là. Sta qui
+  // perché è qui che la si conosce: i due numeri escono dallo stesso pezzo di carta.
+  // Sta PRIMA della fattura perché è lei a decidere che cosa chiede il campo sotto — con la
+  // spedizione a zero quel campo chiede il parmigiano, con una spedizione chiede il totale.
+  // Il campo parte VUOTO finché la spedizione non è stata scritta: un `0` prestampato si
+  // legge «spedizione zero», che è la stessa bugia appena tolta dalla card dei topini.
+  // `salvaSpedizione()` legge il vuoto come zero, quindi azzerarla resta possibile.
+  h += '<div class="m-row"><label>Spedizione totale (€)</label>'
+    + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="spedizione-totale" autocomplete="off" id="inp-spedizione"'
+    + ' placeholder="quanto ti hanno addebitato" value="' + (sped > 0 ? sped : "") + '"></div>'
+    + '<div class="ar-actions"><button class="btn btn-cheese btn-mini" onclick="salvaSpedizione()">Salva spedizione</button></div>'
+    + '<div class="hint">Si divide fra le <b>quote</b> di chi partecipa. Se qualcuno ha già pagato, te lo dico prima di salvare.</div>';
+  h += '<div class="m-row" style="margin-top:14px;"><label>' + (conSped
         ? 'Totale pagato al negoziante (€) — la fattura, così com\'è'
         : 'Scontrino parmigiano (€)') + '</label>'
     + '<input class="inp" type="number" min="0" step="0.01" inputmode="decimal" name="costo-fattura" autocomplete="off" id="inp-costo-reale"'
@@ -1163,15 +1177,14 @@ function renderScontrinoHtml(){
           ? '<button class="btn btn-ghost btn-mini" onclick="azzeraCostoRealeTotale()">Togli</button>' : '')
     + '</div>';
 
-  // La spedizione è MOSTRATA, non ri-digitata: unica fonte di verità `gruppo.spedizione_totale`,
-  // che si modifica nella fase ①. Due input sulla stessa colonna in due card diverse si
-  // desincronizzano al primo salvataggio parziale.
+  // Lo scorporo in chiaro: la fattura meno la spedizione fa il formaggio. La spedizione qui
+  // è solo ripetuta — il campo dove si scrive è quello in cima a questa stessa card, e per
+  // questo non c'è più nessun «modifica» da premere.
   if(conSped){
     h += '<div class="scontrino-calc">'
       + '<div class="sc-riga"><span>Totale pagato al negoziante</span><span>'
       +   (scontrino == null ? "—" : eur(scontrino + sped)) + '</span></div>'
-      + '<div class="sc-riga"><span>− Spedizione'
-      +   '<button class="sc-mod" onclick="vaiAiPrezzi()">modifica</button></span><span>'
+      + '<div class="sc-riga"><span>− Spedizione</span><span>'
       +   eur(sped) + '</span></div>'
       + '<div class="sc-riga risultato"><span>= Scontrino parmigiano</span><span>'
       +   (scontrino == null ? "—" : eur(scontrino)) + '</span></div>'
@@ -1245,12 +1258,14 @@ async function azzeraCostoRealeTotale(){
 
 // ── DOCUMENTO A: ordine per il negoziante ──
 // Testo copiabile e basta, niente PDF: il bisogno reale è incollarlo in una email, e un
-// allegato costringerebbe ad aprirlo. Il totale ipotetico sta FUORI dal testo, accanto al
-// bottone: i prezzi li fa il negoziante, ed è la ragione per cui esiste `prezzo_reale`.
-// Metterceli dentro suggerirebbe che glieli stiamo dettando.
+// allegato costringerebbe ad aprirlo. Nel testo non ci sono prezzi: li fa il negoziante, ed
+// è la ragione per cui esiste `prezzo_reale`. Metterceli dentro suggerirebbe che glieli
+// stiamo dettando.
+// ⚠️ In fondo alla card c'era una riga: «Ai nostri prezzi farebbe N € per X kg. Questo
+// numero NON entra nel testo copiato.» Tolta il 05/09/2026 da iL KaJiNo: spendeva due frasi
+// per dare un numero e poi avvisare che lì non serviva a niente. `totaleIpotetico()` resta,
+// la usano la tab Tabella, il riepilogo dell'admin e il PDF.
 function renderNegozianteHtml(){
-  var ipotetico = persone.reduce(function(a, p){ return a + totaleIpotetico(p.id); }, 0);
-  var kgTot = kgPerTipo().reduce(function(a, d){ return a + d.kg; }, 0);
   var h = '<div class="card"><div class="card-titolo">\uD83D\uDCE7 Ordine per il negoziante</div>';
   h += '<div class="hint">Aggregato per stagionatura, senza nomi e senza prezzi. Si copia e si incolla in una email.</div>';
   h += '<div class="m-row"><label>Note per il negoziante (finiscono in fondo al testo)</label>'
@@ -1261,8 +1276,6 @@ function renderNegozianteHtml(){
     + '<button class="btn btn-ghost btn-mini" onclick="salvaNoteNegoziante()">Salva le note</button></div>';
   h += '<pre class="doc-testo" id="doc-negoziante">' + escapeHtml(testoOrdineNegoziante()) + '</pre>';
   h += '<button class="btn btn-cheese" onclick="copiaOrdineNegoziante()">\uD83D\uDCCB Copia il testo</button>';
-  h += '<div class="hint" style="margin-bottom:0;">Ai nostri prezzi farebbe <b>'
-    + eur(ipotetico) + '</b> per ' + kgFmt(kgTot) + '. Questo numero <b>non</b> entra nel testo copiato.</div>';
   h += '</div>';
   return h;
 }
@@ -1319,9 +1332,9 @@ async function salvaSpedizione(){
       + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " " + paroleATesta() + " → "
       + eurTesto(v / n) + "). Cambiandola i loro conti non tornano più.");
   }
-  // Senza fattura registrata non c'è nulla da tenere fermo e nulla da ricalcolare: in fase ①
-  // la spedizione si tocca di continuo, e un avviso a ogni salvataggio è il modo in cui gli
-  // avvisi muoiono. Il secondo blocco resta muto, e se anche il primo tace non si chiede niente.
+  // Senza fattura registrata non c'è nulla da tenere fermo e nulla da ricalcolare, e un
+  // avviso a ogni salvataggio è il modo in cui gli avvisi muoiono. Il secondo blocco resta
+  // muto, e se anche il primo tace non si chiede niente.
   var scontrinoNuovo = null;
   if(gruppo.costo_reale_totale != null){
     var fattura = parseFloat(gruppo.costo_reale_totale) + vecchia;
@@ -1349,6 +1362,28 @@ async function salvaSpedizione(){
 // La password non torna più indietro dal DB: il campo parte sempre vuoto, e vuoto
 // significa "non cambiare nulla", non "togli la password" — per quello c'è un bottone
 // suo, altrimenti un Salva distratto aprirebbe il gruppo a chiunque.
+// DOVE COMPARE IL TITOLO, verificato riga per riga il 05/09/2026. Nessuno di questi ne
+// tiene una copia: leggono tutti `gruppo.titolo` al momento di disegnare, quindi
+// `caricaTutto()` più il ridisegno li muovono insieme e non resta niente indietro.
+//   · schermata d'ingresso            `ui.js` #auth-gruppo-titolo
+//   · header dell'app, tutte le tab   `ui.js` #app-gruppo-titolo, in `renderApp()`
+//   · testo per il negoziante         `utils.js` `testoOrdineNegoziante()`
+//   · messaggio WhatsApp dell'arrivo  `testoPaccoArrivato()`
+//   · PDF: intestazione E nome del file
+//   · archivio, e le conferme di archiviazione ed eliminazione
+// ⚠️ Gli altri due messaggi WhatsApp — «Presenta l'app» e «Ordini aperti» — il titolo NON
+// ce l'hanno: portano l'insegna del Clan, che è scritta a mano e uguale per ogni giro.
+async function salvaTitoloGruppo(){
+  var v = document.getElementById("inp-titolo").value.trim();
+  if(!v){ alert("Il giro deve avere un nome."); return; }
+  if(v === gruppo.titolo){ dot("ok", "Già così 🧀"); return; }
+  try{
+    await rinominaGruppo(v);
+    await caricaTutto();
+    renderAdmin();
+    dot("ok", "Titolo salvato 🧀");
+  }catch(e){ alert("Errore: " + e.message); }
+}
 async function salvaPasswordGruppoAdmin(){
   var v = document.getElementById("inp-password").value.trim();
   if(!v){ alert("Scrivi una password, oppure usa \"Togli la password\"."); return; }
@@ -1440,12 +1475,14 @@ function _swSposta(el, acceso, stato){
 async function toggleSpedizionePersona(id, el){
   vibra(10);   // PRIMA di qualunque await: dopo, l'attivazione utente è già scaduta
   var val = !el.classList.contains("on");
-  _swSposta(el, val, val ? "inclusa" : "esclusa");
+  // ⚠️ Le due parole sono le stesse di `cardSpedizionePersoneHtml()` e si cambiano INSIEME:
+  // qui si riscrivono al tocco, là al ridisegno. Vedi il commento lungo là.
+  _swSposta(el, val, val ? "s\u00ec" : "no");
   try{
     await setPartecipaSpedizione(id, val);
     await caricaTutto(); renderAdmin();
   }catch(e){
-    _swSposta(el, !val, !val ? "inclusa" : "esclusa");
+    _swSposta(el, !val, !val ? "s\u00ec" : "no");
     dot("err", "Errore");
     alert("Errore: " + e.message);
   }

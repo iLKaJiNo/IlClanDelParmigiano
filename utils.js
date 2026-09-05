@@ -18,6 +18,11 @@ var note = [];               // bacheca del gruppo attivo, dalla più recente
 
 var mioId = null;            // persona.id scelta su questo device (per il gruppo corrente)
 
+// L'ultima `caricaTutto()` ha ricevuto risposta? La legge SOLO l'avvio, e serve a
+// distinguere «non c'è nessun giro» da «non sono riuscito a chiedere»: senza, una rete
+// assente lasciava `gruppo` a null e l'app concludeva che il Clan non stava ordinando.
+var ultimoCaricamentoOk = false;
+
 // ── AUTENTICAZIONE ADMIN ──
 // L'autorizzazione sta sull'EMAIL, non sul dispositivo. È la scelta che fa funzionare
 // tutto il resto: si può autorizzare qualcuno PRIMA che entri, e la sua identità lo segue
@@ -266,6 +271,16 @@ function quoteDi(persona){
 function quoteSpedizioneTotali(){
   return persone.reduce(function(a, p){ return a + quoteDi(p); }, 0);
 }
+// ⚠️ SI SA O NON SI SA. Questa è la domanda che governa tutto quello che la spedizione
+// scrive a schermo, e sta QUI, in un posto solo, perché a farsela sono in due — la card
+// Spedizione e il conto del topino sopra — e due copie della stessa domanda un giorno
+// rispondono in modo diverso.
+// Perché `> 0` e non `!= null`: in questo giro una spedizione davvero gratis non esiste, e
+// uno zero battuto dall'admin vuol dire «non l'ho ancora messa», non «è gratis». Il giorno
+// che una spedizione gratis esistesse davvero, questa funzione è il posto dove dirlo.
+function spedizioneNota(){
+  return (gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0) > 0;
+}
 // Quanto vale UNA quota: è la cifra che un amico fuori dal Clan deve a chi ha ordinato
 // per lui, ed è uguale per tutti — chi ordina per tre compreso.
 function quotaSpedizioneSingola(){
@@ -393,7 +408,7 @@ function kgPerTipo(){
 // costringerebbe ad aprirlo. Bonus: nessuna dipendenza, funziona anche offline.
 // Aggregato PER TIPO (il negoziante non deve sapere chi ha ordinato cosa), righe a zero
 // omesse, nessun nome e NESSUN PREZZO: i prezzi li fa lui, ed è la ragione per cui esiste
-// `prezzo_reale`. Il totale ipotetico si mostra in app accanto al bottone, fuori dal testo.
+// `prezzo_reale`. (Accanto al bottone c'era un totale ipotetico: tolto il 05/09/2026.)
 function testoOrdineNegoziante(){
   var dati = kgPerTipo().filter(function(d){ return d.kg > 0; });
   var tot = dati.reduce(function(a, d){ return a + d.kg; }, 0);

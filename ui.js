@@ -175,11 +175,69 @@ function initTabSwipe(){
     sx = 0;
   }, { passive: true });
 }
+// ── IL FOGLIETTO DEL NOME ──
+// Il tocco sul nome nell'header non corregge più: apre queste due voci. Sotto ci sono le
+// due cose che si possono fare con la propria identità, e SONO DUE COSE DIVERSE: la matita
+// dice «scritto male» e riscrive il nome di questo topino, l'altra dice «non sono io» e
+// cambia topino su questo dispositivo. Prima erano due link accanto nell'header, dove la
+// distinzione stava tutta nella lunghezza delle etichette.
+// ⚠️ IL COSTO È UN TOCCO IN PIÙ per correggere un refuso — operazione rara — in cambio
+// della riga intera che quei due link occupavano, che è la riga che ha rimesso il nome del
+// giro su una riga sola. Se al collaudo quel tocco in più dà fastidio, l'alternativa è che
+// il tocco corregga e una freccina accanto apra il resto. 05/09/2026.
+function apriIo(){
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  var el = document.getElementById("io-nome");
+  if(el) el.textContent = mia ? mia.nome : "";
+  openModal("modal-io");
+}
+function chiudiIo(){ closeModal("modal-io"); }
+// Le due voci chiudono PRIMA di agire, e non è un dettaglio: `correggiMioNome()` apre un
+// `prompt()` di sistema, e annullandolo si tornerebbe sul foglietto ancora aperto sopra
+// l'header — un passo indietro che nessuno ha chiesto. `cambioIdentita()` cambia schermata
+// sotto un modale aperto, che lascerebbe `body.modal-aperto` acceso sull'ingresso.
+function daFoglioCorreggiNome(){ chiudiIo(); correggiMioNome(); }
+function daFoglioCambiaTopino(){ chiudiIo(); cambioIdentita(); }
+
 function cambioIdentita(){
   clearMiaIdentita();
   mioId = null;
   mostraSchermata("auth-screen");
   renderAuth();
+}
+
+// Correggere il PROPRIO nome, dalla voce «Correggi il nome» del foglietto che si apre
+// toccando il proprio nome nell'header. Fino al 05/09/2026
+// `rinominaPersona()` la chiamava solo `admin.js`: un refuso battuto al primo ingresso
+// costava un messaggio all'admin.
+// ⚠️ NON APRE NIENTE DI NUOVO. La colonna `nome` è concessa ad `anon` da prima della fase
+// estetica: a livello di API un topino può già rinominare chiunque. Il permesso che
+// mancava era quello innocuo — il pericoloso c'è da mesi. Vale la stessa medicina delle
+// quote: la contromisura è la visibilità, non il lucchetto. In un clan di tredici persone
+// che si conoscono, un nome cambiato si vede subito.
+// Il controllo sui doppioni è lo stesso di `confermaNuovoNome()`: due «Marco» nella lista
+// d'ingresso sono indistinguibili, e chi torna sceglie a caso.
+async function correggiMioNome(){
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  if(!mia) return;
+  var nuovo = prompt("Come si scrive il tuo nome?", mia.nome);
+  if(nuovo == null) return;
+  nuovo = nuovo.trim();
+  if(!nuovo){ alert("Il nome non pu\u00f2 restare vuoto."); return; }
+  if(nuovo === mia.nome){ dot("ok", "Gi\u00e0 cos\u00ec \uD83E\uDDC0"); return; }
+  if(persone.some(function(p){ return p.id !== mioId && p.nome.toLowerCase() === nuovo.toLowerCase(); })){
+    alert("C'\u00e8 gi\u00e0 un topino con questo nome. Aggiungi un'iniziale per distinguervi.");
+    return;
+  }
+  try{
+    await rinominaPersona(mioId, nuovo);
+    await caricaTutto();
+    renderApp();   // ridisegna header e tab corrente: il nome sta in tutte e quattro
+    dot("ok", "Nome corretto \uD83E\uDDC0");
+  }catch(e){
+    dot("err", "Errore");
+    alert("Non sono riuscito a salvare: " + e.message);
+  }
 }
 
 // ── TAB ORDINA ──
@@ -244,7 +302,7 @@ function renderBannerArrivo(){
   b.innerHTML = '<span class="svg-inv svg-formaggio-arrivato"></span>'
     + '<div class="ba-testo"><b>Il formaggio \u00e8 arrivato!</b>'
     + 'Consegnato il ' + escapeHtml(fmtData(quando))
-    + '. Mettiti d\'accordo con l\'admin per il ritiro e per il pagamento.</div>';
+    + '. Mettiti d\'accordo con l\'admin per ritiro e pagamento.</div>';
   b.style.display = "";
 }
 
@@ -263,7 +321,7 @@ function renderBannerOrdini(chiusi){
   if(hint){
     hint.className = "hint" + (chiusi ? " chiuso" : "");
     hint.innerHTML = chiusi
-      ? "\uD83D\uDD12 <b>Ordini chiusi</b>: i tasti \u2212 e + non rispondono pi\u00F9. Per una modifica, parla con l'admin."
+      ? "🔒 <b>Ordini chiusi</b>. Per una modifica, parla con l'admin."
       : "Tocca \u2212 e + per scegliere quanti kg. Si salva da solo. \uD83E\uDDC0";
     hint.style.display = "";
   }
@@ -273,8 +331,10 @@ function renderBannerOrdini(chiusi){
   // il verde deve vincere. Il "perché" non si perde: è nella riga qui sopra.
   if(chiusi && !arrivoSegnalato()){
     b.className = "banner-ordini chiuso";
-    b.innerHTML = "\uD83D\uDD12 <b>Ordini chiusi</b> il " + escapeHtml(fmtDataOra(scadenza))
-      + ".<br>Per una modifica, parla con l'admin.";
+    // ⚠️ «Per una modifica, parla con l'admin» sta nella riga sopra gli stepper e NON qui:
+    // era la stessa frase, due riquadri sopra, per la stessa mano. Qui resta il solo fatto
+    // che quella riga non ha — quando.
+    b.innerHTML = "🔒 <b>Ordini chiusi</b> il " + escapeHtml(fmtDataOra(scadenza)) + ".";
     b.style.display = "";
   } else if(!chiusi && scadenza){
     b.className = "banner-ordini aperto";
@@ -355,66 +415,116 @@ function renderMioTotale(){
     else reale += stima;
   });
   var sped = quotaSpedizione(mia);
+  var noto = spedizioneNota();
   var cKg = confrontoKg(mioId);
 
+  // ⚠️ A SPEDIZIONE IGNOTA LA RIGA «CON SPEDIZIONE» NON SI SCRIVE, e vale per tutti e due i
+  // rami qui sotto. Con `spedizione_totale` assente `quotaSpedizione()` torna 0, e quella
+  // riga ripeteva il numero della riga sopra: due volte 42,00 € una sull'altra, con la
+  // seconda che dice «con spedizione». Si legge come «la spedizione è zero» — mentre la
+  // card qui sotto, dal lotto 7, dice correttamente che la cifra non si sa ancora.
+  // È lo stesso difetto del lotto 7 detto su un numero invece che su un `return`: una cosa
+  // che non si sa presentata come se si sapesse. Il criterio: un totale che non si conosce
+  // non si scrive uguale a uno che si conosce — se una riga può essere letta come «è zero»
+  // quando significa «non si sa», si toglie finché non si sa. 05/09/2026.
   if(!hoReale){
     // Finché l'admin non ha pesato nulla, la colonna "reale" sarebbe identica all'attesa:
     // mostrarla sarebbe solo rumore.
-    el.innerHTML = '<div class="mt-riga"><span>Parmigiano (atteso)</span><span>' + eur(atteso) + '</span></div>'
-      + '<div class="mt-riga grande"><span>Con spedizione</span><span>' + eur(atteso + sped) + '</span></div>';
+    // Il parmigiano atteso prende `grande` quando resta solo: è l'unica cifra che si sa, e
+    // una cifra sola non è una voce di dettaglio in attesa del totale — è il totale.
+    el.innerHTML = '<div class="mt-riga' + (noto ? '' : ' grande') + '"><span>Parmigiano (atteso)</span><span>' + eur(atteso) + '</span></div>'
+      + (noto ? '<div class="mt-riga grande"><span>Con spedizione</span><span>' + eur(atteso + sped) + '</span></div>' : '');
     return;
   }
-  el.innerHTML = '<div class="mt-griglia">'
-    + '<div class="mt-h"></div><div class="mt-h">solo parmigiano</div><div class="mt-h">con spedizione</div>'
+  // Nella griglia sparisce la COLONNA, non una riga: a cifra ignota ripeterebbe l'altra
+  // esattamente come la riga del ramo sopra. E la testata torna «parmigiano» senza «solo»:
+  // quel «solo» esisteva per contrapporsi a «con spedizione», e senza l'altra colonna non
+  // si contrappone più a niente.
+  el.innerHTML = '<div class="mt-griglia' + (noto ? '' : ' senza-sped') + '">'
+    + '<div class="mt-h"></div><div class="mt-h">' + (noto ? 'solo parmigiano' : 'parmigiano') + '</div>'
+    +   (noto ? '<div class="mt-h">con spedizione</div>' : '')
     + '<div class="mt-l">Atteso</div>'
     +   '<div class="mt-v">' + eur(atteso) + '</div>'
-    +   '<div class="mt-v">' + eur(atteso + sped) + '</div>'
+    +   (noto ? '<div class="mt-v">' + eur(atteso + sped) + '</div>' : '')
     + '<div class="mt-l reale">Reale</div>'
-    +   '<div class="mt-v reale">' + eur(reale) + '</div>'
-    +   '<div class="mt-v reale forte">' + eur(reale + sped) + '</div>'
+    +   '<div class="mt-v reale' + (noto ? '' : ' forte') + '">' + eur(reale) + '</div>'
+    +   (noto ? '<div class="mt-v reale forte">' + eur(reale + sped) + '</div>' : '')
     + '</div>'
     + (cKg ? '<div class="mt-scarto">' + escapeHtml(testoConfrontoKg(cKg)) + '</div>' : '')
     + '<div class="mt-nota">Il "reale" viene dalle etichette dei pezzi: lo inserisce l\'admin alla consegna.</div>';
 }
 
 // Riquadro spedizione: stesso conto per tutti, con la divisione in chiaro.
+// ⚠️ EPITAFFIO — qui c'era un `return` che usciva appena la cifra della spedizione mancava,
+// e si portava via lo stepper delle quote insieme al conto. Era un cortocircuito: le quote
+// sono un fatto del momento in cui si ordina — «per quante persone sto prendendo» — mentre
+// il costo è un fatto che si conosce con lo scontrino. Legandoli, non esisteva NESSUN
+// momento in cui un topino potesse impostare le sue quote sapendo cosa faceva: prima non
+// c'era il comando, dopo gli ordini erano chiusi e lo stepper spento.
+// Da qui in poi il costo governa SOLO ciò che dal costo dipende davvero — la riga del conto
+// e i due numeri di chi ordina per altri. Lo stepper c'è sempre, a ordini aperti.
 function renderSpedizione(){
   var el = document.getElementById("spedizione-box");
   if(!el) return;
-  var tot = gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0;
-  if(!tot){
-    el.innerHTML = '<div class="sped-nota">Nessuna spesa di spedizione su questo giro. \uD83C\uDF89</div>';
-    return;
+  var tot  = gruppo ? parseFloat(gruppo.spedizione_totale) || 0 : 0;
+  var noto = spedizioneNota();
+  var n    = quoteSpedizioneTotali();
+  var mia  = persone.find(function(p){ return p.id === mioId; });
+  var h    = "";
+
+  if(noto){
+    h += '<div class="sped-conto">'
+      +   '<span class="sped-num">' + eur(tot) + '</span>'
+      +   '<span class="sped-op">\u00f7</span>'
+      +   '<span class="sped-num">' + n + ' ' + paroleDivisore(n) + '</span>'
+      +   '<span class="sped-op">=</span>'
+      +   '<span class="sped-quota">' + eur(quotaSpedizioneSingola()) + ' ' + paroleATesta() + '</span>'
+      + '</div>';
+  }else{
+    // ⚠️ Qui c'era «Nessuna spesa di spedizione su questo giro. 🎉»: affermava un fatto che
+    // nessuno conosce ancora, e con la festa accanto si leggeva «spedizione gratis».
+    // ⚠️ Niente tabella degli scaglioni — decisione di iL KaJiNo del 05/09/2026. Le cifre
+    // oggi sono stabili, ma una tabella dentro l'app diventerebbe una cosa da ricordarsi di
+    // aggiornare, cioè una cosa che un giorno mentirebbe a tredici persone. Si dice da cosa
+    // dipende e perché conviene ordinare insieme, senza promettere numeri.
+    // Testo dettato da iL KaJiNo il 05/09/2026: non si parla di scontrino e non si dice
+    // «non si sa» — si dice da cosa dipende e che fino a ordine chiuso può muoversi, che è
+    // vero sia adesso sia dopo, e regge senza dover cambiare parole quando la cifra arriva.
+    h += '<div class="sped-nota">\u23F3 Il costo della spedizione dipende da quanti chili '
+      + 'ordina il gruppo e da quante quote ci sono, e la cifra può variare fino a ordine '
+      + 'chiuso. Più formaggio si ordina insieme, meno pesa su ciascuno.</div>';
   }
-  var n = quoteSpedizioneTotali();
-  var mia = persone.find(function(p){ return p.id === mioId; });
-  var h = '<div class="sped-conto">'
-    +   '<span class="sped-num">' + eur(tot) + '</span>'
-    +   '<span class="sped-op">\u00f7</span>'
-    +   '<span class="sped-num">' + n + ' ' + paroleDivisore(n) + '</span>'
-    +   '<span class="sped-op">=</span>'
-    +   '<span class="sped-quota">' + eur(quotaSpedizioneSingola()) + ' ' + paroleATesta() + '</span>'
-    + '</div>';
-  // Lo stepper sta QUI: sotto il conto che quel numero muove, e sopra le note.
-  h += renderQuoteMieHtml(mia);
+
+  // Lo stepper sta QUI: sotto il conto che quel numero muove, e sopra le note. E c'è anche
+  // quando il conto non c'è: è il punto di tutta questa riparazione.
+  h += renderQuoteMieHtml(mia, noto);
+
   // ✅ Questa frase resta VERA con le quote, e non va toccata: la quota *singola* è davvero
   // uguale per tutti, chi ordina per tre compreso — in lui è diverso il NUMERO di quote,
   // non il loro prezzo. Mostrando lì sopra tutti e due i numeri, diventa inequivocabile.
-  h += '<div class="sped-nota">' + (
-        !n ? "Nessuno partecipa ancora alla spedizione."
-        : (mia && mia.partecipa_spedizione
-            ? "Uguale per tutti quelli che partecipano, te compreso."
-            : "Tu non partecipi alla spedizione, quindi non la paghi.")
-      ) + '</div>';
-  // Finché gli ordini sono aperti la quota è provvisoria per tre ragioni insieme: la
-  // spedizione dipende dai kg totali, chi partecipa può ancora cambiare, e ora anche
-  // quante persone ciascuno porta con sé.
-  // A ordini chiusi sparisce: lì il numero è definitivo e ripeterlo sarebbe rumore.
-  if(!ordiniChiusi()){
-    h += '<div class="sped-nota">\u2139\uFE0F La spedizione dipende dai kg totali del gruppo: '
-      + 'finch\u00e9 l\'ordine \u00e8 aperto la quota pu\u00f2 ancora cambiare, anche perch\u00e9 '
-      + 'qualcuno pu\u00f2 aggiungere le persone per cui ritira. '
-      + 'Pi\u00f9 formaggio si ordina, meno pesa su ciascuno.</div>';
+  // ⚠️ A costo ignoto quella frase sparisce: parla di un conto che lì sopra non c'è, e
+  // senza il conto non c'è niente da disambiguare. Le altre due restano vere comunque.
+  var notaChi = !n ? "Nessuno partecipa ancora alla spedizione."
+    : (mia && mia.partecipa_spedizione
+        ? (noto ? "Uguale per tutti quelli che partecipano, te compreso." : "")
+        : "Non partecipi alla spedizione: non la paghi.");
+  if(notaChi) h += '<div class="sped-nota">' + notaChi + '</div>';
+
+  // LA RIGA CHE DICE «NON È ANCORA L'ULTIMO NUMERO». Finché gli ordini sono aperti la quota
+  // è provvisoria per tre ragioni insieme: la spedizione dipende dai kg totali, chi
+  // partecipa può ancora cambiare, e anche quante persone ciascuno porta con sé.
+  // A ordini chiusi sparisce: lì il numero è definitivo e ripeterlo sarebbe rumore. A costo
+  // ignoto sparisce anche, e non è una svista: una quota che non esiste ancora non può
+  // cambiare, e in quello stato la nota ⏳ qui sopra è l'unica cosa da leggere.
+  // ⚠️ ERA QUATTRO FATTI IN UNA FRASE — da cosa dipende la spedizione, che la quota può
+  // cambiare, che qualcuno può aggiungere persone, che ordinare insieme conviene — e ne
+  // dice uno: quello azionabile. Le tre ragioni qui sopra restano scritte per chi legge il
+  // codice; per chi legge lo schermo stanno nella sezione «La spedizione» della guida.
+  // ⚠️ «Più formaggio si ordina, meno pesa su ciascuno» qui non c'è più: resta nella nota ⏳
+  // dell'altro stato e discende da come la guida racconta la divisione. È l'unico fatto che
+  // questo accorciamento restringe, ed è segnalato nel report del lotto 8.
+  if(noto && !ordiniChiusi()){
+    h += '<div class="sped-nota">ℹ️ Finché l\'ordine è aperto la quota può ancora cambiare.</div>';
   }
   el.innerHTML = h;
 }
@@ -426,7 +536,9 @@ function renderSpedizione(){
 // rischio di fraintendimento di tutta questa modifica.
 // Non è un elemento nuovo: è lo stesso stepper delle righe del formaggio detto su un altro
 // numero — il valore mostrato È il dato, nessun bottone di conferma, si salva da solo.
-function renderQuoteMieHtml(mia){
+// `noto` dice se la cifra della spedizione è già stata inserita. Governa SOLO i due numeri
+// in fondo e la riga di rassicurazione: lo stepper in sé non dipende dal costo.
+function renderQuoteMieHtml(mia, noto){
   // I due stati in cui non si tocca sono DIVERSI perché dicono cose diverse.
   // «Non per te»: chi non partecipa non vede il comando affatto. Sotto c'è già scritto che
   // non la paga, e un comando morto sotto quella frase è rumore.
@@ -443,17 +555,30 @@ function renderQuoteMieHtml(mia){
     +         'onclick="stepQuote(-1)" aria-label="Una persona in meno">\u2212</button>'
     +       '<span class="step-val" id="step-quote">' + q + '</span>'
     +       '<button class="step-btn piu" ' + (q < QUOTE_MAX && !chiusi ? "" : "disabled ")
-    +         'onclick="stepQuote(1)" aria-label="Una persona in pi\u00f9">+</button>'
+    +         'onclick="stepQuote(1)" aria-label="Una persona in più">+</button>'
     +     '</div>'
     +   '</div>'
-    +   '<div class="sq-sotto"><b>Conta anche te</b>: lascia 1 se ordini solo per te. '
-    +     'Alzalo se ritiri anche per amici fuori dal Clan \u2014 sono altre consegne, e '
-    +     'la loro spedizione la paghi tu insieme alla tua.</div>';
+    // ⚠️ ERANO TRE FATTI IN UNA FRASE: conta te, alzalo se ritiri per altri, e il perché —
+    // sono altre consegne e le paghi tu. Quello azionabile è uno solo: CHI VA CONTATO. Il
+    // perché sta nella sezione «La spedizione» della guida, dove è già scritto per esteso.
+    // «Lascia 1 se ordini solo per te» non serve: 1 è il numero che lo stepper mostra già.
+    +   '<div class="sq-sotto"><b>Conta anche te</b>, e gli amici fuori dal Clan '
+    +     'per cui ritiri.</div>';
+  // ⚠️ Senza questa riga, chi apre la card prima che l'admin abbia messo la cifra vede un
+  // comando e nessun conto, e non capisce se serva davvero o se sia rotto. Si dice solo a
+  // ordini aperti: a ordini chiusi il comando è spento e «già adesso» sarebbe falso.
+  if(!noto && !chiusi){
+    h += '<div class="sq-sotto sq-adesso">Puoi impostarlo <b>già adesso</b>: la cifra '
+      + 'della spedizione arriva dopo.</div>';
+  }
   // I due numeri: richiesta esplicita di iL KaJiNo. Il secondo non è un di più — senza,
   // chi ordina per altri deve fare una divisione a mano ogni volta che va a bussare a un
   // amico, ed è il tipo di conto che si sbaglia sulla porta di casa.
   // A una quota sola il secondo coinciderebbe col primo: sarebbe rumore per tutti tranne uno.
-  if(q > 1){
+  // ⚠️ A costo ignoto NON si mostrano, e non per pudore: direbbero «0,00 €», che si legge
+  // come «non devi niente» invece di «non si sa ancora». Un numero che non si conosce non
+  // si scrive — si tace.
+  if(noto && q > 1){
     h += '<div class="sq-numeri">'
       +   '<div class="sq-riga"><span>Spedizione a tuo carico</span><span>'
       +     eur(quotaSpedizione(mia)) + '</span></div>'
@@ -738,7 +863,7 @@ var GUIDA_SEZIONI = [
 ];
 
 // `sezione` è il pezzo su cui la guida si apre già aperta. Senza argomento si apre tutta
-// chiusa, ed è la forma che usano le porte generiche: il link «guida» sotto il titolo e il
+// chiusa, ed è la forma che usano le porte generiche: l'icona `?` dell'header e il
 // primo ingresso di un topino. Con una sezione, quella e solo quella parte aperta — le
 // altre restano chiuse, che è il modo di dire «la risposta è qui» invece di «leggi tutto».
 function apriGuida(sezione){
@@ -1022,7 +1147,7 @@ function renderPagamenti(){
     html += '<a class="pay-link" href="' + escapeHtml(link) + '" target="_blank" rel="noopener">'
       + '<span class="pl-ico">\uD83D\uDCB3</span><div class="pl-info">'
       +   '<div class="pl-nome">PayPal \u2014 ' + eur(dovuto) + ' già inseriti</div>'
-      +   '<div class="pl-val">Controlla l\'importo prima di confermare: PayPal lascia modificarlo.</div>'
+      +   '<div class="pl-val">Controlla l\'importo prima di confermare.</div>'
       + '</div></a>';
   }
   if(impostazioni.satispay_link){
@@ -1053,12 +1178,12 @@ function renderSegnalazioneHtml(mia){
   if(mia.pagato){
     return '<div class="pay-stato confermato">\u2705 <b>Pagamento confermato</b>'
       + (mia.metodo_segnalato ? ' \u00b7 ' + escapeHtml(nomeMetodo(mia.metodo_segnalato)) : '')
-      + '<div class="ps-sub">L\'admin ha verificato. Sei a posto!</div></div>';
+      + '<div class="ps-sub">Sei a posto!</div></div>';
   }
   if(mia.pagamento_segnalato){
     return '<div class="pay-stato attesa">\u23F3 <b>In attesa di conferma</b>'
       + (mia.metodo_segnalato ? ' \u00b7 ' + escapeHtml(nomeMetodo(mia.metodo_segnalato)) : '')
-      + '<div class="ps-sub">Hai segnalato il pagamento. L\'admin lo conferma appena lo vede.</div>'
+      + '<div class="ps-sub">L\'admin lo conferma appena lo vede.</div>'
       + '<button class="btn btn-ghost btn-mini" style="margin-top:10px;" onclick="annullaMiaSegnalazione()">Annulla la segnalazione</button>'
       + '</div>';
   }
@@ -1091,10 +1216,9 @@ function mostraAvvisoStima(){
   document.getElementById("sp-sub").textContent = "";
   document.getElementById("sp-metodi").innerHTML = "";
   document.getElementById("sp-avviso").innerHTML =
-    '<div class="avviso-stima">Il tuo conto <b>non esiste ancora</b>. I pezzi non sono stati '
-    + 'tagliati, quindi il tuo totale \u00e8 solo <b>stimato</b>: non \u00e8 una cifra da pagare, '
-    + '\u00e8 un\'idea di quanto verr\u00e0. Il prezzo vero nasce quando l\'admin inserisce gli '
-    + 'importi delle etichette \u2014 e da l\u00ec in poi lo trovi qui.</div>'
+    '<div class="avviso-stima">Il tuo conto <b>non esiste ancora</b>: i pezzi non sono '
+    + 'stati tagliati. Quando l\'admin inserisce gli importi delle etichette, il totale '
+    + 'vero compare qui.</div>'
     + '<div class="m-btns" style="margin-bottom:4px;">'
     +   '<button class="btn btn-cheese" onclick="chiudiSegnalaPagamento()">Ho capito</button>'
     + '</div>';
@@ -1173,13 +1297,12 @@ function mostraInvitoInstalla(){
   if(appGiaInstallata() || invitoRifiutato()) return;
   var html, conBottone;
   if(_promptInstall){
-    html = '<b>Tienila a portata di zampa.</b><br>Installala sul telefono: si apre come '
-      + 'un\'app vera, senza ricercare il link su WhatsApp ogni volta.';
+    html = '<b>Tienila a portata di zampa.</b><br>Installala sul telefono: '
+      + 'niente più link da ritrovare su WhatsApp.';
     conBottone = true;
   } else if(isIOS()){
-    html = '<b>Tienila a portata di zampa.</b><br>Tocca <b>Condividi</b> \u2B06\uFE0F qui sotto, '
-      + 'poi <b>Aggiungi a Home</b>: si apre come un\'app vera, senza ricercare il link '
-      + 'su WhatsApp ogni volta.';
+    html = '<b>Tienila a portata di zampa.</b><br>Tocca <b>Condividi</b> ⬆️ qui sotto, '
+      + 'poi <b>Aggiungi a Home</b>: niente più link da ritrovare su WhatsApp.';
     conBottone = false;
   } else return;
   INVITI_INSTALLA.forEach(function(inv){

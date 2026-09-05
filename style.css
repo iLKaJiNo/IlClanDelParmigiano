@@ -116,21 +116,50 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
 .screen.attiva{display:flex;}
 
 /* ── HEADER ── */
-.top{display:flex; align-items:center; gap:var(--sp-6); padding:var(--sp-7) var(--sp-8); padding-top:max(var(--sp-7),env(safe-area-inset-top));
+/* DUE RIGHE. Sopra il nome del giro con tutta la larghezza; sotto chi sei a sinistra e i
+   comandi a destra. Le righe sono figlie dirette di `.top`, che è già `flex-wrap:wrap`:
+   basta `flex:0 0 100%` per impilarle, e l'header dell'ADMIN — che di righe ne ha una
+   sola, coi figli sciolti dentro `.top` — resta esattamente com'era. È la ragione per cui
+   `.top`, `.top img`, `.top h1`, `.top p`, `.top-titoli` e `.top-azioni` non cambiano:
+   valgono per tutti e due gli header, e qui sotto si aggiunge soltanto. */
+.top{display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-4) var(--sp-6); padding:var(--sp-7) var(--sp-8); padding-top:max(var(--sp-7),env(safe-area-inset-top));
   background:var(--bg2); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50;}
+/* ⚠️ `min-width:0` SU TUTTE E DUE LE RIGHE, e non è pedanteria. `flex:0 0 100%` dà la
+   larghezza giusta, ma un elemento flex ha `min-width:auto`, cioè non si stringe sotto il
+   suo min-content: e il min-content della riga 2 comprende il nome del topino per intero,
+   perché è `nowrap`. Misurato: con «Massimiliano Bartolomeo» la riga diventava larga 343
+   invece di 288 e spingeva il 🔐 fuori dallo schermo — i puntini non scattavano perché
+   dentro la riga non c'era niente da stringere, l'eccedenza era un piano più su. */
+.top-r1{flex:0 0 100%; min-width:0; display:flex; align-items:center; gap:var(--sp-6);}
+.top-r2{flex:0 0 100%; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5);}
 .top img{width:34px; height:34px; flex-shrink:0;}
 .top-titoli{flex:1; min-width:0;}
 .top h1{font-size:var(--fs-8); font-weight:800; color:var(--cheese-txt);}
+/* Il titolo prende quello che resta della riga 1: 320 − 32 di padding − 34 di logo − 12 di
+   gap = 242 px, contro i ~176 che «Il Clan del Parmigiano» vuole. Va a capo invece di
+   troncare: un nome di giro accorciato coi puntini non dice più dove sei, che è l'unica
+   cosa per cui quel titolo esiste. `min-width:0` gli concede di stringersi sotto la sua
+   larghezza minima se qualcuno battesse una parola sola lunghissima. */
+.top-r1 h1{min-width:0;}
 .top p{font-size:var(--fs-2); color:var(--dim); font-family:'Nunito',sans-serif; font-weight:600;}
-/* I due link della riga sotto il titolo, «cambia» e «guida». Stessa affordance di
-   `.med-cosa`: su un telefono il cursore non esiste, e l'unico modo per dire che una parola
-   si tocca è che si legga come un collegamento.
-   Il padding allarga il bersaglio e il margine negativo se lo riprende: la riga non si
-   sposta di un pixel e l'header non si allunga, ma il pollice trova sei pixel in più sopra
-   e sotto e quattro ai lati. Fra i due bersagli resta il separatore, che NON è cliccabile:
-   è quello che impedisce di prendere «cambia» volendo «guida». */
-.top-link{display:inline-block; color:var(--dim); text-decoration:underline; text-underline-offset:2px;
-  padding:var(--sp-3) var(--sp-2); margin:calc(-1 * var(--sp-3)) calc(-1 * var(--sp-2));}
+/* IL NOME DEL TOPINO, a sinistra della riga dei comandi. È anche il comando per aprire il
+   foglietto del nome: si tocca la cosa di cui si vuole fare qualcosa, e la matita è
+   l'unica affordance possibile su un telefono, dove il cursore non esiste. Niente
+   sottolineatura — sottolineare il proprio nome lo farebbe leggere come un link a
+   qualcos'altro invece che come la cosa stessa.
+   SI ACCORCIA COI PUNTINI, e le icone no: le icone sono bersagli e hanno una misura sotto
+   la quale non si toccano più; il nome invece si legge lo stesso a metà, e sull'altra riga
+   il nome del giro dice comunque dove sei. A 320 px gliene restano ~110.
+   Il margine negativo a SINISTRA soltanto: riporta il testo a filo col logo della riga
+   sopra, dove senza lo rientrerebbe il padding del bersaglio. A destra non c'è, se no si
+   mangerebbe il `gap` che lo tiene staccato dalle icone. */
+.top-io{flex:1 1 auto; min-width:0;}
+.top-io-link{display:inline-flex; align-items:center; gap:var(--sp-2);
+  max-width:calc(100% + var(--sp-4)); color:var(--dim); text-decoration:none;
+  padding:var(--sp-3) var(--sp-4); margin-left:calc(-1 * var(--sp-4));}
+.top-io-nome{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.top-matita{opacity:.85; flex-shrink:0;}
+.top-io-link:active{opacity:.6;}
 .top-azioni{display:flex; align-items:center; gap:var(--sp-4); flex-shrink:0;}
 .btn-pill{background:var(--sunken); border:1px solid var(--line); border-radius:20px; color:var(--dim);
   font-family:'Baloo 2',cursive; font-size:var(--fs-2); font-weight:700; padding:var(--sp-3) var(--sp-6); cursor:pointer;}
@@ -140,6 +169,19 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
   cursor:pointer; padding:0; line-height:1; transition:transform .1s, opacity .15s; -webkit-appearance:none;}
 .btn-ico:active{transform:scale(.9);}
 .btn-ico.spento{opacity:.4; filter:grayscale(1);}
+/* IL `?` DELLA GUIDA: disegnato, non un'emoji. ❓ e ❔ cambiano colore e misura da un
+   telefono all'altro, e questo deve stare in fila con ☀️ 🧀 🔐 senza sembrare un'intrusa.
+   AMBRA e non rosso: il rosso è del `.ico-badge`, che vive sull'icona qui accanto ed è
+   l'unica cosa dell'header che chiede un'azione. Un `?` rosso a un'icona di distanza da un
+   badge rosso o si confonde con lui o gli ruba l'urgenza — e il punto interrogativo dice
+   già da sé cosa fa: non gli serve il colore.
+   IL CORPO È PIÙ GRANDE di quello delle emoji accanto perché a parità di `font-size` una
+   lettera è visivamente più piccola: un'emoji riempie tutta la sua em, un `?` no. Misurato
+   in pagina a 320 px: le emoji di `.btn-ico` (`--fs-5`) hanno ~11 px di inchiostro, il `?`
+   a `--fs-9` ne ha ~12. A `--fs-10` ne aveva ~13,5 e si vedeva: stava in fila ma pesava
+   più delle altre tre. */
+.ico-q{font-family:'Baloo 2',cursive; font-size:var(--fs-9); font-weight:800; line-height:1;
+  color:var(--cheese-txt);}
 /* Pallino col numero sul 🔐: la coda delle segnalazioni di pagamento, visibile dall'app
    normale e da qualunque tab. Rosso e non color formaggio — il formaggio è il colore di
    tutto qui dentro, e un avviso che chiede un'azione deve staccare dal fondo. Il bordo
@@ -191,6 +233,27 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
    che `.auth-logo` dice già a 88x88: una misura sola, e le due schermate d'ingresso si
    somigliano perché SONO la stessa cosa vista in due momenti. */
 .schermo-centrato{align-items:center; justify-content:center; padding:var(--sp-10);}
+/* ── LA SCHERMATA D'ATTESA ──
+   La riga di stato ENTRA CON UN RITARDO, e il ritardo non ritarda niente: l'app parte alla
+   sua velocità, è solo la riga che aspetta 400 ms prima di farsi vedere. Se la rete
+   risponde in 200 ms non compare affatto, e non si vede nessun lampo; se ci mette un
+   secondo, la si legge. Logo e titolo invece sono immediati, e sono gli stessi delle due
+   schermate che possono seguire: quello che si vede all'istante zero non è un lampo, è
+   l'inizio di quello che resta.
+   ⚠️ `both` è obbligatorio: senza, durante i 400 ms la riga sarebbe già opaca e il ritardo
+   non servirebbe a niente. */
+.attesa-stato{margin-top:var(--sp-8); font-family:'Nunito',sans-serif; font-weight:600;
+  font-size:var(--fs-5); color:var(--dim); text-align:center;
+  animation:attesa-entra .3s ease .4s both;}
+@keyframes attesa-entra{from{opacity:0;} to{opacity:1;}}
+/* Chi ha chiesto meno movimento vede la riga subito. Si paga con un lampo sulle reti
+   veloci, ed è il baratto giusto: un lampo è una scortesia, un'animazione non richiesta è
+   una richiesta ignorata. */
+@media(prefers-reduced-motion:reduce){ .attesa-stato{animation:none;} }
+/* `.btn` è più in basso nel foglio e imporrebbe `width:100%`: qui serve la doppia classe,
+   non un `!important`. Un bottone largo quanto lo schermo su una schermata vuota sembra
+   l'azione principale, e questa è solo la porta di servizio di un errore. */
+.btn.attesa-riprova{width:auto; margin-top:var(--sp-8); padding:0 var(--sp-9);}
 /* La card è l'unica cosa sullo schermo: qui il testo centrato non è un vezzo, è l'asse su
    cui sta tutto il resto della schermata. */
 .card-ngiro{width:100%; max-width:360px; text-align:center;}
@@ -368,6 +431,9 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
 
 /* Griglia atteso/reale x con-e-senza-spedizione: i quattro numeri da confrontare */
 .mt-griglia{display:grid; grid-template-columns:auto 1fr 1fr; gap:var(--sp-2) var(--sp-4); align-items:baseline;}
+/* A spedizione ancora ignota la colonna «con spedizione» non c'è: ripeterebbe l'altra.
+   Restano l'etichetta e una colonna sola di numeri. */
+.mt-griglia.senza-sped{grid-template-columns:auto 1fr;}
 .mt-h{font-size:var(--fs-1); font-weight:800; color:var(--dim); text-transform:uppercase;
   letter-spacing:.3px; text-align:right; padding-bottom:var(--sp-2); line-height:1.2;}
 .mt-l{font-weight:800; color:var(--dim);}
@@ -395,6 +461,10 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
 .sq-label{font-weight:700; font-size:var(--fs-5); line-height:1.25;}
 .sq-sotto{margin-top:var(--sp-3); font-family:'Nunito',sans-serif; font-size:var(--fs-2);
   font-weight:600; color:var(--dim); line-height:1.35;}
+/* La riga che compare SOLO finché la cifra della spedizione non c'è: dice che lo stepper
+   serve lo stesso. Non è un'altra postilla — è la risposta alla domanda «e questo è rotto?»,
+   e per questo sta nel colore del testo pieno invece che in quello attenuato delle note. */
+.sq-adesso{color:var(--text);}
 /* Ordini chiusi: stessa attenuazione di `.tipo-row.bloccata`, perché è lo stesso stato.
    Il comando resta e si spegne — sparire direbbe «non per te», che qui sarebbe falso. */
 .sped-quote.bloccata{opacity:.62;}
@@ -420,6 +490,10 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
 .mt-riga.grande{margin-top:var(--sp-3); padding-top:var(--sp-4); border-top:1px solid var(--line);
   color:var(--text); font-size:var(--fs-7); font-weight:800;}
 .mt-riga.grande span:last-child{color:var(--cheese-txt);}
+/* Quando la riga grande è anche la prima — spedizione ancora ignota, resta il solo
+   parmigiano atteso — il filetto che la stacca da quella sopra non ha niente da staccare, e
+   raddoppierebbe il bordo che `.mio-totale` ha già a dieci pixel di distanza. */
+.mt-riga.grande:first-child{margin-top:0; padding-top:0; border-top:none;}
 
 /* Via le frecce native dai campi numerici (admin compreso) — §5.B */
 input[type=number]{-moz-appearance:textfield; appearance:textfield;}
@@ -673,6 +747,19 @@ table.tb tr:last-child td{border-bottom:none;}
 .m-row label{display:block; font-size:var(--fs-3); font-weight:700; color:var(--text); margin-bottom:var(--sp-2); font-family:'Nunito',sans-serif;}
 .m-btns{display:flex; gap:var(--sp-5); margin-top:var(--sp-8);}
 .m-btns .btn{flex:1;}
+/* LE DUE VOCI DEL FOGLIETTO DEL NOME. Sono `.btn-ghost`, cioè la stessa cosa che l'app
+   usa già dappertutto; l'unica concessione è l'altezza libera, perché «← Non sono io —
+   cambia topino» a 320 px non sta su una riga e un `.btn` alto 50 px fissi la manderebbe
+   fuori dal bottone. Non è una superficie nuova per due bottoni: è quella di sempre a cui
+   è permesso andare a capo. */
+.io-voci{display:flex; flex-direction:column; gap:var(--sp-5);}
+.io-voce{height:auto; min-height:50px; padding:var(--sp-5) var(--sp-6); line-height:1.25;
+  display:flex; align-items:center; gap:var(--sp-5); text-align:left;}
+/* L'iconcina in colonna a sinistra, non incollata alla parola: le due voci si leggono come
+   una lista di scelte, e l'«Annulla» qui sotto — centrato, come in tutti gli altri modali —
+   si distingue da loro senza bisogno di un colore. Larghezza fissa perché ✏️ e ← non sono
+   larghe uguali, e senza le due parole partirebbero da due punti diversi. */
+.io-voce-ico{flex-shrink:0; width:1.3em; text-align:center;}
 
 /* ── LA GUIDA: sezioni a fisarmonica ──
    `<details>` nativi. Il triangolino di sistema si toglie in due modi perché i browser lo

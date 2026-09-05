@@ -112,6 +112,36 @@ if("serviceWorker" in navigator){
 </head>
 <body>
 
+<!-- SCHERMATA D'ATTESA — la prima cosa che l'app disegna, e l'UNICA `.screen` che nasce
+     `attiva`. Prima lo era «Nessun giro aperto», ed era un difetto: il browser disegna il
+     markup nell'istante zero, prima che una riga di JavaScript abbia girato; poi
+     `appStart()` fa due andate e ritorni verso Supabase e solo alla fine
+     `mostraSchermataGiusta()` decide. In mezzo passa circa un secondo, e in quel secondo
+     l'app mostrava UNA RISPOSTA — «non c'è nessun giro» — mentre la verità era che non
+     l'aveva ancora chiesto. Trovata da iL KaJiNo aprendo la PWA, 05/09/2026.
+     ⚠️ NESSUN'ALTRA SCHERMATA DEVE NASCERE `attiva`. Se un giorno se ne aggiunge una, è
+     qui che questa riparazione si rompe, in silenzio e solo per un secondo.
+     IL TEMA GIUSTO CE L'HA GIÀ: `pre-chiaro` e `pre-tile` le mette lo script nel <head>
+     prima del primo paint, apposta per non far vedere il lampo del tema sbagliato. Questa
+     schermata non aggiunge niente di suo, quindi non può violare quella regola.
+     Logo e titolo sono gli stessi, nello stesso posto, delle due schermate che possono
+     seguire: quello che cambia sotto è solo la riga di stato. -->
+<div id="attesa-screen" class="screen schermo-centrato attiva">
+  <img src="./logo.svg" class="auth-logo" alt="">
+  <div class="auth-title">Il Clan del Parmigiano</div>
+  <!-- ⚠️ QUI VIVE `#sync-txt`, e prima non viveva da nessuna parte: `dot(cls, txt)` scrive
+       il testo su questo id, che in `index.html` non esisteva, e il suo `if(t)` falliva in
+       silenzio da mesi. Cosa si è deciso di farne sta scritto accanto a `dot()` in api.js.
+       Il testo qui dentro è lo stesso che `appStart()` scrive alla prima riga: serve
+       all'istante zero, prima che quella riga giri. Se cambia uno, cambia l'altro. -->
+  <div class="attesa-stato" id="sync-txt">Annusando il formaggio…</div>
+  <!-- Compare solo se la domanda non è arrivata a destinazione. Senza, una rete assente
+       riportava dritti su «Nessun giro aperto» — la stessa bugia di prima, per un motivo
+       diverso: non «non l'ho ancora chiesto» ma «non sono riuscito a chiedere». -->
+  <button class="btn btn-ghost attesa-riprova" id="attesa-riprova" style="display:none;"
+          onclick="riprovaAvvio()">Riprova</button>
+</div>
+
 <!-- NESSUN GIRO APERTO — la schermata che si vede FRA UN GIRO E L'ALTRO.
      Prima diceva «Nessun gruppo d'acquisto attivo — l'admin deve crearne uno nuovo» e
      offriva un bottone per l'area admin: era la risposta dell'ADMIN, mostrata a tutti.
@@ -124,13 +154,16 @@ if("serviceWorker" in navigator){
      ⚠️ Questa è una `.screen` a sé, e non l'app con le tab svuotate: la tab bar, il franco
      di 90px in fondo a `.body` e lo swipe fra tab stanno tutti dentro `#app-screen` e qui
      non esistono. Non c'è niente da nascondere, e niente che possa tornare da solo. -->
-<div id="nogruppo-screen" class="screen schermo-centrato attiva">
+<div id="nogruppo-screen" class="screen schermo-centrato">
   <img src="./logo.svg" class="auth-logo" alt="">
   <div class="auth-title">Il Clan del Parmigiano</div>
   <div class="card card-ngiro">
     <div class="card-titolo">🧀 Nessun giro aperto</div>
-    <p class="ngiro-testo">In questo momento il Clan non sta ordinando. Quando l'admin apre il
-      giro successivo lo trovi qui, e ti arriverà un messaggio sul gruppo.</p>
+    <!-- «Lo trovi qui» non c'è più: lo si sta leggendo qui. Restano i due fatti che chi
+         apre l'app fra un giro e l'altro non può dedurre da solo — che non è rotta, e che
+         non deve tornare a controllare. -->
+    <p class="ngiro-testo">Il Clan non sta ordinando. Quando l'admin apre il giro successivo
+      ti arriva un messaggio sul gruppo.</p>
     <button class="btn btn-cheese" onclick="apriGuida()">Come funziona il Clan</button>
   </div>
   <button class="btn btn-ghost ngiro-admin" onclick="apriAdmin()">🐭 Vai all'area Admin</button>
@@ -169,27 +202,54 @@ if("serviceWorker" in navigator){
 <!-- APP PRINCIPALE -->
 <div id="app-screen" class="screen">
   <div class="top">
-    <img src="./logo.svg" alt="">
-    <div class="top-titoli">
+    <!-- DUE RIGHE, E LA SEPARAZIONE È IL PUNTO. Sopra il nome del giro con tutta la
+         larghezza per sé; sotto chi sei a sinistra e i comandi a destra.
+         IL DIFETTO CHE RIPARA: titolo e icone si contendevano la stessa riga. A 320 px al
+         titolo restavano 62 px e «Il Clan del Parmigiano» a `--fs-8` ne vuole circa 176,
+         così il nome del giro — la cosa che dice dove sei — andava a capo su tre righe.
+         Non era un difetto delle icone né del titolo: era il difetto di metterli insieme.
+         Separati, al titolo restano ~242 px e torna su una riga sola. 05/09/2026.
+         Tre iterazioni del lotto 7 avevano risolto i vincoli — spazio, bersagli, andare a
+         capo — senza risolvere la forma, perché la forma non si risolveva lì dentro. -->
+    <div class="top-r1">
+      <img src="./logo.svg" alt="">
       <h1 id="app-gruppo-titolo">Clan del Parmigiano</h1>
-      <!-- LA TERZA PORTA DELLA GUIDA. Sta qui e NON come icona nell'header: a 320 px, con un
-           quarto `.btn-ico` accanto a ☀️ 🧀 🔐, al titolo resterebbero 62 px e «Il Clan del
-           Parmigiano» a `--fs-8` ne vuole circa 176. Già oggi va a capo; con la quarta icona
-           diventerebbe un moncone. Qui costa zero slot, riusa il modello di link testuale
-           che sta a due centimetri, e si vede da tutte le tab.
-           I due link hanno una classe: erano uno stile in linea (`color:var(--dim)`) e
-           toccando la riga si convertono tutti e due, non uno solo. -->
-      <p>🐭 <span id="app-mio-nome"></span> · <a class="top-link" href="javascript:void(0)" onclick="cambioIdentita()">cambia</a> · <a class="top-link" href="javascript:void(0)" onclick="apriGuida()">guida</a></p>
     </div>
-    <div class="top-azioni">
-      <span class="sync-dot" id="dot"></span>
-      <button class="btn-ico" id="btn-tema" onclick="toggleTema()" title="Cambia tema">☀️</button>
-      <button class="btn-ico" id="btn-tile" onclick="toggleTile()" title="Sfondo a formaggio">🧀</button>
-      <!-- Il pallino con le segnalazioni in attesa sta QUI e non solo dentro l'admin:
-           l'admin nel 90% del tempo sta nell'app normale come tutti, e un avviso che si
-           vede solo da chi è già entrato non avvisa nessuno. Acceso solo se `is_admin`. -->
-      <button class="btn-ico" id="btn-admin" onclick="apriAdmin()" title="Area admin">🔐<span
-              class="ico-badge" id="admin-badge" style="display:none;"></span></button>
+    <div class="top-r2">
+      <!-- IL NOME È IL COMANDO: si tocca la cosa che si vuole cambiare, e la matita è
+           l'unica affordance possibile su un telefono, dove il cursore non esiste.
+           ⚠️ APRE UN FOGLIETTO, non corregge subito. Dentro ci sono le due cose che si
+           possono fare col proprio nome, e SONO DUE COSE DIVERSE: «correggi il nome» dice
+           «scritto male» e riscrive il nome di questo topino; «non sono io» cambia identità
+           su questo dispositivo. Erano due link su una riga loro — la riga che questa
+           disposizione ha liberato; nel foglietto stanno per esteso, una sopra l'altra, e
+           non si possono confondere. Il costo è un tocco in più per correggere un refuso:
+           vedi il commento su `apriIo()` in ui.js. -->
+      <p class="top-io"><a class="top-io-link" href="javascript:void(0)" onclick="apriIo()"
+         title="Il tuo nome">🐭 <span class="top-io-nome" id="app-mio-nome"></span> <span class="top-matita">✏️</span></a></p>
+      <div class="top-azioni">
+        <span class="sync-dot" id="dot"></span>
+        <button class="btn-ico" id="btn-tema" onclick="toggleTema()" title="Cambia tema">☀️</button>
+        <button class="btn-ico" id="btn-tile" onclick="toggleTile()" title="Sfondo a formaggio">🧀</button>
+        <!-- LA TERZA PORTA DELLA GUIDA, e dal 05/09/2026 è un'icona. Prima era un link
+             testuale, e la ragione era una misura: con un quarto `.btn-ico` ACCANTO AL
+             TITOLO al titolo restavano 62 px a 320 (e ~135 anche a 393, contro i ~176 che
+             vuole). Quella misura resta vera e non decide più niente, perché le icone non
+             stanno più accanto al titolo: su una riga loro le quattro ci stanno e al nome
+             del topino avanzano ~110 px.
+             ⚠️ Il `?` è DISEGNATO, non un'emoji: ❓ e ❔ cambiano colore e misura da un
+             telefono all'altro, e questo deve stare in fila con tre emoji senza sembrare
+             un'intrusa. Ambra e non rosso: il rosso è già preso dal `.ico-badge`
+             sull'icona qui accanto, che è l'unica cosa dell'header che chiede un'azione, e
+             un `?` rosso a un'icona di distanza o si confonde con lui o gli ruba
+             l'urgenza. Il punto interrogativo dice già da sé cosa fa. -->
+        <button class="btn-ico" id="btn-guida" onclick="apriGuida()" title="Guida"><span class="ico-q">?</span></button>
+        <!-- Il pallino con le segnalazioni in attesa sta QUI e non solo dentro l'admin:
+             l'admin nel 90% del tempo sta nell'app normale come tutti, e un avviso che si
+             vede solo da chi è già entrato non avvisa nessuno. Acceso solo se `is_admin`. -->
+        <button class="btn-ico" id="btn-admin" onclick="apriAdmin()" title="Area admin">🔐<span
+                class="ico-badge" id="admin-badge" style="display:none;"></span></button>
+      </div>
     </div>
   </div>
 
@@ -207,7 +267,7 @@ if("serviceWorker" in navigator){
            PER TOGLIERLO TUTTO:  grep -rn "MARCATORE DI PASSO" .
            Sono tre punti: questo blocco, la regola `.marcatore-passo` in style.css,
            e il suffisso del passo in `CACHE_NAME` dentro sw.js. -->
-      <div class="marcatore-passo">🔧 passo R3·9 · cache v60</div>
+      <div class="marcatore-passo">🔧 passo L8·4 · cache v74</div>
       <div class="banner-arrivo" id="banner-arrivo" style="display:none;"></div>
       <div class="card">
         <div class="card-titolo">Il tuo ordine</div>
@@ -292,6 +352,26 @@ if("serviceWorker" in navigator){
        Sta qui e non altrove perché questo è il posto dove va chi sta collaudando, e
        non disturba nessun topino. La riempie `aggiornaVersioneViva()` in admin.js. -->
   <div class="versione-viva" id="versione-viva"></div>
+</div>
+
+<!-- MODALE DEL NOME: le due cose che si possono fare con la propria identità.
+     ⚠️ SONO DUE COSE DIVERSE, ed è per non farle confondere che questo foglietto esiste:
+     la prima riscrive il nome di questo topino («scritto male»), la seconda cambia topino
+     su questo dispositivo («non sono io»). Erano due link accanto nell'header, e la
+     distinzione stava tutta nella lunghezza delle etichette; qui stanno per esteso, una
+     sopra l'altra, con lo spazio per dirlo.
+     Nessuna superficie nuova: è il `.modal` che l'app ha già, con due bottoni dentro. -->
+<div class="modal-overlay" id="modal-io" onclick="if(event.target===this&&topModal()==='modal-io')chiudiIo()">
+  <div class="modal">
+    <h2>🐭 <span id="io-nome"></span></h2>
+    <div class="io-voci">
+      <button class="btn btn-ghost io-voce" onclick="daFoglioCorreggiNome()"><span class="io-voce-ico">✏️</span>Correggi il nome</button>
+      <button class="btn btn-ghost io-voce" onclick="daFoglioCambiaTopino()"><span class="io-voce-ico">←</span>Non sono io — Cambia Topino</button>
+    </div>
+    <div class="m-btns">
+      <button class="btn btn-ghost" onclick="chiudiIo()">Annulla</button>
+    </div>
+  </div>
 </div>
 
 <!-- MODALE INGRESSO: conferma identità + password di gruppo al primo accesso -->

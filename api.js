@@ -3,6 +3,19 @@
 //  Caricamento dati, realtime, azioni verso Supabase.
 // ════════════════════════════════════════════════════════
 
+// Il pallino di sincronia, e il suo testo.
+// ⚠️ COSA SI È DECISO DI `#sync-txt`, 05/09/2026. Quell'id non esisteva in `index.html`:
+// il `if(t)` falliva in silenzio, e le ~50 frasi che questa funzione scrive da mesi non le
+// ha mai lette nessuno. Adesso un posto ce l'ha, ed è la SCHERMATA D'ATTESA — solo lì.
+// Perché non un posto fisso nell'header, che le accenderebbe tutte: sono cinquanta testi
+// scritti da chi li credeva invisibili, e accenderli in blocco significa pubblicare
+// cinquanta stringhe che nessuno ha riletto. Vanno guardate prima, una per una, e non è
+// lavoro di questo passo.
+// ⚠️ QUINDI IL CONTRATTO DI OGGI È QUESTO, e va detto invece che subìto: `cls` — il colore
+// del pallino — vale sempre; `txt` si vede solo dove una schermata offre `#sync-txt`, cioè
+// all'avvio. Le altre frasi restano scritte e mute: sono bozze in attesa di una decisione,
+// non interfaccia viva. La decisione — accenderle dopo una rilettura, oppure togliere il
+// secondo parametro da cinquanta chiamate — sta nel report.
 function dot(cls, txt){
   var d = document.getElementById("dot");
   var t = document.getElementById("sync-txt");
@@ -16,9 +29,39 @@ async function appStart(){
   // Qui stava, in un'altra vita, un innesco della vibrazione. Non c'è più da nessuna
   // parte: è stato misurato inutile il 02/09/2026 e tolto anche dal <head>. Nessun
   // innesco può funzionare — vedi il commento accanto a `vibra()` in utils.js.
-  dot("", "Annusando il formaggio...");
+  dot("", "Annusando il formaggio\u2026");
   await initAuth();     // la sessione admin, se su questo device c'è, PRIMA del primo render
   await caricaTutto();
+  if(!ultimoCaricamentoOk){ avvioFallito(); return; }
+  finisciAvvio();
+}
+
+// ── L'AVVIO CHE NON È ARRIVATO IN FONDO ──
+// ⚠️ `caricaTutto()` cattura l'errore e va avanti: `gruppo` resta a null, e `appStart()`
+// concludeva «nessun giro aperto». È la stessa bugia della schermata che nasceva accesa,
+// per un motivo diverso — non «non l'ho ancora chiesto» ma «non sono riuscito a chiedere» —
+// e la si vedeva sul serio, non per un secondo: con la rete assente restava lì.
+// Si resta sulla schermata d'attesa, che ora dice «Offline» perché `#sync-txt` ha un posto,
+// e si offre di riprovare.
+function avvioFallito(){
+  var s = document.getElementById("sync-txt");
+  var b = document.getElementById("attesa-riprova");
+  // La riga di stato entra con un ritardo, per non lampeggiare quando la rete è veloce:
+  // qui la rete veloce non c'è stata, e il ritardo diventerebbe un'attesa in più.
+  if(s) s.style.animation = "none";
+  if(b) b.style.display = "";
+}
+async function riprovaAvvio(){
+  var b = document.getElementById("attesa-riprova");
+  if(b) b.style.display = "none";
+  dot("", "Annusando il formaggio\u2026");
+  await caricaTutto();
+  if(!ultimoCaricamentoOk){ avvioFallito(); return; }
+  finisciAvvio();
+}
+// Il pezzo di avvio che vuole i dati in casa. Sta a parte perché lo fanno in due — l'avvio
+// e il riprova — e girano una volta sola: dopo, la schermata d'attesa non torna più.
+function finisciAvvio(){
   initRealtime();
   initTabSwipe();
   mostraSchermataGiusta();
@@ -62,9 +105,11 @@ async function caricaTutto(){
     // tutto il resto — un admin tolto da un altro dispositivo sparisce dall'elenco da solo.
     if(eAdmin) await caricaAdminAutorizzati();
 
+    ultimoCaricamentoOk = true;
     dot("ok", "Sincronizzato \uD83E\uDDC0");
   }catch(e){
     console.error(e);
+    ultimoCaricamentoOk = false;
     dot("err", "Offline");
   }
 }
@@ -321,6 +366,12 @@ async function aggiornaImpostazioni(patch){
   if(r.error) throw r.error;
 }
 // Riceve GIÀ l'hash: il testo in chiaro non deve mai arrivare fino a qui.
+// Il titolo del giro non aveva nessun `update`: scritto male al primo giro restava lì per
+// sempre e finiva così nell'archivio, nel PDF e nei testi per WhatsApp.
+async function rinominaGruppo(titolo){
+  var r = await sb.from("gruppi_acquisto").update({ titolo: titolo }).eq("id", gruppo.id);
+  if(r.error) throw r.error;
+}
 async function aggiornaPasswordGruppo(hash){
   var r = await sb.from("gruppi_acquisto").update({ password_hash: hash || null }).eq("id", gruppo.id);
   if(r.error) throw r.error;
