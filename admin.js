@@ -51,7 +51,31 @@ function numeroCache(nome){
 async function aggiornaVersioneViva(){
   var el = document.getElementById("versione-viva");
   if(!el) return;
-  el.textContent = (await rigaCache()) + "\n" + indirizzoPagina();
+  el.textContent = (await rigaCache()) + "\n" + indirizzoPagina() + rigaRicaricamento();
+}
+
+// ── SI È RICARICATA DA SOLA? ────────────────────────────────────────────────
+// Il ricaricamento una tantum di `index.html` (R3) dura due secondi e poi non lascia
+// traccia: per collaudarlo bisognava fotografarlo mentre succedeva, cioè chiedere alla
+// PERSONA di essere veloce invece che allo STRUMENTO di ricordare. È lo stesso errore del
+// marcatore che non sapeva distinguere una cache vuota da una versione, in un'altra forma.
+//
+// L'ora del ricaricamento è già scritta: la mette la guardia ③ in `index.html` prima di
+// chiamare `location.reload()`. Qui non si aggiunge nessun dato, si legge quello che c'è.
+// Sta in `sessionStorage`, quindi vale per questa scheda e muore con lei: se la riga
+// compare, l'app si è ricaricata da sola **in questa apertura**.
+//
+// ⚠️ Non è impalcatura da togliere a fine fase. Il giorno che qualcuno dirà «l'app mi ha
+// lampeggiato», questa riga è l'unica cosa che potrà rispondere sì o no.
+function rigaRicaricamento(){
+  try{
+    var quando = +(sessionStorage.getItem("clan_parm_ricarica") || 0);
+    if(!quando) return "";
+    var s = Math.round((Date.now() - quando) / 1000);
+    return "\n\u21bb si è ricaricata da sola "
+         + (s < 90 ? s + (s === 1 ? " secondo fa" : " secondi fa")
+                   : Math.round(s / 60) + " minuti fa");
+  }catch(e){ return ""; }   // navigazione privata: la riga non c'è, e non è un guasto
 }
 
 // La prima riga: com'è andata l'installazione. Sta in una funzione sua perché ha sei uscite
