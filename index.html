@@ -97,6 +97,12 @@ if("serviceWorker" in navigator){
       var ora = Date.now(), ultimo = +(sessionStorage.getItem("clan_parm_ricarica") || 0);
       if(ora - ultimo < 20000) return;
       sessionStorage.setItem("clan_parm_ricarica", String(ora));
+      // E QUANTO CI HA MESSO. `performance.now()` conta dall'inizio di QUESTO caricamento,
+      // quindi qui dentro c'è esattamente il ritardo fra «ho aperto l'app» e «si è
+      // ricaricata» — l'unico numero che dice se il ricaricamento può arrivare mentre uno
+      // sta scrivendo. Senza, la riga in fondo all'admin dice «N secondi fa», che è un'altra
+      // cosa e si legge come questa: il 05/09 ha ingannato chi l'aveva appena scritta.
+      sessionStorage.setItem("clan_parm_ricarica_dopo", String(Math.round(performance.now() / 100) / 10));
     }catch(e){}   // navigazione privata, quota piena: si ricarica lo stesso, ① e ② tengono
     _giaRicaricato = true;
     location.reload();
@@ -201,7 +207,7 @@ if("serviceWorker" in navigator){
            PER TOGLIERLO TUTTO:  grep -rn "MARCATORE DI PASSO" .
            Sono tre punti: questo blocco, la regola `.marcatore-passo` in style.css,
            e il suffisso del passo in `CACHE_NAME` dentro sw.js. -->
-      <div class="marcatore-passo">🔧 passo R3·8 · cache v59</div>
+      <div class="marcatore-passo">🔧 passo R3·9 · cache v60</div>
       <div class="banner-arrivo" id="banner-arrivo" style="display:none;"></div>
       <div class="card">
         <div class="card-titolo">Il tuo ordine</div>

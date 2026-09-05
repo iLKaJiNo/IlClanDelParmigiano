@@ -72,9 +72,19 @@ function rigaRicaricamento(){
     var quando = +(sessionStorage.getItem("clan_parm_ricarica") || 0);
     if(!quando) return "";
     var s = Math.round((Date.now() - quando) / 1000);
-    return "\n\u21bb si è ricaricata da sola "
-         + (s < 90 ? s + (s === 1 ? " secondo fa" : " secondi fa")
-                   : Math.round(s / 60) + " minuti fa");
+    var fa = s < 90 ? s + (s === 1 ? " secondo fa" : " secondi fa")
+                    : Math.round(s / 60) + " minuti fa";
+    // ⚠️ DUE NUMERI, E NON SONO LO STESSO. «dopo 2,1 s» è il RITARDO: quanto ha aspettato
+    // dall'apertura prima di ricaricarsi, ed è l'unico che dice se può arrivare addosso a
+    // chi sta scrivendo una nota. «5 secondi fa» è quanto tempo è passato da allora, e
+    // dentro c'è anche il tempo che ci hai messo tu ad arrivare fin qui.
+    // Il 05/09 la riga aveva solo il secondo e l'ho letto come se fosse il primo, scrivendo
+    // in due documenti un rischio quattro volte più grande del vero. Il numero che serve
+    // dev'esserci, non dedursi.
+    var dopo = sessionStorage.getItem("clan_parm_ricarica_dopo");
+    return "\n\u21bb si è ricaricata da sola"
+         + (dopo ? " dopo " + String(dopo).replace(".", ",") + " s dall'apertura" : "")
+         + " (" + fa + ")";
   }catch(e){ return ""; }   // navigazione privata: la riga non c'è, e non è un guasto
 }
 

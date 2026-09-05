@@ -122,9 +122,15 @@ la cache `v57` conteneva l'`index.html` della `v56`.
 **Dopo aver pubblicato, apri l'app una volta.** Si ricarica da sola: quando il service worker
 nuovo prende il comando della scheda scatta `controllerchange`, e il blocco nel `<head>` di
 `index.html` fa un ricaricamento una tantum. La seconda apertura la fa il browser al posto tuo.
-Fra l'apertura e il ricaricamento passano dai 2 ai 10 secondi — **aspetta che sia successo prima
-di concludere qualcosa**, e la riga in fondo all'admin te lo conferma con `↻ si è ricaricata da
-sola N secondi fa`.
+Fra l'apertura e il ricaricamento passano un paio di secondi — **aspetta che sia successo prima
+di concludere qualcosa**. La riga in fondo all'admin te lo conferma:
+`↻ si è ricaricata da sola dopo 2,1 s dall'apertura (12 secondi fa)`.
+
+⚠️ **Quei due numeri non sono la stessa cosa, e vanno letti bene.** «dopo 2,1 s» è il **ritardo**:
+quanto ha aspettato dall'apertura prima di ricaricarsi, ed è l'unico che dice se il ricaricamento
+può arrivare addosso a chi sta scrivendo. «12 secondi fa» è quanto tempo è passato da allora, e
+comprende il tempo che ci hai messo tu ad arrivare fin qui. Il 05/09/2026 la riga aveva solo il
+secondo, ed è stato letto come se fosse il primo.
 
 *Fino al 05/09/2026 qui c'era scritto «apri l'app due volte»: era una procedura manuale, e una
 procedura manuale la fa chi se la ricorda. Aveva già fatto collaudare tre volte il deploy
