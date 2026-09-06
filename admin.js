@@ -1122,6 +1122,17 @@ function renderRiepilogoHtml(){
   h +=   '<div class="pc-riga reale"><span>Segnato come pagato</span><span>' + eur(incassato) + '</span></div>';
   h +=   '<div class="pc-riga grande"><span>Ancora da incassare</span><span>' + eur(manca) + '</span></div>';
   h += '</div>';
+  // ⚠️ QUESTI TOTALI COMPRENDONO LA SPEDIZIONE — quando c'è. Quando non c'è la sommano
+  // come zero e non lo dicono, ed è lo stesso difetto delle card dei topini: un numero che
+  // omette una voce ignota senza avvisare. Qui pesa meno che altrove — chi legge è l'admin,
+  // cioè la persona che quella cifra non l'ha ancora messa — ma è proprio su questi numeri
+  // che si controlla se i conti tornano, e un «Ancora da incassare» più basso del vero è il
+  // tipo di cosa che si scopre alla fine. Si dice con la stessa forma dell'avviso qui
+  // sotto, che in questa card è già l'idioma per «attenzione, non è definitivo». 06/09/2026.
+  if(!spedizioneNota()){
+    h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">\u23F3 '
+      + 'La spedizione non è ancora stata inserita: questi totali non la comprendono.</div>';
+  }
   if(daPrezzare){
     h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">\u26A0\uFE0F ' + daPrezzare
       + (daPrezzare === 1 ? ' riga non ha ancora' : ' righe non hanno ancora') + ' il prezzo reale: il totale può cambiare.</div>';
@@ -1329,7 +1340,7 @@ async function salvaSpedizione(){
   var pagati = persone.filter(function(p){ return p.pagato && p.partecipa_spedizione; }).length;
   if(pagati && n){
     avvisi.push("⚠️ " + pagati + (pagati === 1 ? " topino ha" : " topini hanno")
-      + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " " + paroleATesta() + " → "
+      + " già pagato sulla vecchia quota (" + eurTesto(vecchia / n) + " a quota → "
       + eurTesto(v / n) + "). Cambiandola i loro conti non tornano più.");
   }
   // Senza fattura registrata non c'è nulla da tenere fermo e nulla da ricalcolare, e un
@@ -2065,7 +2076,24 @@ function _generaPDF(){
       doc.text(eurTesto(totaleOrdine(p.id)), col.reale, y, { align: "right" });
       doc.setTextColor(DARK[0], DARK[1], DARK[2]);
     }
-    doc.text(eurTesto(quotaSpedizione(p)), col.sped, y, { align: "right" });
+    // ⚠️ ANCHE QUI NIENTE ZERI FINTI. Il PDF è carta: gira fuori dall'app, resta, e non ha
+    // un admin accanto che spieghi. Le parole sono le STESSE dell'app — «in attesa» e «non
+    // prevista» — perché è lo stesso foglio letto altrove, e due vocabolari per la stessa
+    // cosa sono l'errore del passo 1 ripetuto su un altro supporto.
+    // ⚠️ Niente clessidra: `_pdfStrip()` toglie i simboli che helvetica non disegna, e una
+    // ⏳ qui diventerebbe un buco. Corsivo a 6,5 punti al suo posto — dice «non è un
+    // numero» come il corsivo delle card, e a 6,5 «non prevista» sta dentro i 17 mm della
+    // colonna senza toccare quella a sinistra.
+    var spedIgnotaPdf = !spedizioneNota() && p.partecipa_spedizione;
+    if(!p.partecipa_spedizione || spedIgnotaPdf){
+      doc.setFont("helvetica", "italic"); doc.setFontSize(6.5);
+      doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
+      doc.text(p.partecipa_spedizione ? "in attesa" : "non prevista", col.sped, y, { align: "right" });
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+      doc.setTextColor(DARK[0], DARK[1], DARK[2]);
+    }else{
+      doc.text(eurTesto(quotaSpedizione(p)), col.sped, y, { align: "right" });
+    }
     doc.setFont("helvetica", "bold");
     doc.text(eurTesto(totaleDovuto(p)), col.tot, y, { align: "right" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
@@ -2087,9 +2115,13 @@ function _generaPDF(){
   doc.setFontSize(11); doc.setFont("helvetica", "bold");
   doc.text("Totale gruppo: " + eurTesto(totGruppo), margin, y);
   doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-  doc.text(kgTesto(kgGruppo) + " di parmigiano \u00b7 spedizione "
-    + eurTesto(parseFloat(gruppo.spedizione_totale) || 0) + " divisa fra "
-    + nQuotePdf + " " + paroleDivisore(nQuotePdf)
+  // La stessa regola della colonna: a cifra ignota si dice che si aspetta, non si scrive
+  // «spedizione 0,00 € divisa fra 3 quote» — che è una frase completa e perfettamente falsa.
+  doc.text(kgTesto(kgGruppo) + " di parmigiano \u00b7 "
+    + (spedizioneNota()
+        ? "spedizione " + eurTesto(parseFloat(gruppo.spedizione_totale) || 0)
+          + " divisa fra " + nQuotePdf + " " + paroleDivisore(nQuotePdf)
+        : "spedizione in attesa")
     + " \u00b7 " + nPagati + " su " + persone.length + " hanno pagato",
     margin, y + 4.5);
   y += 14;

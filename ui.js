@@ -478,7 +478,7 @@ function renderSpedizione(){
       +   '<span class="sped-op">\u00f7</span>'
       +   '<span class="sped-num">' + n + ' ' + paroleDivisore(n) + '</span>'
       +   '<span class="sped-op">=</span>'
-      +   '<span class="sped-quota">' + eur(quotaSpedizioneSingola()) + ' ' + paroleATesta() + '</span>'
+      +   '<span class="sped-quota">' + eur(quotaSpedizioneSingola()) + ' a quota</span>'
       + '</div>';
   }else{
     // ⚠️ Qui c'era «Nessuna spesa di spedizione su questo giro. 🎉»: affermava un fatto che
@@ -574,16 +574,33 @@ function renderQuoteMieHtml(mia, noto){
   // I due numeri: richiesta esplicita di iL KaJiNo. Il secondo non è un di più — senza,
   // chi ordina per altri deve fare una divisione a mano ogni volta che va a bussare a un
   // amico, ed è il tipo di conto che si sbaglia sulla porta di casa.
-  // A una quota sola il secondo coinciderebbe col primo: sarebbe rumore per tutti tranne uno.
-  // ⚠️ A costo ignoto NON si mostrano, e non per pudore: direbbero «0,00 €», che si legge
-  // come «non devi niente» invece di «non si sa ancora». Un numero che non si conosce non
-  // si scrive — si tace.
-  if(noto && q > 1){
+  //
+  // ⚠️ EPITAFFIO — «Spedizione a tuo carico» era condizionata a `q > 1`, con la ragione
+  // scritta qui: «a una quota sola il secondo coinciderebbe col primo, sarebbe rumore per
+  // tutti tranne uno». Coincideva per VALORE, non per SIGNIFICATO. Togliendola, il numero
+  // che vuol dire «quanto pago io» CAMBIAVA POSTO fra i due stati: a una quota lo si
+  // leggeva nella riga del conto lì sopra (l'unico numero a schermo, quindi lo si prendeva
+  // per proprio), a due quote quella riga passava a dire la quota DEL GRUPPO e il numero
+  // personale ricompariva quaggiù. Nessuno lo diceva.
+  // ⚠️ Chi passasse di qui a «ottimizzare» via la riga doppione ripeterebbe l'errore: due
+  // numeri uguali che rispondono a due domande diverse non sono un doppione. Decisione di
+  // iL KaJiNo del 06/09/2026 — a costo noto la riga c'è SEMPRE, e la riga del conto torna a
+  // essere solo un fatto del gruppo.
+  //
+  // `Da chiedere a ciascun amico` resta condizionata: senza amici non c'è nessuno a cui
+  // chiedere, e QUELLA sì sarebbe rumore. La differenza fra le due è che la prima riguarda
+  // sempre chi legge, la seconda no.
+  // ⚠️ A costo ignoto NON si mostra niente, e non per pudore: direbbero «0,00 €», che si
+  // legge come «non devi niente» invece di «non si sa ancora». Un numero che non si conosce
+  // non si scrive — si tace.
+  if(noto){
     h += '<div class="sq-numeri">'
       +   '<div class="sq-riga"><span>Spedizione a tuo carico</span><span>'
       +     eur(quotaSpedizione(mia)) + '</span></div>'
-      +   '<div class="sq-riga"><span>Da chiedere a ciascun amico</span><span>'
-      +     eur(quotaSpedizioneSingola()) + '</span></div>'
+      +   (q > 1
+        ? '<div class="sq-riga"><span>Da chiedere a ciascun amico</span><span>'
+          + eur(quotaSpedizioneSingola()) + '</span></div>'
+        : '')
       + '</div>';
   }
   return h + '</div>';
@@ -722,11 +739,40 @@ function renderTabella(){
     c += '<div class="pc-conti">';
     c +=   '<div class="pc-riga"><span>Parmigiano' + (conReale ? " (stima)" : "") + '</span><span>' + eur(ip) + '</span></div>';
     if(conReale) c += '<div class="pc-riga reale"><span>Parmigiano (reale)</span><span>' + eur(reale) + '</span></div>';
+    // ⚠️ QUI LO ZERO ERA SCRITTO, non dedotto da un'assenza: «Spedizione 0,00 €» a cifra
+    // ignota. È la sesta occorrenza della stessa famiglia, ed è la più grave perché questa
+    // card la leggono tutti i topini, di ogni topino. Riparata da iL KaJiNo il 06/09/2026.
+    // ⚠️ NON un trattino: il trattino dice solo «qui non c'è un numero» e lascia indovinare
+    // se è zero, ignoto o rotto. Le due parole dicono quale dei tre. La clessidra è la
+    // STESSA della nota ⏳ della card Spedizione: stesso simbolo per la stessa cosa, chi
+    // l'ha già vista sotto lo stepper la riconosce.
+    // ⚠️ La riga NON si toglie: è il posto in cui uno si accorge che la spedizione esiste.
+    // La coda `(N quote)` resta, che è vera comunque.
+    //
+    // DUE ASSENZE DIVERSE, DUE PAROLE DIVERSE — decisione di iL KaJiNo:
+    //   · «⏳ in attesa» = la cifra arriverà. È il caso normale: salvo rari casi la
+    //     spedizione è sempre prevista e tutti pagano la loro quota.
+    //   · «non prevista» = non arriverà mai, questo topino è esonerato. Vale ANCHE a cifra
+    //     nota — lui non la paga né adesso né dopo, e uno zero lì direbbe «ha pagato zero»
+    //     invece di «non c'entra». La coda «(non partecipa)» sparisce: la parola a destra
+    //     dice già la stessa cosa, e ripeterla due volte sulla stessa riga è rumore.
+    //
+    // ⚠️ IL TOTALE SI CHIAMA «Totale» SEMPRE — decisione di iL KaJiNo del 06/09/2026, che
+    // ha bocciato «Totale senza spedizione»: troppo lungo, e il totale dev'essere
+    // comprensivo di ciò che c'è. È la riga qui sopra a dire cosa manca:
+    //     formaggio 90 · spedizione 20 · totale 110
+    //     formaggio 90 · spedizione in attesa · totale 90
+    // Il conto si legge dall'alto in basso e non ha bisogno che l'ultima riga si giustifichi.
+    var spedIgnota = !spedizioneNota() && p.partecipa_spedizione;
     c +=   '<div class="pc-riga"><span>Spedizione'
-       +     (p.partecipa_spedizione
-             ? (quoteDi(p) > 1 ? " (" + quoteDi(p) + " quote)" : "")
-             : " (non partecipa)")
-       +     '</span><span>' + eur(sped) + '</span></div>';
+       +     (p.partecipa_spedizione && quoteDi(p) > 1 ? " (" + quoteDi(p) + " quote)" : "")
+       +     '</span>'
+       +     (!p.partecipa_spedizione
+             ? '<span class="pc-senza-cifra">non prevista</span>'
+             : spedIgnota
+               ? '<span class="pc-senza-cifra">\u23F3 in attesa</span>'
+               : '<span>' + eur(sped) + '</span>')
+       +     '</div>';
     c +=   '<div class="pc-riga grande"><span>Totale</span><span>' + eur(tot) + '</span></div>';
     c += '</div></div>';
     return c;
@@ -736,12 +782,36 @@ function renderTabella(){
   var kgGruppo   = persone.reduce(function(a, p){ return a + kgTotaliDi(p.id); }, 0);
   var nPagati    = persone.filter(function(p){ return p.pagato; }).length;
 
+  // ── IL RIEPILOGO DICE DUE INCERTEZZE, E SONO DIVERSE ──
+  // Questa card aveva lo stesso difetto delle card dei singoli, ma per omissione: la
+  // spedizione non c'era proprio come riga, e «Totale gruppo» la dava per sommata.
+  // Le due incertezze sono INDIPENDENTI e si presentano anche insieme:
+  //   · i PREZZI sono stimati finché l'admin non batte quelli delle etichette;
+  //   · la SPEDIZIONE non si sa finché non arriva la cifra.
+  // ⚠️ Non si incastrano in un'etichetta sola («Totale gruppo stimato senza spedizione» non
+  // si legge più, e a 320px va a capo contro il numero). Ciascuna sta dove si vede: la
+  // SPEDIZIONE nella sua riga, con la ⏳ — che è anche il motivo per cui il totale può
+  // restare «Totale» e basta, come nelle card dei singoli; i PREZZI nell'etichetta del
+  // totale, «(stimato)», che è la parola chiesta da iL KaJiNo.
+  // ⚠️ `stimaGruppo` guarda solo chi ha davvero ordinato: un topino iscritto e senza righe
+  // non ha prezzi reali per definizione, e senza questo filtro terrebbe la card «stimata»
+  // per sempre. Stessa forma di `aggiornaPallinoPagamenti()`.
+  var spedNota   = spedizioneNota();
+  var stimaGruppo = persone.some(function(p){ return righeDi(p.id).length && !haPrezziReali(p.id); });
+
   var riepilogo = '<div class="persona-card totale-gruppo">'
      +   '<div class="pc-testa"><span class="pc-nome">\uD83E\uDDC0 Tutto il clan</span>'
      +     '<span class="badge ' + (nPagati === persone.length ? "ok" : "no") + '">' + nPagati + ' su ' + persone.length + ' pagati</span></div>'
      +   '<div class="pc-conti">'
      +     '<div class="pc-riga"><span>Parmigiano ordinato</span><span>' + kgFmt(kgGruppo) + '</span></div>'
-     +     '<div class="pc-riga grande"><span>Totale gruppo</span><span>' + eur(totGruppo) + '</span></div>'
+     +     '<div class="pc-riga"><span>Spedizione</span>'
+     +       (spedNota
+             ? '<span>' + eur(parseFloat(gruppo.spedizione_totale) || 0) + '</span>'
+             : '<span class="pc-senza-cifra">\u23F3 in attesa</span>')
+     +     '</div>'
+     +     '<div class="pc-riga grande"><span>Totale gruppo'
+     +       (stimaGruppo ? " (stimato)" : "")
+     +       '</span><span>' + eur(totGruppo) + '</span></div>'
      +   '</div></div>';
 
   // Il riepilogo sta IN CIMA, prima delle card dei singoli. Stava in fondo, dov'era la
@@ -1129,10 +1199,30 @@ function renderPagamenti(){
     // Prima il caso opposto non diceva nulla, e il passaggio a definitivo è proprio ciò
     // che vale la pena vedere: stesso verde della colonna "reale" altrove nell'app.
     var stima = !haPrezziReali(mia.id);
+    // ── DUE INCERTEZZE, DUE POSTI ── (settima occorrenza, riparata da iL KaJiNo il 06/09/2026)
+    // «(stimato)» dice che i PREZZI sono stimati — che i pezzi non sono ancora stati
+    // tagliati. NON diceva che manca la spedizione, e a spedizione ignota il numero grande
+    // qui sotto non era il totale: la riga in fondo prometteva «parmigiano + spedizione»
+    // mentre la spedizione lì dentro non c'era.
+    // ⚠️ Le due condizioni sono INDIPENDENTI e capitano anche insieme. Non si incastrano
+    // in un'etichetta sola: l'etichetta sopra il numero porta i PREZZI, la riga sotto il
+    // numero porta la SPEDIZIONE. È la stessa forma delle card della Tabella — il totale
+    // non si giustifica, è la riga della spedizione a dire cosa manca — e la stessa regola
+    // del passo 2: se la formula più chiara costa una riga invece di un'etichetta più
+    // lunga, si preferisce la riga. Qui la riga c'era già: bastava smettere di farle dire
+    // una cosa che non sapeva.
+    // ⚠️ Le tre parole della riga in fondo sono le stesse della Tabella, e non per vezzo:
+    // chi legge «⏳ in attesa» qui l'ha già vista accanto al suo nome là, e «non prevista»
+    // vale anche a cifra nota — chi è esonerato non la paga né adesso né dopo.
+    var sub = !mia.partecipa_spedizione
+      ? "parmigiano \u00b7 spedizione non prevista"
+      : (spedizioneNota()
+          ? "parmigiano + spedizione"
+          : "parmigiano \u00b7 \u23F3 spedizione in attesa");
     html += '<div class="pay-tot' + (stima ? "" : " reale") + '">'
       +   '<div class="pt-label">Il tuo totale' + (stima ? " (stimato)" : " \u00b7 reale") + '</div>'
       +   '<div class="pt-val">' + eur(dovuto) + '</div>'
-      +   '<div class="pt-sub">parmigiano + spedizione</div>'
+      +   '<div class="pt-sub">' + sub + '</div>'
       + '</div>';
   }
 
@@ -1192,11 +1282,22 @@ function renderSegnalazioneHtml(mia){
 
 // Pallino sull'icona 💳 finché il totale è stimato. Un pallino e non una parola: a 320px
 // la tab bar non ha spazio per un'etichetta in più.
+// ⚠️ IL PALLINO DICE «il tuo totale non è ancora quello vero», e le ragioni per cui non lo
+// è sono DUE, non una: i prezzi non ancora battuti E la spedizione non ancora nota. Guardava
+// solo la prima, e a prezzi reali con spedizione ignota si spegneva — cioè diceva «è
+// definitivo» proprio mentre la card sotto ammette di non sapere. Stessa famiglia di
+// difetti del resto del lotto 9: una cosa che significa due cose a seconda dello stato.
+// ⚠️ `righeDi().length` resta il primo filtro: chi non ha ordinato niente non ha un totale
+// da aspettare, e un pallino acceso su una tab vuota è solo un pallino che si impara a
+// ignorare — cioè il modo in cui i pallini muoiono.
 function aggiornaPallinoPagamenti(){
   var d = document.getElementById("tab-dot-pagamenti");
   if(!d) return;
-  var stima = mioId && righeDi(mioId).length && !haPrezziReali(mioId);
-  d.style.display = stima ? "" : "none";
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  var spedMancante = mia && mia.partecipa_spedizione && !spedizioneNota();
+  var provvisorio = mioId && righeDi(mioId).length
+    && (!haPrezziReali(mioId) || spedMancante);
+  d.style.display = provvisorio ? "" : "none";
 }
 
 // Prima del ritiro il prezzo di un topino NON ESISTE ancora: i pezzi non sono stati
@@ -1205,20 +1306,38 @@ function aggiornaPallinoPagamenti(){
 // una constatazione con una sola uscita.
 // ⚠️ Chi paga in contanti alla consegna NON passa mai di qui: al momento della consegna
 // i prezzi reali ci sono già, quindi `haPrezziReali()` è vero e si va dritti ai metodi.
+//
+// ⚠️ IL CANCELLO GUARDAVA UNA COSA SOLA — i prezzi — e la spedizione gli passava sotto.
+// A prezzi reali e spedizione ancora ignota si aprivano i metodi di pagamento su un totale
+// INCOMPLETO: chi segnalava «ho pagato» aveva pagato meno del dovuto, e l'app gliel'aveva
+// lasciato fare. I due eventi non coincidono — gli importi delle etichette li batte l'admin
+// alla consegna, la cifra della spedizione arriva con la fattura — e finché uno dei due
+// manca il totale non è il totale. 06/09/2026.
+// ⚠️ Il motivo va DETTO, non riassunto in «è ancora presto»: chi legge deve sapere cosa si
+// sta aspettando, se no ritorna fra un'ora a riprovare. Per questo `mostraAvvisoStima()`
+// prende il motivo invece di avere un testo solo.
+// ⚠️ Chi non partecipa alla spedizione non aspetta niente: per lui conta solo la prima
+// domanda, come prima.
 function apriSegnalaPagamento(){
   document.getElementById("sp-errore").textContent = "";
-  if(!haPrezziReali(mioId)) mostraAvvisoStima();
+  var mia = persone.find(function(p){ return p.id === mioId; });
+  var spedMancante = mia && mia.partecipa_spedizione && !spedizioneNota();
+  if(!haPrezziReali(mioId)) mostraAvvisoStima("prezzi");
+  else if(spedMancante) mostraAvvisoStima("spedizione");
   else mostraMetodiPagamento();
   openModal("modal-segnala");
 }
-function mostraAvvisoStima(){
+function mostraAvvisoStima(motivo){
   document.getElementById("sp-titolo").textContent = "\uD83E\uDDC0 \u00c8 ancora presto";
   document.getElementById("sp-sub").textContent = "";
   document.getElementById("sp-metodi").innerHTML = "";
+  var testo = motivo === "spedizione"
+    ? 'Manca ancora <b>la spedizione</b>: il totale che vedi \u00e8 solo il parmigiano. '
+      + 'Appena l\'admin inserisce la cifra, il totale vero compare qui.'
+    : 'Il tuo conto <b>non esiste ancora</b>: i pezzi non sono stati tagliati. Quando '
+      + 'l\'admin inserisce gli importi delle etichette, il totale vero compare qui.';
   document.getElementById("sp-avviso").innerHTML =
-    '<div class="avviso-stima">Il tuo conto <b>non esiste ancora</b>: i pezzi non sono '
-    + 'stati tagliati. Quando l\'admin inserisce gli importi delle etichette, il totale '
-    + 'vero compare qui.</div>'
+    '<div class="avviso-stima">' + testo + '</div>'
     + '<div class="m-btns" style="margin-bottom:4px;">'
     +   '<button class="btn btn-cheese" onclick="chiudiSegnalaPagamento()">Ho capito</button>'
     + '</div>';

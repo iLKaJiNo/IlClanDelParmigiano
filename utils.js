@@ -303,19 +303,18 @@ function totaleDovuto(persona){
 }
 
 // ── LE PAROLE DELLA SPEDIZIONE ──
-// La parola segue il fatto. Finché nessuno ha alzato il proprio contatore le quote SONO le
-// teste, e «topini» è insieme vero e più chiaro; appena qualcuno lo alza diventa «quote».
-// Una condizione sola, in un posto solo: l'etichetta deve descrivere ciò che viene diviso,
-// non una convenzione. La usano la card Spedizione, due punti dell'admin e il PDF.
-function spedizionePerQuote(){
-  var teste = persone.filter(function(p){ return p.partecipa_spedizione; }).length;
-  return quoteSpedizioneTotali() !== teste;
-}
+// UNA PAROLA SOLA, SEMPRE: «quota». Qui c'era la regola «la parola segue il fatto» —
+// `topini` finché quote e teste coincidono, `quote` appena qualcuno alza il contatore — e
+// faceva cambiare vocabolario alla stessa card fra uno stato e l'altro: `10,00 € ÷ 1 topino
+// = 10,00 € a testa` diventava `10,00 € ÷ 2 quote = 5,00 € a quota`, e chi guarda si chiede
+// se sta guardando due funzioni diverse. Il vocabolario dell'app non deve cambiare sotto i
+// piedi: la regola era precisa in un punto e rendeva l'insieme meno comprensibile.
+// ⚠️ «Quota» è vero in TUTTI i casi — una testa È una quota — mentre «a testa» è vero solo
+// a volte. Resta il solo singolare/plurale; «a quota» sta scritto dove serve, in chiaro.
+// Decisione di iL KaJiNo del 06/09/2026, dopo averlo visto usando l'app.
 function paroleDivisore(n){
-  if(spedizionePerQuote()) return n === 1 ? "quota" : "quote";
-  return n === 1 ? "topino" : "topini";
+  return n === 1 ? "quota" : "quote";
 }
-function paroleATesta(){ return spedizionePerQuote() ? "a quota" : "a testa"; }
 
 // Il «+2» accanto a un nome: quante persone questo topino porta OLTRE sé stesso.
 // È la contromisura del permesso di scrittura concesso ai topini — chi alza il proprio
