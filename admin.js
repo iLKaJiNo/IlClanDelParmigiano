@@ -5,7 +5,11 @@
 
 function apriAdmin(){
   mostraSchermata("admin-screen");
-  _faseAperta = null;   // riparte dalla fase dedotta dai dati, non da dove si era rimasti ieri
+  // ⚠️ Qui stava `_faseAperta = null`, che a ogni apertura buttava via la sezione scelta
+  // «per ripartire dalla fase dedotta e non da dove si era rimasti ieri». Dal 06/09/2026 il
+  // senso è rovesciato, per decisione di iL KaJiNo: da dove si era rimasti ieri è
+  // esattamente dove si vuole ripartire, e a dire a che punto è il giro ci pensa la striscia
+  // in cima, che non ha mai smesso di dedurlo dai dati.
   if(eAdmin) renderAdmin();
   else       renderAccessoAdmin();
   aggiornaVersioneViva();   // non `await`: la riga arriva quando arriva, non blocca il pannello
@@ -246,6 +250,9 @@ var _emailAccesso = "";
 
 function renderAccessoAdmin(){
   var el = document.getElementById("admin-content");
+  // L'interruttore vive DENTRO il pannello: da qui non si può raggiungere, e una riga
+  // spenta da una scelta fatta dall'altra parte della porta sarebbe sparita senza rimedio.
+  el.classList.remove("spiegazioni-off");
   el.innerHTML = '<div class="card">'
     + '<div style="text-align:center;font-size:3rem;">\uD83E\uDDC0</div>'
     + '<div class="card-titolo" style="text-align:center;">Area amministrazione</div>'
@@ -376,14 +383,27 @@ async function proponiFlagAdmin(){
   }catch(e){ alert("Errore: " + e.message); }
 }
 
-// ── PANNELLO ADMIN: FISARMONICA A FASI ──
-// Prima erano tredici card sempre tutte aperte, nell'ordine in cui erano state scritte:
-// in piena raccolta ordini si scorreva sopra la quadratura dello scontrino, che serve
-// due settimane dopo. La fase si DEDUCE dai dati — nessuna colonna, nessuna migrazione,
-// niente stato da tenere allineato: se i dati dicono che i prezzi reali ci sono tutti e
-// non c'è più nulla da incassare, la fase È 6, comunque ci si sia arrivati.
-// Le fasi passate restano toccabili e si riaprono (la spedizione si corregge, i prezzi si
-// ritoccano, gli ordini si riaprono); le future sono visibili ma chiuse.
+// ── PANNELLO ADMIN: IL MOMENTO E LA CATEGORIA, CHE SONO DUE COSE ──
+// Prima erano tredici card sempre tutte aperte; poi sei fasi, e la fisarmonica era ordinata
+// per MOMENTI del giro. Ma il processo non è lineare — si torna indietro, si salta avanti —
+// e una schermata ordinata per momenti costringe a cercare in un momento sbagliato una cosa
+// che serve adesso. Chiesto da iL KaJiNo il 06/09/2026: «ci tengo ad accorpare le cose per
+// categorie».
+//
+// ⚠️ DA QUI IN GIÙ CI SONO DUE NUMERAZIONI, E NON VANNO CONFUSE.
+//
+//   IL MOMENTO (1..6) dice QUANDO. Si DEDUCE dai dati — nessuna colonna, nessuna
+//   migrazione, niente stato da tenere allineato: se i prezzi reali ci sono tutti e non c'è
+//   più nulla da incassare, il momento È 6, comunque ci si sia arrivati. Guida due cose e
+//   basta: la striscia dei pallini in cima, e la frase «Tocca a te».
+//
+//   LA CATEGORIA (①..⑤) dice DOVE. È una scelta di chi guarda, si apre a mano e si RICORDA
+//   fra un accesso e l'altro. Non si deduce da niente.
+//
+// Prima erano la stessa variabile, e questa è la cosa che il lotto 10 separa: «dove sta il
+// giro» e «quale sezione è aperta» sono due domande diverse, e una sola risposta non poteva
+// che mentire a una delle due — chi tornava indietro a correggere la spedizione si vedeva
+// riaprire da sé la fase dedotta al primo ridisegno.
 function faseCorrente(){
   var conRighe   = righe.length > 0;
   var reali      = righe.filter(function(r){ return r.prezzo_reale != null; }).length;
@@ -398,7 +418,9 @@ function faseCorrente(){
   return 1;                                  // preparo
 }
 
-var FASI = [
+// I sei MOMENTI del giro. Non sono più sezioni: sono le tacche di una linea del tempo, e
+// l'unico posto dove si vedono è la striscia in cima con la frase «Tocca a te».
+var MOMENTI = [
   { n: 1, titolo: "Preparo il gruppo",
     tocca: "Metti i prezzi al kg, poi gira il link e la password sul gruppo WhatsApp." },
   { n: 2, titolo: "Raccolgo gli ordini",
@@ -412,27 +434,84 @@ var FASI = [
   { n: 6, titolo: "Chiudo",
     tocca: "Manda il PDF di riepilogo al gruppo e archivia questo giro." }
 ];
-var CERCHIATI = ["①","②","③","④","⑤","⑥"];
 
-// `null` = "segui i dati". Appena l'admin tocca una fase a mano comanda la sua scelta,
-// altrimenti a ogni ridisegno si riaprirebbe da sola quella dedotta e non si potrebbe
-// tornare indietro a correggere qualcosa.
-var _faseAperta = null;
-function faseAperta(){ return _faseAperta != null ? _faseAperta : faseCorrente(); }
-function toggleFase(n){
-  vibra(10);
-  var apre = faseAperta() !== n;
-  _faseAperta = apre ? n : 0;                   // 0 = tutte chiuse, e resta una scelta esplicita
-  renderAdmin();
-  // Solo in apertura. `renderAdmin()` riscrive tutto l'HTML: la pagina si accorcia o si
-  // allunga SOPRA il punto in cui si sta guardando, ma lo scorrimento resta fermo in pixel
-  // assoluti, e la vista finisce più in basso della fase appena aperta. Si porta in cima
-  // l'intestazione, come fa `vaiAFase()` con la sua card; i 60 ms sono lì per lo stesso
-  // motivo: `renderAdmin()` deve aver finito di scrivere il DOM. In chiusura non si muove
-  // niente — non c'è nessun bersaglio da guardare.
-  if(!apre) return;
+// Le sei CATEGORIE della fisarmonica.
+// ⚠️ L'ordine dentro la ③ è CRONOLOGICO e non si tocca: si ordina, si chiude, arriva lo
+// scontrino, arriva il pacco. Quell'ordine è l'unica cosa che tiene insieme una categoria
+// lunga — mescolarlo per «raggruppare meglio» la renderebbe illeggibile.
+//
+// ⚠️ L'INCASSO E LA CHIUSURA SONO UNA CATEGORIA SOLA dal 06/09/2026. Quando le Coordinate
+// sono uscite dalla fisarmonica, all'incasso restavano due card — la coda dei pagamenti da
+// confermare e il riepilogo — e due card non sono una categoria: sono una sezione da aprire
+// per trovarci dentro quello che si vedeva già dal titolo. Osservazione di iL KaJiNo. Che
+// poi è vero al di là del conto: si incassa e si chiude nello stesso pomeriggio, e il PDF
+// che si manda al gruppo è il riepilogo di quello che si è incassato.
+//
+// ⚠️ LA CONSEGNA È USCITA DALLA ③, ed è una categoria sua. Decisione di iL KaJiNo del
+// 06/09/2026: «è un momento a sé stante». L'handoff temeva che spezzare la ③ producesse
+// «due categorie finte» — questa non lo è: aprire un sacchetto per volta e battere gli
+// importi delle etichette è un gesto diverso da ordinare e aspettare, si fa in un giorno
+// solo e con le mani occupate. La quadratura la segue perché è la stessa materia: dice se
+// quegli importi sono stati battuti giusti, e senza di lei la consegna non ha un fondo.
+// ⚠️ La ② porta una FUNZIONE al posto del titolo, e il conto dentro. È l'unica categoria che
+// contiene una cosa sola — l'elenco dei topini — e quella cosa non ha più un titolo suo: se
+// l'avesse, la stessa riga comparirebbe due volte a un centimetro di distanza, con due
+// frecce da toccare per aprire una cosa sola. Il numero fra parentesi è la ragione per cui
+// vale la pena leggerlo da chiuso: dice quanti sono senza aprire niente.
+var CATEGORIE = [
+  { n: 1, titolo: "Preparo il gruppo" },
+  { n: 2, titolo: function(){ return "\uD83D\uDC2D Topini registrati (" + persone.length + ")"; } },
+  { n: 3, titolo: "Ordino e ricevo" },
+  { n: 4, titolo: "Consegno" },
+  { n: 5, titolo: "Incasso e chiudo" }
+];
+function titoloCategoria(n){
+  var c = CATEGORIE[n - 1];
+  if(!c) return "";
+  return typeof c.titolo === "function" ? c.titolo() : c.titolo;
+}
+
+// ⚠️ LA TABELLA MOMENTO → CATEGORIA, SCRITTA E NON DEDOTTA.
+// ⚠️ Sei momenti, cinque categorie, e due volte due momenti che cadono nello stesso posto:
+// raccolgo e aspetto sono tutti e due la ③, incasso e chiudo sono tutti e due la ⑤. Non si
+// perde niente — a distinguerli resta il momento, e lo dice la striscia in cima — è che il
+// POSTO DOVE SI LAVORA è lo stesso. Dedurla con un calcolo qualsiasi darebbe un numero
+// plausibile e sbagliato, e sbagliato in silenzio: un pallino che apre una categoria,
+// semplicemente non quella giusta.
+// Serve a due cose: quale categoria si apre a chi non ha ancora scelto, e dove porta ogni
+// pallino della striscia.
+var CATEGORIA_DEL_MOMENTO = { 1: 1, 2: 3, 3: 3, 4: 4, 5: 5, 6: 5 };
+function categoriaDelMomento(){ return CATEGORIA_DEL_MOMENTO[faseCorrente()] || 1; }
+
+// La categoria aperta è una SCELTA RICORDATA, non uno stato dedotto — decisione di iL
+// KaJiNo del 06/09/2026: «il processo non è sempre lineare, poter decidere io il momento è
+// più sensato». Finché non si è scelto niente si segue il momento; dopo comanda la scelta,
+// anche fra un accesso e l'altro.
+// `undefined` = non ancora letto da `localStorage`; `null` = nessuna scelta, segui il
+// momento; un numero = quella categoria, e `0` vuol dire «tutte chiuse», che è una scelta
+// come le altre e per questo si salva anche lei.
+var _categoriaAperta;
+function categoriaAperta(){
+  if(_categoriaAperta === undefined){
+    var v = null;
+    try{ v = localStorage.getItem(CATEGORIA_KEY); }catch(e){}
+    var n = v == null ? NaN : parseInt(v, 10);
+    _categoriaAperta = isNaN(n) ? null : n;
+  }
+  return _categoriaAperta != null ? _categoriaAperta : categoriaDelMomento();
+}
+function ricordaCategoria(n){
+  _categoriaAperta = n;
+  try{ localStorage.setItem(CATEGORIA_KEY, String(n)); }catch(e){}
+}
+
+// Porta in cima l'intestazione della categoria appena aperta. `renderAdmin()` riscrive tutto
+// l'HTML: la pagina si accorcia o si allunga SOPRA il punto in cui si sta guardando, ma lo
+// scorrimento resta fermo in pixel assoluti, e la vista finisce più in basso del titolo
+// aperto. I 60 ms sono lì perché `renderAdmin()` deve aver finito di scrivere il DOM.
+function scorriACategoria(n){
   setTimeout(function(){
-    var t = document.getElementById("fase-testa-" + n);
+    var t = document.getElementById("cat-testa-" + n);
     if(!t) return;
     // `scrollIntoView({block:"start"})` la porterebbe al bordo della finestra, cioè dietro
     // `.top`, che sta appiccicato lì sopra. Il franco si misura sull'header vero invece di
@@ -445,11 +524,30 @@ function toggleFase(n){
     });
   }, 60);
 }
-// Rimanda a una card che vive in un'altra fase: la apre e ci porta sopra, invece di
-// duplicare il campo in due posti (due input sulla stessa colonna si desincronizzano
-// al primo salvataggio parziale).
-function vaiAFase(n, cardId){
-  _faseAperta = n;
+// Il titolo di una categoria: apre la sua, e richiude se era già aperta.
+// In chiusura non si scorre niente — non c'è nessun bersaglio da guardare.
+function toggleCategoria(n){
+  vibra(10);
+  var apre = categoriaAperta() !== n;
+  ricordaCategoria(apre ? n : 0);
+  renderAdmin();
+  if(apre) scorriACategoria(n);
+}
+// I pallini della striscia e il banner delle segnalazioni: da una scorciatoia si ARRIVA, non
+// si commuta. Se `toggleCategoria()` chiudesse la categoria in cui si è già, toccare il
+// pallino del momento in corso — il gesto più naturale della striscia — svuoterebbe la
+// schermata invece di portarci dentro.
+function apriCategoria(n){
+  vibra(10);
+  ricordaCategoria(n);
+  renderAdmin();
+  scorriACategoria(n);
+}
+// Rimanda a una card precisa: apre la sua categoria e ci porta sopra, invece di duplicare il
+// campo in due posti (due input sulla stessa colonna si desincronizzano al primo
+// salvataggio parziale).
+function vaiACategoria(n, cardId){
+  ricordaCategoria(n);
   renderAdmin();
   setTimeout(function(){
     var c = document.getElementById(cardId);
@@ -458,7 +556,135 @@ function vaiAFase(n, cardId){
     c.classList.add("evidenzia");
   }, 60);
 }
-function vaiAlloScontrino(){ vaiAFase(3, "card-scontrino"); }
+// Lo scontrino sta nella ③ e la quadratura che lo richiama nella ④: sono tornate in due
+// categorie diverse quando la consegna è diventata una categoria sua, e questa scorciatoia
+// è di nuovo un salto. Una funzione sola perché il giorno che una delle due si sposta, il
+// posto da correggere è uno — e il numero qui dentro è quello della categoria dello
+// SCONTRINO, non della quadratura da cui si parte.
+function vaiAlloScontrino(){
+  // ⚠️ Aprirla PRIMA di ridisegnare: se la card dello scontrino è chiusa, questa scorciatoia
+  // porterebbe davanti a una scatola chiusa col nome giusto sopra — che è peggio del non
+  // portare da nessuna parte, perché sembra aver funzionato.
+  apriCard("scontrino");
+  vaiACategoria(3, "card-scontrino");
+}
+
+// ── LE CARD SI CHIUDONO, UNA PER UNA ──
+// Stesso principio delle categorie, un livello sotto, e di proposito la STESSA forma: un
+// titolo che è un bottone e una freccia che ruota. Due fisarmoniche diverse nella stessa
+// schermata sarebbero due lingue da imparare per fare la stessa cosa.
+//
+// ⚠️ APERTE DI BASE, tutte. Si salva solo l'elenco delle chiuse: chi chiude sceglie, chi non
+// sceglie trova tutto com'era. Una schermata che nasce chiusa costringe a scoprire dove
+// sono le cose, ed è il difetto opposto a quello che stiamo togliendo.
+//
+// ⚠️ Chiudere una card NON sposta niente sopra di lei — a differenza delle categorie, dove
+// aprirne una ne chiude un'altra che può stare più in su. Qui il titolo che hai appena
+// toccato resta esattamente dove sta, quindi non c'è nessuno scorrimento da rimettere a
+// posto: se un giorno ne comparisse uno, vuol dire che il ridisegno ha cambiato altro.
+// Le card senza manico, con la ragione accanto: sono due ragioni diverse e non vanno
+// confuse, perché una è un vincolo e l'altra una misura.
+//   «avviso»  → esiste per dire «guarda qui», e chiuderlo è disattivarlo. Non si tocca.
+//   «lavoro»  → è il tavolo di lavoro della sua categoria, non una scheda da consultare: la
+//               consegna È l'elenco dei nomi che si toccano uno a uno, e chiuderla lascia
+//               una ④ che contiene solo il controllo di un lavoro che non si può più fare.
+//   «titolo»  → il titolo ce l'ha la categoria, e senza titolo non c'è manico da mettere.
+// C'era anche «corta», per il PDF e l'archiviazione quando stavano da soli in una categoria
+// di due card: una freccia per nascondere due righe costa più di quello che risparmia. È
+// caduta quando incasso e chiusura si sono fusi e le card sono diventate quattro — e va
+// rimessa il giorno che una categoria torna a essere così breve.
+var CARD_SENZA_MANICO = {
+  "da-confermare": "avviso",
+  "quadratura":    "avviso",
+  "consegna":      "lavoro",
+  "topini":        "titolo"
+};
+
+// ⚠️ TRE CARD NASCONO CHIUSE, e sono le tre sotto la riga «non riguardano questo giro».
+// La regola generale resta «aperte di base» — chi non sceglie deve trovare tutto — ma quella
+// regola serve a non far scoprire dove sono le cose, e queste tre non si cercano mai:
+// l'IBAN si scrive una volta, gli amministratori si guardano due volte l'anno, l'archivio è
+// il passato. Aperte, erano solo tre schermate di roba in fondo a ogni scorrimento.
+// Decisione di iL KaJiNo del 06/09/2026, dopo averlo visto.
+var CARD_CHIUSE_DI_BASE = { "coordinate": 1, "amministratori": 1, "archivio": 1 };
+
+// ⚠️ L'ELENCO SALVATO NON È «LE CHIUSE»: è «quelle messe al contrario del loro naturale».
+// Sembra un cavillo e non lo è. Se salvassimo le chiuse, il giorno che si cambia idea sul
+// default di una card il cambiamento varrebbe solo per chi non l'ha mai toccata, e tutti gli
+// altri resterebbero su una copia del vecchio default scritta nel loro telefono. Così invece
+// il default è UNA regola qui sopra, e cambiarla cambia davvero la schermata.
+var _cardChiuse;
+function cardChiuse(){
+  if(_cardChiuse === undefined){
+    var v = "";
+    try{ v = localStorage.getItem(CARD_CHIUSE_KEY) || ""; }catch(e){}
+    _cardChiuse = {};
+    v.split(",").forEach(function(k){ if(k) _cardChiuse[k] = 1; });
+  }
+  return _cardChiuse;
+}
+function salvaCardChiuse(){
+  try{ localStorage.setItem(CARD_CHIUSE_KEY, Object.keys(_cardChiuse).join(",")); }catch(e){}
+}
+function cardChiusa(chiave){
+  var base = !!CARD_CHIUSE_DI_BASE[chiave];
+  return cardChiuse()[chiave] ? !base : base;
+}
+function toggleCard(chiave){
+  // ⚠️ Un avviso non si chiude nemmeno chiedendoglielo da qui. Senza questa riga il nome
+  // finirebbe comunque in `localStorage` — inerte oggi, perché il disegno lo ignora, ma
+  // pronto a chiudere davvero quella card il giorno che qualcuno la togliesse dall'elenco.
+  // Uno stato salvato che non corrisponde a niente di visibile è una trappola a scoppio
+  // ritardato: nessuno lo cerca, perché al momento non fa niente.
+  if(CARD_SENZA_MANICO[chiave]) return;
+  vibra(10);
+  var c = cardChiuse();
+  if(c[chiave]) delete c[chiave]; else c[chiave] = 1;
+  salvaCardChiuse();
+  renderAdmin();
+}
+// Per chi arriva da una scorciatoia: apre e basta, senza commutare. Non ridisegna — lo fa
+// chi chiama, che di solito ha altro da cambiare nello stesso giro.
+function apriCard(chiave){
+  if(!cardChiusa(chiave)) return;
+  var c = cardChiuse();
+  if(c[chiave]) delete c[chiave]; else c[chiave] = 1;
+  salvaCardChiuse();
+}
+
+// Prende una card già scritta e le mette un manico. Lavora sull'HTML invece di chiedere a
+// diciotto funzioni di collaborare: quelle sanno cosa disegnare, e non devono anche sapere
+// che esiste una fisarmonica intorno.
+//
+// ⚠️ SI FIDA DI UNA FORMA, e la forma è la nostra: ogni card comincia con un `<div>` che
+// porta `class="card"` (anche con un `id` dietro) e subito dopo un `<div class="card-titolo">`
+// senza altri `div` dentro. Se la forma non è quella, la card torna indietro INTATTA —
+// aperta e senza manico. Una card che non si chiude è un fastidio; una card mangiata da una
+// sostituzione andata storta è un pezzo di admin che sparisce senza dire niente.
+function avvolgiCard(chiave, html){
+  if(!html) return "";                       // le card condizionali non lasciano un manico vuoto
+  if(CARD_SENZA_MANICO[chiave]) return html;
+  var fine   = html.indexOf(">");
+  var marca  = 'class="card';
+  var im     = html.indexOf(marca);
+  var apre   = '<div class="card-titolo">';
+  var ia     = html.indexOf(apre, fine);
+  var ic     = ia < 0 ? -1 : html.indexOf("</div>", ia);
+  var ultimo = html.lastIndexOf("</div>");
+  if(fine < 0 || im < 0 || im > fine || ia !== fine + 1 || ic < 0 || ultimo <= ic) return html;
+
+  var chiusa = cardChiusa(chiave);
+  var titolo = html.slice(ia + apre.length, ic);
+  return html.slice(0, im + marca.length) + ' chiudibile' + (chiusa ? ' chiusa' : '')
+    + html.slice(im + marca.length, fine + 1)
+    + '<button class="card-testa" onclick="toggleCard(\'' + chiave + '\')"'
+    +   ' aria-expanded="' + (!chiusa) + '">'
+    +   '<span class="card-titolo">' + titolo + '</span>'
+    +   '<span class="card-freccia">\u203A</span>'
+    + '</button>'
+    + '<div class="card-corpo">' + html.slice(ic + 6, ultimo) + '</div>'
+    + '</div>';
+}
 
 // La pillola «← admin» nell'header: c'è un passo indietro da fare, o no?
 // Un punto solo che la tocca, così non può restare accesa su una schermata che non ha
@@ -468,54 +694,139 @@ function mostraTornaAdmin(on){
   if(b) b.style.display = on ? "" : "none";
 }
 
+// ── L'INTERRUTTORE DELLE SPIEGAZIONI ──
+// Gli `hint` dell'admin sono paragrafi interi e stanno quasi in ogni card: spenti, la
+// schermata si dimezza in altezza senza perdere una sola funzione. Un interruttore solo —
+// tutti accesi o tutti spenti — perché venti interruttori sarebbero venti decisioni da
+// prendere per poter leggere una schermata.
+//
+// ⚠️ ACCESI DI BASE, SEMPRE. Chi ha imparato li spegne una volta e restano spenti; chi
+// arriva dopo li trova. Il contrario costringerebbe a scoprire che esistono.
+//
+// Sta in cima e non in fondo per la ragione stessa per cui esiste: una schermata troppo
+// lunga non si accorcia con un bottone che si raggiunge scorrendola tutta.
+//
+// ⚠️ NON SPEGNE TUTTO CIÒ CHE PORTA LA CLASSE `.hint`. Molti `.hint` dell'admin non sono
+// spiegazioni ma FATTI — la password c'è o non c'è, gli ordini sono chiusi dal giorno tale,
+// il pacco è arrivato, l'indirizzo che finisce nel messaggio, quanti hanno già ordinato — e
+// gli avvisi (⏳, ⚠️, la quadratura) esistono apposta per farsi vedere. Quelli portano
+// `hint-fisso` e non si spengono: se un testo è l'unico posto dove un fatto è scritto, non
+// è un hint, è contenuto. La regola sta in style.css, i marcatori qui.
+function spegneSpiegazioni(el){
+  if(el) el.classList.toggle("spiegazioni-off", !spiegazioniAccese());
+}
+function toggleSpiegazioni(){
+  var on = !spiegazioniAccese();
+  try{ localStorage.setItem(SPIEGAZIONI_KEY, on ? "on" : "off"); }catch(e){}
+  vibra(12);
+  renderAdmin();
+}
+function interruttoreSpiegazioniHtml(){
+  var on = spiegazioniAccese();
+  return '<button class="btn-pill' + (on ? "" : " spento") + '" onclick="toggleSpiegazioni()"'
+    + ' aria-pressed="' + on + '"'
+    + ' title="' + (on ? "Nascondi i testi di spiegazione" : "Mostra i testi di spiegazione") + '">'
+    + '💬 Spiegazioni</button>';
+}
+
 function renderAdmin(){
   mostraTornaAdmin(false);
   var el = document.getElementById("admin-content");
+  spegneSpiegazioni(el);
   if(!gruppo){
     el.innerHTML = '<div class="card"><div class="card-titolo">Nessun gruppo attivo</div>'
-      + '<p class="card-nota">Crea il primo gruppo d\'acquisto per iniziare.</p>'
+      + '<p class="card-nota nota-fissa">Crea il primo gruppo d\'acquisto per iniziare.</p>'
       + '<button class="btn btn-cheese" onclick="apriNuovoGruppo()">🧀 Crea nuovo gruppo</button></div>'
-      + renderArchivioHtml();
+      + avvolgiCard("archivio", renderArchivioHtml());
     return;
   }
 
-  var corrente = faseCorrente();
-  var aperta = faseAperta();
+  var momento = faseCorrente();
+  var aperta = categoriaAperta();
+  // Le card, ognuna in una categoria sola. Questo oggetto è la MAPPA: chi sposta una card
+  // sposta una riga qui, e non c'è nessun altro posto dove l'appartenenza è scritta.
+  // ⚠️ Il primo elemento di ogni coppia è il NOME della card, ed è la sua identità: è quello
+  // che finisce in `localStorage` quando la si chiude. Cambiarlo riapre quella card una
+  // volta a chi l'aveva chiusa — un fastidio, non un danno — ma dev'essere unico, perché due
+  // card con lo stesso nome si chiuderebbero e aprirebbero insieme senza che si capisca.
   var corpi = {
-    1: cardGruppoHtml() + cardPrezziHtml() + cardSpedizionePersoneHtml() + cardScadenzaHtml() + cardMessaggiHtml(),
-    2: cardKgPerTipoHtml() + renderNegozianteHtml() + cardChiusuraHtml(),
-    3: renderScontrinoHtml() + cardArrivoHtml(),
-    4: cardConsegnaHtml() + renderQuadraturaHtml(),
-    5: renderDaConfermareHtml() + renderRiepilogoHtml() + cardTopoliniHtml() + cardCoordinateHtml(),
-    6: cardPdfHtml() + cardArchiviaHtml()
+    1: [["gruppo",     cardGruppoHtml()],
+        ["prezzi",     cardPrezziHtml()],
+        ["scadenza",   cardScadenzaHtml()],
+        ["messaggi",   cardMessaggiHtml()]],
+    // Le persone stavano in due elenchi in due fasi lontane quattro passi, ognuno con un
+    // pezzo di verità: la lista non era lunga, era DOPPIA. Adesso è una sola.
+    2: [["topini",     cardChiPartecipaHtml()]],
+    // ⚠️ Ordine cronologico, e non si tocca: ordino → chiudo → arriva lo scontrino →
+    // arriva il pacco.
+    3: [["kg",         cardKgPerTipoHtml()],
+        ["negoziante", renderNegozianteHtml()],
+        ["chiusura",   cardChiusuraHtml()],
+        ["scontrino",  renderScontrinoHtml()],
+        ["arrivo",     cardArrivoHtml()]],
+    // Gli importi battuti dalle etichette e il controllo che li rimette insieme: due card,
+    // una materia sola. La quadratura non si chiude — vedi `CARD_SENZA_MANICO`.
+    4: [["consegna",   cardConsegnaHtml()],
+        ["quadratura", renderQuadraturaHtml()]],
+    // Si incassa e si chiude nello stesso pomeriggio: chi ha pagato, quanto manca, il PDF da
+    // mandare al gruppo, e l'archiviazione. Le Coordinate NON sono più qui — sono uscite
+    // dalla fisarmonica, accanto ad Amministratori.
+    5: [["da-confermare", renderDaConfermareHtml()],
+        ["riepilogo",  renderRiepilogoHtml()],
+        ["pdf",        cardPdfHtml()],
+        ["archivia",   cardArchiviaHtml()]]
   };
 
-  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
     + '<h2 style="color:var(--cheese-txt);">🧀 Admin</h2>'
-    + '<button class="btn-pill" onclick="esciAdmin()">🚪 Esci</button></div>';
+    + '<div style="display:flex;gap:8px;align-items:center;">'
+    +   interruttoreSpiegazioniHtml()
+    +   '<button class="btn-pill" onclick="esciAdmin()">🚪 Esci</button>'
+    + '</div></div>';
 
   html += bannerSegnalazioniHtml();
-  html += fasiTestaHtml(corrente);
+  html += fasiTestaHtml(momento);
 
-  html += FASI.map(function(f){
-    var cls = "fase" + (f.n === aperta ? " aperta" : "") + (f.n === corrente ? " corrente" : "");
+  // `corrente` sulla categoria dove sta il lavoro adesso: la sottolineatura del momento
+  // dentro una schermata che per il resto è ordinata per argomenti.
+  var qui = categoriaDelMomento();
+  html += CATEGORIE.map(function(c){
+    var cls = "categoria" + (c.n === aperta ? " aperta" : "") + (c.n === qui ? " corrente" : "");
     return '<div class="' + cls + '">'
-      + '<button class="fase-testa" id="fase-testa-' + f.n + '" onclick="toggleFase(' + f.n + ')" aria-expanded="' + (f.n === aperta) + '">'
-      +   '<span class="fase-num">' + f.n + '</span>'
-      +   '<span>' + escapeHtml(f.titolo) + '</span>'
-      +   '<span class="fase-freccia">›</span>'
+      + '<button class="cat-testa" id="cat-testa-' + c.n + '" onclick="toggleCategoria(' + c.n + ')" aria-expanded="' + (c.n === aperta) + '">'
+      +   '<span class="cat-num">' + c.n + '</span>'
+      +   '<span>' + escapeHtml(titoloCategoria(c.n)) + '</span>'
+      +   '<span class="cat-freccia">›</span>'
       + '</button>'
-      + '<div class="fase-corpo">' + corpi[f.n] + '</div>'
+      + '<div class="cat-corpo">'
+      +   corpi[c.n].map(function(v){ return avvolgiCard(v[0], v[1]); }).join("")
+      + '</div>'
       + '</div>';
   }).join("");
 
-  // Fuori dalla fisarmonica: non appartengono a nessuna fase del giro.
-  html += cardAmministratoriHtml();
-  html += renderArchivioHtml();
+  // ── FUORI DALLA FISARMONICA ──
+  // IBAN, PayPal e Satispay si impostano una volta e valgono per sempre: sono
+  // configurazione, non un'azione dell'incasso. Stavano nella categoria dei pagamenti, dove
+  // ogni giro te le ritrovavi davanti proprio mentre inseguivi chi non aveva pagato — e lì
+  // non servono a te: servono ai topini, che le vedono nella loro tab.
+  // Stanno con Amministratori — ACCANTO e non DENTRO: «dove si paga» e «chi amministra»
+  // sono due domande diverse, e la card degli amministratori dal lotto 4 tiene in un punto
+  // solo tutto ciò che riguarda la seconda.
+  // La riga qui sotto è il confine: da lì in giù non si parla più di QUESTO giro. Senza,
+  // sarebbero card qualsiasi cadute in fondo alla pagina senza un criterio visibile.
+  // ⚠️ Dice «non riguardano questo giro» e non «non cambiano mai»: l'archivio cambia eccome,
+  // ci finisce dentro un gruppo a ogni chiusura. Quello che le tre hanno in comune è di non
+  // appartenere al giro che si sta facendo — ed è l'unica cosa vera di tutte e tre.
+  html += '<div class="fuori-giro">Non riguardano questo giro</div>';
+  html += avvolgiCard("coordinate", cardCoordinateHtml());
+  html += avvolgiCard("amministratori", cardAmministratoriHtml());
+  html += avvolgiCard("archivio", renderArchivioHtml());
 
   el.innerHTML = html;
   // La textarea si misura sul contenuto, e una misura presa mentre è chiusa vale zero.
-  if(aperta === 2) notaAuto(document.getElementById("inp-note-negoziante"));
+  // ⚠️ Il numero è quello della categoria che contiene il Negoziante: se quella card si
+  // sposta, questa riga si sposta con lei o la nota nasce alta una riga.
+  if(aperta === 3) notaAuto(document.getElementById("inp-note-negoziante"));
 }
 
 // Banner in cima, SOPRA la fisarmonica. La riga "Tocca a te" già lo dice, ma lo dice in
@@ -525,41 +836,61 @@ function renderAdmin(){
 function bannerSegnalazioniHtml(){
   var n = segnalazioniInAttesa().length;
   if(!n) return "";
-  return '<button class="banner-segnalazioni" onclick="toggleFase(5)">'
+  // ⚠️ Il numero è quello della categoria dove sta «Pagamenti da confermare», e la frase lo
+  // ripete a parole: sono due punti, e si cambiano insieme. Un banner che porta nella
+  // categoria sbagliata non dà nessun segnale — apre una sezione, semplicemente quella di
+  // prima.
+  return '<button class="banner-segnalazioni" onclick="apriCategoria(5)">'
     + '<span class="bs-ico">⏳</span>'
     + '<span><b>' + n + (n === 1 ? ' topino ha' : ' topini hanno') + ' segnalato un pagamento</b>'
-    + '<span class="bs-sub">Tocca per verificare e confermare nella fase ⑤</span></span>'
+    + '<span class="bs-sub">Tocca per verificare e confermare in ⑤ Incasso e chiudo</span></span>'
     + '<span class="bs-freccia">›</span></button>';
 }
 
 // La riga che dice cosa tocca adesso. È la cosa che si guarda ogni volta che si apre
 // l'admin: la striscia dice a che punto è il giro, la frase dice cosa fare oggi.
+//
+// ⚠️ I NUMERI SONO USCITI DALLA STRISCIA, e da quando le categorie sono sei come i momenti
+// la ragione è più forte, non più debole. Erano sei cerchiati ① … ⑥ sopra cinque sezioni, e
+// i numeri visibilmente non tornavano; adesso a occhio tornerebbero, e continuerebbero a
+// non corrispondersi — il ② porta nella ③, e da lì in poi coincidono per pura aritmetica.
+// Un indice che sbaglia in silenzio è peggio di un indice che si vede sbagliato. Restano
+// pallini semplici, uniti dai trattini che già c'erano: si legge come una linea del tempo,
+// cioè come «a che punto siamo», invece che come un indice delle sezioni qui sotto.
+//
+// ⚠️ I pallini RESTANO TOCCABILI, e ognuno porta alla categoria dove sta il lavoro di quel
+// momento — non a una sezione con lo stesso numero, che non esiste più. Il nome del momento
+// resta nel `title` e nell'`aria-label`, che sono gli unici posti dove ancora si legge.
 function fasiTestaHtml(corrente){
   var h = '<div class="fasi-testa"><div class="fasi-striscia">';
-  FASI.forEach(function(f, i){
+  MOMENTI.forEach(function(m, i){
     if(i) h += '<span class="fs-linea"></span>';
-    var cls = "fs-passo" + (f.n === corrente ? " ora" : (f.n < corrente ? " fatto" : ""));
-    h += '<button class="' + cls + '" onclick="toggleFase(' + f.n + ')" title="' + escapeHtml(f.titolo) + '"'
-      + ' aria-label="Fase ' + f.n + ': ' + escapeHtml(f.titolo) + '">' + CERCHIATI[i] + '</button>';
+    var cls = "fs-passo" + (m.n === corrente ? " ora" : (m.n < corrente ? " fatto" : ""));
+    var cat = CATEGORIA_DEL_MOMENTO[m.n];
+    var dove = titoloCategoria(cat);
+    h += '<button class="' + cls + '" onclick="apriCategoria(' + cat + ')"'
+      + ' title="' + escapeHtml(m.titolo) + ' → ' + escapeHtml(dove) + '"'
+      + ' aria-label="Momento ' + m.n + ' di 6, ' + escapeHtml(m.titolo)
+      + ': porta alla categoria ' + escapeHtml(dove) + '"></button>';
   });
   h += '</div>';
 
-  // Solo l'azione normale della fase corrente. La riga sulle segnalazioni in attesa
+  // Solo l'azione normale del momento in corso. La riga sulle segnalazioni in attesa
   // stava qui, ed è stata tolta quando è arrivato il banner qui sopra: due copie della
   // stessa frase a un centimetro non sono un avviso più forte, sono un avviso che si
   // legge una volta e la seconda si salta. Quel che resta sono due informazioni
   // DIVERSE impilate — il banner dice cosa è arrivato, questa riga cosa fare oggi —
-  // e per questo la riga non deve mai restare vuota: `f.tocca` c'è per ogni fase.
-  var f = FASI[corrente - 1];
-  h += '<div class="fasi-tocca"><b>Tocca a te</b>' + escapeHtml(f.tocca);
+  // e per questo la riga non deve mai restare vuota: `m.tocca` c'è per ogni momento.
+  var m = MOMENTI[corrente - 1];
+  h += '<div class="fasi-tocca"><b>Tocca a te</b>' + escapeHtml(m.tocca);
   h += '</div></div>';
   return h;
 }
 
-// ── FASE 1: preparo il gruppo ──
+// ── CATEGORIA ①: preparo il gruppo ──
 function cardGruppoHtml(){
   var haPassword = !!passwordGruppoHash();
-  return '<div class="card"><div class="card-titolo">Gruppo attivo</div>'
+  return '<div class="card"><div class="card-titolo">\uD83E\uDDC0 Gruppo attivo</div>'
     + '<div class="m-row"><label>Titolo</label>'
     + '<input class="inp" id="inp-titolo" name="titolo-gruppo" type="text" autocomplete="off" maxlength="80"'
     +   ' value="' + escapeHtml(gruppo.titolo) + '"></div>'
@@ -570,7 +901,7 @@ function cardGruppoHtml(){
     +   ' autocapitalize="none" autocorrect="off"'
     +   ' spellcheck="false" autocomplete="off" placeholder="'
     +   (haPassword ? "scrivi qui la nuova password" : "es. topogrigio26") + '"></div>'
-    + '<div class="hint">' + (haPassword
+    + '<div class="hint hint-fisso">' + (haPassword
         ? '🔒 Una password c\'è già. <b>Non posso mostrartela</b>: a DB ne resta solo l\'impronta, non il testo. Per cambiarla, scrivine una nuova.'
         : '🔓 Nessuna password: chiunque abbia il link entra. Scrivine una e girala sul gruppo WhatsApp.')
       + ' Cambiandola, tutti i dispositivi già entrati dovranno reinserirla.</div>'
@@ -581,12 +912,12 @@ function cardGruppoHtml(){
 }
 
 // Solo i prezzi al kg: sono i numeri che si sanno PRIMA, quando si prepara il giro.
-// ⚠️ Qui stava anche `#inp-spedizione`. È andato nella card dello scontrino, fase ③ —
+// ⚠️ Qui stava anche `#inp-spedizione`. È andato nella card dello scontrino, oggi nella ③ —
 // decisione di iL KaJiNo del 05/09/2026: la spedizione la si conosce con lo scontrino, e
 // con lo scontrino si scrive. Prima il numero stava qui e altre due card lo mostravano con
 // un bottone «modifica» che riportava indietro: tre posti da guardare per un numero solo.
 function cardPrezziHtml(){
-  return '<div class="card"><div class="card-titolo">Prezzi al kg</div>'
+  return '<div class="card"><div class="card-titolo">\uD83D\uDCB6 Prezzi al kg</div>'
     + tipi.map(function(t){
         return '<div class="admin-row"><span class="ar-nome">' + escapeHtml(t.nome) + '</span>'
           + '<div class="ar-actions"><input class="inp" style="width:110px;height:38px;" type="number" min="0" step="0.01" name="prezzo-kg" autocomplete="off" id="prezzo-' + t.id + '" value="' + t.prezzo_kg + '">'
@@ -596,10 +927,10 @@ function cardPrezziHtml(){
 }
 
 function cardScadenzaHtml(){
-  return '<div class="card"><div class="card-titolo">Scadenza degli ordini</div>'
+  return '<div class="card"><div class="card-titolo">\u23F0 Scadenza degli ordini</div>'
     + '<div class="m-row"><label>Chiusura ordini</label>'
     + '<input class="inp" type="datetime-local" name="chiusura-ordini" autocomplete="off" id="inp-chiusura" value="' + isoToInputLocale(gruppo.chiusura_ordini) + '"></div>'
-    + '<div class="hint">' + (ordiniChiusi()
+    + '<div class="hint hint-fisso">' + (ordiniChiusi()
         ? '🔒 Ordini <b>chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '. I topini non possono più modificare.'
         : (gruppo.chiusura_ordini
             ? '⏰ Si chiudono il ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '.'
@@ -610,11 +941,12 @@ function cardScadenzaHtml(){
     + '</div></div>';
 }
 
-// ── FASE 1: i due messaggi pronti per il gruppo WhatsApp ──
+// ── CATEGORIA ①: i due messaggi pronti per il gruppo WhatsApp ──
 // DUE testi e due bottoni, non uno che si adatta: sono messaggi diversi, mandati in momenti
 // diversi della vita del Clan, e un testo che cambia da solo è un testo che l'admin deve
 // rileggere ogni volta prima di incollarlo per sapere cosa sta per mandare.
-// Stanno in fase ① perché è il momento in cui si mandano: il giro è appena aperto.
+// Stanno nella ① perché è la materia di quando si prepara il giro: si mandano appena
+// aperto, e non si toccano più.
 
 // L'indirizzo dell'app com'è adesso, senza query e senza frammento. NON si scrive a mano:
 // un link incollato in un messaggio WhatsApp sopravvive più a lungo di qualunque altra cosa
@@ -684,7 +1016,7 @@ function cardMessaggiHtml(){
     // guarda da `127.0.0.1` o da un IP di rete interna. Senza questa riga, il messaggio con
     // dentro un indirizzo che non funziona per nessuno si scopre DOPO averlo mandato al
     // gruppo. È l'unico pezzo dei due testi che può cambiare, quindi è l'unico da mostrare.
-    + '<div class="hint hint-link">'
+    + '<div class="hint hint-link hint-fisso">'
     +   (indirizzoDiCollaudo()
         ? 'Stai guardando l\'app da un indirizzo di collaudo: nel primo messaggio finisce '
           + 'comunque l\'<b>indirizzo pubblico</b>.<br>'
@@ -699,12 +1031,15 @@ function cardMessaggiHtml(){
 function copiaPresentaApp(){ copiaTesto(testoPresentaApp()); }
 function copiaGiroAperto(){ copiaTesto(testoGiroAperto()); }
 
-// ── FASE 2: raccolgo gli ordini ──
+// ── CATEGORIA ③: ordino e ricevo ──
+// ⚠️ Da qui alla quadratura è tutta la ③, e le sette card sono in ORDINE CRONOLOGICO:
+// kg → negoziante → chiusura → scontrino → arrivo → consegna → quadratura. È l'unica cosa
+// che tiene insieme una categoria così lunga.
 function cardKgPerTipoHtml(){
   var dati = kgPerTipo();
   var tot = dati.reduce(function(a, d){ return a + d.kg; }, 0);
   var quanti = persone.filter(function(p){ return righeDi(p.id).length; }).length;
-  var h = '<div class="card"><div class="card-titolo">Kg per tipo</div>';
+  var h = '<div class="card"><div class="card-titolo">\u2696\uFE0F Kg per tipo</div>';
   if(!tot){
     h += '<div class="empty">Nessun kg ordinato ancora.</div>';
   } else {
@@ -714,24 +1049,24 @@ function cardKgPerTipoHtml(){
         + kgFmt(d.kg) + (d.kg > 0 ? ' · ' + pezziDa(d.kg) + ' pz' : '') + '</span></div>';
     });
     h += '<div class="pc-riga grande"><span>Totale</span><span>' + kgFmt(tot) + '</span></div>';
-    // ⚠️ Qui c'era una riga «Spedizione … modifica» che rimandava alla fase ①. Tolta il
+    // ⚠️ Qui c'era una riga «Spedizione … modifica» che rimandava altrove. Tolta il
     // 05/09/2026 insieme a tutti gli altri richiami: mentre si raccolgono gli ordini quel
     // numero è quasi sempre zero, e una riga che mostra uno zero con accanto un bottone per
     // andarlo a cambiare altrove è rumore in cima al lavoro vero, che qui sono i kg.
     h += '</div>';
-    h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + quanti + ' topini su '
+    h += '<div class="hint hint-fisso" style="margin-top:10px;margin-bottom:0;">' + quanti + ' topini su '
       + persone.length + ' hanno già ordinato.</div>';
   }
   return h + '</div>';
 }
 
-// Impostare la scadenza (fase ①) e chiudere adesso sono due gesti diversi: il primo si fa
+// Impostare la scadenza (che sta nella ①) e chiudere adesso sono due gesti diversi: il primo si fa
 // all'inizio e si dimentica, il secondo si fa quando si guarda l'ordine e si decide che
 // basta così. Scrivono la stessa colonna, ma nel momento in cui servono sono lontanissimi.
 function cardChiusuraHtml(){
   var chiusi = ordiniChiusi();
-  var h = '<div class="card"><div class="card-titolo">Chiudi gli ordini</div>';
-  h += '<div class="hint">' + (chiusi
+  var h = '<div class="card"><div class="card-titolo">\uD83D\uDD12 Chiudi gli ordini</div>';
+  h += '<div class="hint hint-fisso">' + (chiusi
       ? '🔒 <b>Chiusi</b> dal ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + '.'
       : (gruppo.chiusura_ordini
           ? '⏰ Si chiudono da soli il ' + escapeHtml(fmtDataOra(gruppo.chiusura_ordini)) + ', ma puoi chiuderli adesso.'
@@ -748,12 +1083,12 @@ async function chiudiOrdiniAdesso(){
   catch(e){ alert("Errore: " + e.message); }
 }
 
-// ── FASE 3: aspetto il negoziante ──
+// ── ③ (segue): il pacco che arriva ──
 function cardArrivoHtml(){
   var arrivo = arrivoSegnalato();
-  return '<div class="card"><div class="card-titolo">Arrivo del pacco</div>'
+  return '<div class="card"><div class="card-titolo">\uD83D\uDE9A Arrivo del pacco</div>'
     + (arrivo
-        ? '<div class="hint">🧀 Segnalato come <b>arrivato il '
+        ? '<div class="hint hint-fisso">🧀 Segnalato come <b>arrivato il '
           + escapeHtml(fmtData(arrivo)) + '</b>. Il banner verde è acceso in cima alla tab Ordina '
           + 'per tutti i topini.</div>'
           + '<div class="ar-actions">'
@@ -770,9 +1105,12 @@ function cardArrivoHtml(){
     + '</div>';
 }
 
-// ── FASE 4: consegno ──
+// ── CATEGORIA ④: consegno ──
+// Un momento a sé: si apre un sacchetto per volta, si legge l'etichetta e si batte. Non
+// somiglia a niente di quello che viene prima, e per questo dal 06/09/2026 non ci sta più
+// dentro.
 function cardConsegnaHtml(){
-  var h = '<div class="card"><div class="card-titolo">Consegna — prezzi reali</div>';
+  var h = '<div class="card"><div class="card-titolo">\uD83C\uDFF7\uFE0F Consegna — prezzi reali</div>';
   var conOrdine = persone.filter(function(p){ return righeDi(p.id).length; });
   if(!conOrdine.length){
     h += '<div class="empty">Nessun ordine ancora.</div>';
@@ -793,9 +1131,11 @@ function cardConsegnaHtml(){
   return h + '</div>';
 }
 
-// ── FASE 5: incasso ──
+// ── FUORI DALLA FISARMONICA: le coordinate di pagamento ──
+// Non stanno in nessuna categoria del giro. Le mette in pagina `renderAdmin()`, in fondo,
+// insieme ad Amministratori: la ragione è nel commento lungo là.
 function cardCoordinateHtml(){
-  return '<div class="card"><div class="card-titolo">Coordinate di pagamento</div>'
+  return '<div class="card"><div class="card-titolo">\uD83D\uDCB3 Coordinate di pagamento</div>'
     + '<div class="m-row"><label>IBAN</label><input class="inp" id="inp-iban" name="iban-gruppo" autocomplete="off" value="' + escapeHtml(impostazioni.iban || "") + '"></div>'
     + '<div class="m-row"><label>Link PayPal (es. paypal.me/tuonome)</label><input class="inp" id="inp-paypal" name="link-paypal" autocomplete="off" value="' + escapeHtml(impostazioni.paypal_link || "") + '"></div>'
     + '<div class="m-row"><label>Satispay (numero o tag, es. @topolino)</label><input class="inp" id="inp-satispay" name="tag-satispay" autocomplete="off" value="' + escapeHtml(impostazioni.satispay_link || "") + '"></div>'
@@ -804,41 +1144,60 @@ function cardCoordinateHtml(){
     + '</div>';
 }
 
-// Prima erano due pillole con convenzioni opposte nella stessa riga: `🚚 no sped.` diceva
-// l'AZIONE, `❌ non pagato` diceva lo STATO. Affiancate, una era un comando e l'altra una
-// constatazione — non un'etichetta infelice, grammatica incoerente. Due interruttori veri,
-// etichettati sempre con lo stato.
-// ── FASE ①: chi paga la spedizione, e per quante persone ──
-// Sta in fase ① e non in ⑤ perché è una decisione dell'IMPOSTAZIONE del giro, non della
-// riscossione: si sa chi partecipa prima di sapere chi ha pagato.
-// Le due cose stanno su una riga sola perché sono la stessa domanda posta due volte —
-// «questa persona paga la spedizione?» e «per quanti?». Separarle costringerebbe a
-// cercare in due posti la ragione di un solo numero.
-// ⚠️ L'admin qui non deve fare NIENTE perché il sistema funzioni: il default è 1 e
-// l'interruttore nasce acceso. Questa card serve a CORREGGERE — un 10 battuto per
-// sbaglio da un topino — non a configurare.
-function cardSpedizionePersoneHtml(){
-  var h = '<div class="card"><div class="card-titolo">🚚 Spedizione: chi partecipa</div>';
+// ── CATEGORIA ②: chi partecipa ──
+// ⚠️ QUESTA CARD ERA DUE, e il loro essere due era il difetto.
+// `Spedizione: chi partecipa` stava in ① e `Topini registrati` in ⑤: due elenchi degli
+// stessi nomi, lontani quattro fasi, ognuno con un pezzo di verità — di là chi paga la
+// spedizione e per quanti, di qua chi ha saldato. Nessuno dei due bastava, quindi si
+// scorrevano tutti e due, e la lista sembrava lunga il doppio di quello che era. Fuse il
+// 06/09/2026, su indicazione di iL KaJiNo davanti alla ② appena costruita: «doppia lista di
+// topini, basta fare solo doppio toggle».
+//
+// Un nome, e sotto le tre sole cose di un topino che si cambiano a mano: partecipa alla
+// spedizione, per quanti, ha pagato. Le tre righe hanno la stessa forma e la stessa colonna
+// di sinistra, così si leggono in verticale come tre domande sulla stessa persona invece
+// che come tre controlli capitati vicini.
+//
+// ⚠️ DUE PAROLE SOLE PER LO STATO, e sono un'eredità del lotto 9: la riga porta il NOME
+// della cosa, lo stato dice sì o no. Qui c'era «Partecipa» con stato «inclusa/esclusa» —
+// due parole che non dicevano a cosa si riferissero (inclusa… in cosa?). Le stesse parole
+// le riscrive `_swSposta()` al tocco, mentre qui si scrivono al ridisegno: cambiarne uno
+// solo darebbe un'etichetta che dice una parola diversa a seconda che tu abbia toccato
+// l'interruttore o ricaricato la pagina — un difetto che si vede solo toccando, e che
+// quindi sfugge a chi rilegge il codice.
+//
+// ⚠️ L'admin qui non deve fare NIENTE perché il sistema funzioni: le quote nascono a 1 e la
+// spedizione nasce accesa, e ognuno se le imposta da sé nella tab Ordina. Questa card serve
+// a CORREGGERE — un 10 battuto per sbaglio — e a confermare i pagamenti. Non a configurare.
+function cardChiPartecipaHtml(){
+  // ⚠️ NESSUN `card-titolo` QUI, ed è voluto. Questa è l'unica card della sua categoria: il
+  // titolo lo porta l'intestazione della ②, che dice già «Topini registrati (N)» col suo
+  // numero e la sua icona. Scriverlo anche qui sarebbe la stessa riga due volte a un
+  // centimetro di distanza, con due frecce da toccare per aprire una cosa sola.
+  // Senza titolo, `avvolgiCard()` non trova la forma che si aspetta e la restituisce
+  // intatta — ma non ci contiamo: il nome è in `CARD_SENZA_MANICO`, dove la ragione è
+  // scritta invece che dedotta da un `indexOf` che non trova niente.
+  var h = '<div class="card">';
   if(!persone.length){
     return h + '<div class="empty">Nessun topino ancora.</div></div>';
   }
-  h += '<div class="hint">Le <b>quote</b> dicono per quante persone ordina un topino, sé '
-    +  'stesso compreso: chi ritira anche per due amici fuori dal Clan conta 3, perché sono '
-    +  'tre consegne. Non c\'entrano con i kg né con il conto del formaggio. '
-    +  'Ognuno se le imposta da sé nella tab Ordina — qui si correggono.</div>';
+  h += '<div class="hint">Le <b>quote</b> dicono per quante persone ordina un topino, s\u00e9 '
+    +  'stesso compreso: chi ritira anche per due amici fuori dal Clan conta 3, perch\u00e9 sono '
+    +  'tre consegne. Non c\'entrano con i kg n\u00e9 con il conto del formaggio. '
+    +  'Ognuno se le imposta da s\u00e9 nella tab Ordina — qui si correggono.'
+    +  '<br><br>Accendere <b>Pagato</b> vale come <b>confermare</b>: chi aveva segnalato '
+    +  'sparisce dalla coda in \u2464 Incasso e chiudo. Spegnerlo \u00e8 una smentita, e te lo chiedo '
+    +  'prima di farlo.</div>';
   h += persone.map(function(p){
     var q = parseInt(p.quote_spedizione, 10) || QUOTE_MIN;
     var esclusa = !p.partecipa_spedizione;
     return '<div class="persona-blocco">'
-      + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome) + '</span></div>'
-      // ⚠️ DUE PUNTI, DUE PAROLE SOLE. Qui c'era «Partecipa» con stato «inclusa/esclusa»:
-      // due parole che non dicevano a cosa si riferissero (inclusa… in cosa?). Decisione di
-      // iL KaJiNo del 05/09/2026: il nome della riga dice la cosa, lo stato dice sì o no.
-      // Niente domanda: l'etichetta è un nome, non una frase.
-      // Le due parole dello stato le RISCRIVE `toggleSpedizionePersona()` tramite
-      // `_swSposta()` al tocco: cambiarne uno solo darebbe un'etichetta che dice una parola
-      // diversa a seconda che tu abbia toccato l'interruttore o ricaricato la pagina — un
-      // difetto che si vede solo toccando, e che quindi sfugge a chi rilegge il codice.
+      + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
+      +   (p.pagamento_segnalato ? ' <span class="ar-flag">\u23F3 dice di aver pagato</span>' : '') + '</span>'
+      +   '<div class="ar-actions">'
+      +     '<button class="btn-pill" title="Rinomina" onclick="apriRinomina(\'' + p.id + '\')">\u270F\uFE0F</button>'
+      +     '<button class="btn-pill" title="Elimina" onclick="confermaEliminaPersona(\'' + p.id + '\')">\uD83D\uDDD1\uFE0F</button>'
+      +   '</div></div>'
       + swRigaHtml("Spedizione", "sw-sped-" + p.id, p.partecipa_spedizione,
                    "toggleSpedizionePersona('" + p.id + "', this)",
                    p.partecipa_spedizione ? "s\u00ec" : "no")
@@ -848,19 +1207,22 @@ function cardSpedizionePersoneHtml(){
       + '<div class="sw-riga"><span class="sw-nome">Quote</span>'
       +   '<div class="stepper">'
       +     '<button class="step-btn meno" ' + (q > QUOTE_MIN ? "" : "disabled ")
-      +       'onclick="stepQuotePersona(\'' + p.id + '\',-1)" aria-label="Una quota in meno">−</button>'
+      +       'onclick="stepQuotePersona(\'' + p.id + '\',-1)" aria-label="Una quota in meno">\u2212</button>'
       +     '<span class="step-val" id="qv-' + p.id + '">' + q + '</span>'
       +     '<button class="step-btn piu" ' + (q < QUOTE_MAX ? "" : "disabled ")
-      +       'onclick="stepQuotePersona(\'' + p.id + '\',1)" aria-label="Una quota in più">+</button>'
+      +       'onclick="stepQuotePersona(\'' + p.id + '\',1)" aria-label="Una quota in pi\u00f9">+</button>'
       +   '</div>'
       // Etichetta corta per forza: fra il nome (92px fissi) e lo stepper qui restano una
       // novantina di pixel a 375px, e «non conta: esclusa» ci andava a capo tre volte.
       // A una quota sola non dice niente: lo stepper mostra già 1, e ripeterlo a parole
       // metterebbe una scritta su ogni riga della card per non aggiungere nulla.
-      +   '<span class="sw-stato' + (esclusa ? " spento" : "") + '">'
+      +   '<span class="sw-stato sw-nota' + (esclusa ? " spento" : "") + '">'
       +     (esclusa ? "non conta" : (q === 1 ? "" : "+" + (q - 1) + " amici"))
       +   '</span>'
       + '</div>'
+      + swRigaHtml("Pagato", "sw-pag-" + p.id, p.pagato,
+                   "togglePagatoPersona('" + p.id + "', this)",
+                   p.pagato ? "s\u00ec" : "no")
       + '</div>';
   }).join("");
   return h + '</div>';
@@ -892,34 +1254,6 @@ async function stepQuotePersona(id, dir){
   }
 }
 
-function cardTopoliniHtml(){
-  var h = '<div class="card"><div class="card-titolo">Topini registrati (' + persone.length + ')</div>';
-  if(!persone.length){
-    h += '<div class="empty">Nessun topino ancora.</div>';
-  } else {
-    // Restava un solo interruttore su tre: gli altri due se ne sono andati dove servono —
-    // «Spedizione» in fase ①, con le quote, e «Admin» nella card Amministratori, dove sta
-    // già tutto il resto di chi amministra. Qui è la fase in cui si incassa, e «Pagato»
-    // è l'unica delle tre cose che appartenga a questo momento del giro.
-    h += '<div class="hint">Segna chi ha saldato. Accendere l\'interruttore vale come '
-      +  '<b>confermare</b> il pagamento: chi aveva segnalato sparisce dalla coda qui sopra. '
-      +  'Spegnerlo \u00e8 una smentita, e te lo chiedo prima di farlo.</div>';
-    h += persone.map(function(p){
-      return '<div class="persona-blocco">'
-        + '<div class="admin-row"><span class="ar-nome">' + escapeHtml(p.nome)
-        +   (p.pagamento_segnalato ? ' <span class="ar-flag">⏳ dice di aver pagato</span>' : '') + '</span>'
-        +   '<div class="ar-actions">'
-        +     '<button class="btn-pill" title="Rinomina" onclick="apriRinomina(\'' + p.id + '\')">✏️</button>'
-        +     '<button class="btn-pill" title="Elimina" onclick="confermaEliminaPersona(\'' + p.id + '\')">🗑️</button>'
-        +   '</div></div>'
-        + swRigaHtml("Pagato", "sw-pag-" + p.id, p.pagato,
-                     "togglePagatoPersona('" + p.id + "', this)",
-                     p.pagato ? "sì" : "no")
-        + '</div>';
-    }).join("");
-  }
-  return h + '</div>';
-}
 // `opz` è opzionale: `{ disabilitato, titolo }`. Serve all'interruttore Admin, che è l'unico
 // che si muove in una direzione sola (vedi `toggleAdminPersona`).
 function swRigaHtml(nome, id, acceso, handler, stato, opz){
@@ -933,26 +1267,26 @@ function swRigaHtml(nome, id, acceso, handler, stato, opz){
     + '<span class="sw-stato' + (acceso ? "" : " spento") + '" id="' + id + '-lab">' + stato + '</span></div>';
 }
 
-// ── FASE 6: chiudo ──
+// ── ⑤ (segue): chiudo ──
 function cardPdfHtml(){
-  return '<div class="card"><div class="card-titolo">Riepilogo per il clan</div>'
+  return '<div class="card"><div class="card-titolo">\uD83D\uDCC4 Riepilogo per il clan</div>'
     + '<button class="btn btn-cheese" onclick="esportaPDF()">📄 Riepilogo PDF per il gruppo</button>'
     + '<div class="hint" style="margin-bottom:0;">Un PDF per persona con ordine, conti e coordinate di pagamento, da girare su WhatsApp. '
     + 'Si adatta da solo: prima della consegna mostra gli importi attesi, dopo anche quelli reali.</div>'
     + '</div>';
 }
 // Il bottone rosso distruttivo stava in cima all'admin, a due dita dal campo spedizione
-// che si tocca di continuo. Adesso sta in fondo all'ultima fase, che è il momento in cui
+// che si tocca di continuo. Adesso sta in fondo all'ultima categoria, che è il momento in cui
 // archiviare è la cosa giusta da fare.
 function cardArchiviaHtml(){
-  return '<div class="card"><div class="card-titolo">Archivia il gruppo</div>'
+  return '<div class="card"><div class="card-titolo">\uD83D\uDCE6 Archivia il gruppo</div>'
     + '<div class="hint">Il gruppo diventa di sola lettura e finisce nell\'archivio qui sotto. '
     + 'I topini vedranno "nessun gruppo attivo" finché non ne crei un altro.</div>'
     + '<button class="btn btn-danger" onclick="confermaArchiviaGruppo()">📦 Archivia e chiudi questo gruppo</button>'
     + '</div>';
 }
 
-// ── FUORI DALLE FASI ──
+// ── FUORI DALLA FISARMONICA ──
 // Chi può amministrare. Stava qui il "cambia il PIN": al suo posto c'è l'elenco delle
 // persone autorizzate, che è la stessa domanda posta bene — non "qual è la parola
 // d'ordine" ma "di chi mi fido".
@@ -960,8 +1294,8 @@ function cardArchiviaHtml(){
 // apice, e un apice dentro un `onclick` rompe l'HTML invece di dare un errore leggibile.
 function cardAmministratoriHtml(){
   var mia = authUser ? normalizzaEmail(authUser.email) : "";
-  var h = '<div class="card"><div class="card-titolo">Amministratori</div>'
-    + '<div class="hint">Chi è in questo elenco amministra da qualunque dispositivo. '
+  var h = '<div class="card"><div class="card-titolo">\uD83D\uDD11 Amministratori</div>'
+    + '<div class="hint hint-fisso">Chi è in questo elenco amministra da qualunque dispositivo. '
     +   'Chi non c\'è resta un topino come gli altri, <b>anche se ha fatto l\'accesso</b>.'
     +   '<br><br>Aggiungerne uno sono <b>due gesti</b>, e il secondo da solo non basta:'
     +   '<br>1. in <b>dashboard Supabase → Authentication → Users → Add user</b>, con email, '
@@ -987,17 +1321,17 @@ function cardAmministratoriHtml(){
     +   ' autocomplete="off" placeholder="nome, per riconoscerla nell\'elenco"></div>'
     + '<div class="errore" id="aa-errore"></div>'
     + '<button class="btn btn-cheese btn-mini" onclick="autorizzaNuovoAdmin()">➕ Autorizza</button>'
-    + '<div class="hint" style="margin-bottom:0;">Scriverla qui senza aver fatto il primo '
+    + '<div class="hint hint-fisso" style="margin-bottom:0;">Scriverla qui senza aver fatto il primo '
     +   'gesto non serve a niente: senza utente in dashboard non esiste nessuna password '
     +   'con cui entrare.</div>'
     + '</div>';
   return h;
 }
 // ── LA TARGHETTA «admin» NELLA TABELLA ──
-// Sta qui e non fra i topini della fase ⑤ perché è la stessa materia dell'elenco qui sopra:
+// Sta qui e non fra i topini della ② perché è la stessa materia dell'elenco qui sopra:
 // mettendola accanto, tutto ciò che riguarda «chi è admin» sta in un punto solo. E questa
 // card è fuori dalla fisarmonica, quindi è sempre raggiungibile — la pulizia dopo una
-// revoca non deve dipendere dalla fase in cui ci si trova.
+// revoca non deve dipendere dalla categoria in cui ci si trova.
 // ⚠️ L'interruttore si muove in UNA DIREZIONE SOLA: si può solo spegnere. Non è una
 // limitazione da togliere — è tutta la sua funzione. La targhetta si accende da sé quando
 // quella persona amministra davvero; qui si ripulisce chi è rimasto segnato dopo una revoca.
@@ -1098,53 +1432,97 @@ async function respingiSegnalazione(id){
 }
 
 // Riepilogo admin: quanto ci si aspettava, quanto è venuto davvero, quanto è rientrato.
+// ── IL RIEPILOGO: TRE NUMERI CON TRE REGOLE, E LE REGOLE SI DEVONO VEDERE ──
+// Segnalato da iL KaJiNo il 06/09/2026: «qualcosa non mi convince in questo Reale a oggi,
+// è poco chiaro insieme alla quadratura». Non era un difetto di calcolo — i numeri erano
+// giusti — era che due righe che si somigliano non erano confrontabili, e niente lo diceva.
+//
+//   Atteso    = kg × prezzo al kg, per OGNI riga, sempre.
+//   Reale     = l'importo dell'etichetta dove è stato battuto, LA STIMA dove manca.
+//   Assegnato = (quadratura, altra card) solo gli importi battuti, e senza spedizione.
+//
+// Da lì venivano due inciampi, e questa funzione li toglie tutti e due:
+//
+// ⚠️ 1. PRIMA DELLA PRIMA ETICHETTA, «Reale» È IDENTICO AD «ATTESO» — per definizione, non
+// per caso: senza importi battuti ricade tutto sulla stima. Erano due righe con due nomi
+// diversi e lo stesso numero, che si legge come un errore. Adesso finché non è stata battuta
+// nessuna etichetta la riga non c'è; e quando c'è, il suo NOME dice se è ancora un misto.
+//
+// ⚠️ 2. LA SPEDIZIONE ERA DENTRO E NON SI VEDEVA. Stava dentro Atteso e Reale, e non stando
+// nello scontrino del negoziante rendeva la quadratura inconfrontabile con questa card senza
+// che si capisse perché. Adesso è una riga sua, e Atteso e Reale parlano di solo formaggio:
+// chi legge può rifare la somma con gli occhi — reale + spedizione − pagato = da incassare.
+// Quando la spedizione non è ancora nota la riga NON compare (dire «0,00 €» sarebbe dire una
+// cifra al posto di un'ignoranza): lo dice l'avviso ⏳, che c'era già.
 function renderRiepilogoHtml(){
-  var atteso = 0, reale = 0, incassato = 0, daPrezzare = 0;
+  var atteso = 0, reale = 0, sped = 0, incassato = 0;
   persone.forEach(function(p){
-    var sped = quotaSpedizione(p);
-    atteso += totaleIpotetico(p.id) + sped;
-    var dovuto = totaleDovuto(p);
-    reale += dovuto;
-    if(p.pagato) incassato += dovuto;
+    var mia = quotaSpedizione(p);
+    sped    += mia;
+    atteso  += totaleIpotetico(p.id);
+    reale   += totaleOrdine(p.id);
+    if(p.pagato) incassato += totaleDovuto(p);
   });
-  righe.forEach(function(r){ if(r.prezzo_reale == null) daPrezzare++; });
-  var manca = reale - incassato;
+  var daPrezzare = 0, battute = 0;
+  righe.forEach(function(r){ if(r.prezzo_reale == null) daPrezzare++; else battute++; });
+  // ⚠️ QUANTA SPEDIZIONE NON È SU NESSUNO. `quotaSpedizione()` distribuisce il totale fra le
+  // QUOTE DI CHI PARTECIPA: se non partecipa nessuno le quote sono zero, la divisione non
+  // avviene, e ogni persona ne porta 0 — quindi la riga «Spedizione» scriveva `0,00 €` con
+  // ventisei euro veri a database. Il numero non era falso (dai topini incassi davvero zero)
+  // ma diceva mezza verità: quei soldi li paga l'admin, e nessuna riga lo diceva.
+  // Si calcola come DIFFERENZA e non come «se non partecipa nessuno»: così regge anche il
+  // giorno che la divisione, per un motivo che oggi non esiste, coprisse solo una parte.
+  var totSped   = gruppo ? (parseFloat(gruppo.spedizione_totale) || 0) : 0;
+  var scoperta  = totSped - sped;
+  var manca  = reale + sped - incassato;
   var scarto = reale - atteso;
 
-  var h = '<div class="card"><div class="card-titolo">Riepilogo</div>';
+  var h = '<div class="card"><div class="card-titolo">\uD83D\uDCCA Riepilogo</div>';
   h += '<div class="pc-conti" style="border-top:none;padding-top:0;">';
   h +=   '<div class="pc-riga"><span>Atteso (dai prezzi al kg)</span><span>' + eur(atteso) + '</span></div>';
-  h +=   '<div class="pc-riga"><span>Reale a oggi</span><span>' + eur(reale) + '</span></div>';
-  if(Math.abs(scarto) >= 0.005){
-    h += '<div class="pc-riga ' + (scarto > 0 ? "" : "reale") + '"><span>Scarto</span><span>'
-      +  (scarto > 0 ? "+" : "\u2212") + eur(Math.abs(scarto)) + '</span></div>';
+  if(battute){
+    // Il nome cambia quando la cosa cambia: finché una riga è ancora stimata è un misto, e
+    // chiamarlo «Reale» sarebbe una parola più sicura del numero che sta accanto.
+    h += '<div class="pc-riga"><span>' + (daPrezzare ? "Reale + stima" : "Reale")
+      +  '</span><span>' + eur(reale) + '</span></div>';
+    if(Math.abs(scarto) >= 0.005){
+      h += '<div class="pc-riga ' + (scarto > 0 ? "" : "reale") + '"><span>Scarto</span><span>'
+        +  (scarto > 0 ? "+" : "\u2212") + eur(Math.abs(scarto)) + '</span></div>';
+    }
+  }
+  if(spedizioneNota()){
+    h += '<div class="pc-riga"><span>Spedizione</span><span>' + eur(sped) + '</span></div>';
   }
   h +=   '<div class="pc-riga reale"><span>Segnato come pagato</span><span>' + eur(incassato) + '</span></div>';
   h +=   '<div class="pc-riga grande"><span>Ancora da incassare</span><span>' + eur(manca) + '</span></div>';
   h += '</div>';
-  // ⚠️ QUESTI TOTALI COMPRENDONO LA SPEDIZIONE — quando c'è. Quando non c'è la sommano
-  // come zero e non lo dicono, ed è lo stesso difetto delle card dei topini: un numero che
-  // omette una voce ignota senza avvisare. Qui pesa meno che altrove — chi legge è l'admin,
-  // cioè la persona che quella cifra non l'ha ancora messa — ma è proprio su questi numeri
-  // che si controlla se i conti tornano, e un «Ancora da incassare» più basso del vero è il
-  // tipo di cosa che si scopre alla fine. Si dice con la stessa forma dell'avviso qui
-  // sotto, che in questa card è già l'idioma per «attenzione, non è definitivo». 06/09/2026.
   if(!spedizioneNota()){
-    h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">\u23F3 '
+    h += '<div class="hint hint-fisso" style="margin-top:10px;margin-bottom:0;">\u23F3 '
       + 'La spedizione non è ancora stata inserita: questi totali non la comprendono.</div>';
   }
+  if(spedizioneNota() && scoperta >= 0.005){
+    h += '<div class="hint hint-fisso" style="margin-top:10px;margin-bottom:0;">\u26A0\uFE0F '
+      + eur(scoperta) + ' di spedizione non sono su nessun topino'
+      + (sped < 0.005 ? ' \u2014 non partecipa nessuno' : '') + ': restano a te.</div>';
+  }
   if(daPrezzare){
-    h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">\u26A0\uFE0F ' + daPrezzare
-      + (daPrezzare === 1 ? ' riga non ha ancora' : ' righe non hanno ancora') + ' il prezzo reale: il totale può cambiare.</div>';
+    h += '<div class="hint hint-fisso" style="margin-top:10px;margin-bottom:0;">\u26A0\uFE0F ' + daPrezzare
+      + (daPrezzare === 1 ? ' riga non ha ancora' : ' righe non hanno ancora') + ' il prezzo reale: '
+      + (battute
+          ? (daPrezzare === 1 ? 'è contata a stima' : 'sono contate a stima') + ' e il totale può cambiare.'
+          : 'i totali sono ancora tutti stimati.') + '</div>';
   }
   h += '</div>';
   return h;
 }
 
 // ── LO SCONTRINO E LA QUADRATURA ──
-// Sono due cose, e stanno in due fasi diverse perché si fanno in due momenti diversi:
-// in ③ si scrive il totale della fattura appena il negoziante lo manda, in ④ si guarda se
-// gli importi delle etichette lo ricompongono.
+// Sono due cose e si fanno in due momenti diversi: si scrive il totale della fattura appena
+// il negoziante lo manda, si guarda se gli importi delle etichette lo ricompongono due
+// settimane dopo. Stavano in due fasi diverse per questo. Dal 06/09/2026 stanno nella
+// due categorie, e i nomi lo dicono meglio dei numeri di prima: lo scontrino è una cosa che
+// ARRIVA (③, ordino e ricevo), la quadratura è il controllo di quello che si è BATTUTO
+// (④, consegno). La scorciatoia in fondo alla quadratura tiene insieme le due.
 //
 // Principio: **l'admin digita solo numeri che ha davanti agli occhi.** La fattura che paga
 // è UNA CIFRA SOLA, spedizione inclusa; chiedergli lo scorporo a mano significherebbe
@@ -1218,7 +1596,7 @@ function renderScontrinoHtml(){
 function renderQuadraturaHtml(){
   var q = quadratura();
   var assegnato = sommaPrezziReali();
-  var h = '<div class="card"><div class="card-titolo">🧾 Quadratura sullo scontrino</div>';
+  var h = '<div class="card"><div class="card-titolo">\uD83E\uDDEE Quadratura sullo scontrino</div>';
   h += '<div class="pc-conti" style="border-top:none;padding-top:0;">';
   if(q) h += '<div class="pc-riga"><span>Scontrino parmigiano</span><span>' + eur(q.scontrino) + '</span></div>';
   h += '<div class="pc-riga reale"><span>Assegnato ai topini</span><span>' + eur(assegnato) + '</span></div>';
@@ -1230,9 +1608,9 @@ function renderQuadraturaHtml(){
       + '</span><span>' + (quadra ? '' : eur(Math.abs(q.residuo))) + '</span></div>';
   }
   h += '</div>';
-  h += '<div class="hint" style="margin-top:10px;margin-bottom:0;">' + (q
+  h += '<div class="hint hint-fisso" style="margin-top:10px;margin-bottom:0;">' + (q
       ? 'La somma degli importi letti dalle etichette deve fare lo scontrino. Se non torna, una l\'hai battuta male: meglio accorgersene adesso che quando qualcuno ha già pagato di più.'
-      : 'Manca il totale della fattura del negoziante: <button class="sc-mod" style="padding-left:0;" onclick="vaiAlloScontrino()">scrivilo nella fase ③</button> e questo diventa un controllo automatico su tutte le etichette.')
+      : 'Manca il totale della fattura del negoziante: <button class="sc-mod" style="padding-left:0;" onclick="vaiAlloScontrino()">scrivilo in ③ Ordino e ricevo</button> e questo diventa un controllo automatico su tutte le etichette.')
     + '</div>';
   return h + '</div>';
 }
@@ -1301,7 +1679,7 @@ function copiaOrdineNegoziante(){
 }
 
 function renderArchivioHtml(){
-  var html = '<div class="card"><div class="card-titolo">Archivio gruppi passati</div>';
+  var html = '<div class="card"><div class="card-titolo">\uD83D\uDDC2\uFE0F Archivio gruppi passati</div>';
   if(!archivioGruppi.length){
     html += '<div class="empty">Nessun gruppo archiviato ancora.</div>';
   } else {
@@ -1486,7 +1864,7 @@ function _swSposta(el, acceso, stato){
 async function toggleSpedizionePersona(id, el){
   vibra(10);   // PRIMA di qualunque await: dopo, l'attivazione utente è già scaduta
   var val = !el.classList.contains("on");
-  // ⚠️ Le due parole sono le stesse di `cardSpedizionePersoneHtml()` e si cambiano INSIEME:
+  // ⚠️ Le due parole sono le stesse di `cardChiPartecipaHtml()` e si cambiano INSIEME:
   // qui si riscrivono al tocco, là al ridisegno. Vedi il commento lungo là.
   _swSposta(el, val, val ? "s\u00ec" : "no");
   try{
@@ -1546,7 +1924,7 @@ var TIPI_RIPIEGO = [
 ];
 // Letti all'APERTURA del modale e non alla conferma, così l'admin vede con cosa parte prima
 // di creare. Se il negoziante ha cambiato i prezzi lo scopre adesso, e la correzione in
-// fase ① è un gesto consapevole invece di una cosa da ricordarsi.
+// ① è un gesto consapevole invece di una cosa da ricordarsi.
 var _tipiNuovoGruppo = null;
 
 async function apriNuovoGruppo(){

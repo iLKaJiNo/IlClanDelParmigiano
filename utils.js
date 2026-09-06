@@ -42,6 +42,40 @@ var THEME_KEY = "clan_parm_tema";
 var ORDINE_KEY = "clan_parm_ordine_tabella";
 var TILE_KEY  = "clan_parm_tile";
 
+// I testi di spiegazione dell'area admin: accesi o spenti, tutti insieme. Sta qui accanto
+// alle altre preferenze di schermata — è per DISPOSITIVO come il tema e lo sfondo, non per
+// persona — ma la legge e la scrive solo `admin.js`, che è l'unico posto dove serve.
+// ⚠️ Il default è ACCESO, e il valore salvato è `"off"`: così un `localStorage` vuoto,
+// negato o ripulito ricade sugli spiegoni accesi invece che su una schermata muta.
+var SPIEGAZIONI_KEY = "clan_parm_spiegazioni";
+
+// La categoria aperta nella fisarmonica dell'admin. Anche questa è per DISPOSITIVO e non
+// per giro: è dove si stava lavorando, e riaprire l'app non è una ragione per perderlo.
+// ⚠️ Non contiene un numero di FASE. Le fasi si deducono dai dati, le categorie si scelgono
+// a mano, e sono sei per parte solo per combinazione: non si corrispondono — vedi la tabella
+// `CATEGORIA_DEL_MOMENTO` in admin.js.
+// Un valore vecchio o fuori scala non apre niente e non rompe niente: la fisarmonica resta
+// tutta chiusa finché non si tocca un titolo.
+var CATEGORIA_KEY = "clan_parm_categoria";
+
+// Le card MESSE AL CONTRARIO del loro stato naturale. Una chiave sola con dentro l'elenco,
+// non venti chiavi:
+// venti chiavi sarebbero venti cose da tenere allineate ai nomi delle card, e il giorno che
+// una card cambia nome ne resterebbe una orfana per sempre.
+// ⚠️ Contiene i NOMI delle card (`corpi` in admin.js), non la loro posizione. Se un nome
+// cambia, quella card si riapre una volta: la posizione invece avrebbe chiuso in silenzio
+// la card sbagliata, che è un difetto che non si vede.
+// ⚠️ NON contiene «le chiuse». Il default di ogni card sta in admin.js — aperta quasi
+// sempre, chiusa per le tre sotto la riga «non riguardano questo giro» — e qui si salva solo
+// chi da quel default si discosta. Un valore assente, sporco o ripulito lascia la schermata
+// esattamente come la trova chi arriva per la prima volta, che è tutto il punto.
+var CARD_CHIUSE_KEY = "clan_parm_card_chiuse";
+function spiegazioniAccese(){
+  var saved = null;
+  try{ saved = localStorage.getItem(SPIEGAZIONI_KEY); }catch(e){}
+  return saved !== "off";
+}
+
 // ── LA VERSIONE DELLA GUIDA ──
 // La guida si apre da sola al primo ingresso di un topino, e poi mai più — a meno che non
 // CAMBI. Non si riapre a ogni giro nuovo, ed è una scelta: una guida che ricompare quando

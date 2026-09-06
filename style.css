@@ -406,6 +406,25 @@ body:has(#auth-screen.attiva)::after{ opacity:.022; }
    STATO, quindi prende il colore degli ordini chiusi invece del grigio dei suggerimenti.
    Resta anche quando il banner in cima tace per lasciare il campo a quello dell'arrivo. */
 .hint.chiuso{color:var(--berry);}
+/* ── L'INTERRUTTORE DELLE SPIEGAZIONI (solo admin) ──
+   Una classe sola su `#admin-content`, e ventisette paragrafi spariscono insieme. Si fa
+   qui e non ai 27 punti di chiamata per una ragione precisa: la decisione «questo testo si
+   può spegnere» deve stare in UN posto solo, altrimenti la prossima card scritta ne
+   aggiunge uno che nessuno ha classificato e la schermata torna lunga senza che si capisca
+   perché.
+   ⚠️ `hint-fisso` / `nota-fissa` sono l'ECCEZIONE, e vanno messe a mano: un `.hint` che
+   dice un FATTO (uno stato, una data, un indirizzo, un conteggio) o che AVVISA non è una
+   spiegazione, e spegnerlo non accorcia la schermata — la fa mentire. La regola per
+   deciderlo sta accanto a `spegneSpiegazioni()` in admin.js.
+   `display:none` e non `visibility`/altezza zero: deve sparire anche dal flusso, perché
+   tutto il punto dell'interruttore è l'altezza della pagina. */
+.spiegazioni-off .hint:not(.hint-fisso),
+.spiegazioni-off .card-nota:not(.nota-fissa){display:none;}
+/* Spento non è disabilitato: la pillola resta viva e ben toccabile, dice solo — con lo
+   stesso grigio-e-opacità delle icone ☀️ 🧀 dell'header — che quella preferenza adesso è
+   giù. Un bottone che cambia parola («Mostra» / «Nascondi») direbbe la stessa cosa in un
+   modo che si legge invece di vedersi, e questa riga si guarda di sfuggita. */
+.btn-pill.spento{opacity:.55; filter:grayscale(1);}
 .tipo-row{display:flex; flex-direction:column; gap:var(--sp-3); padding:var(--sp-6); margin-bottom:var(--sp-4);
   background:var(--card2); border:1px solid var(--line); border-radius:var(--r-md); transition:border-color .15s;}
 .tipo-row:last-of-type{margin-bottom:0;}
@@ -976,6 +995,32 @@ body.modal-aperto{overflow:hidden;}
 .persona-blocco{padding:var(--sp-5) 0; border-bottom:1px solid var(--line);}
 .persona-blocco:last-child{border-bottom:none;}
 .persona-blocco .admin-row{padding:0; border-bottom:none;}
+/* Matita e cestino non vanno MAI a capo uno sotto l'altro: sono due comandi della stessa
+   riga, e impilati raddoppiano l'altezza del blocco proprio nella card che esiste per
+   accorciare. A cedere è il nome, che ha tutto il resto della riga e sa andare a capo. */
+.persona-blocco .ar-actions{flex-wrap:nowrap;}
+.persona-blocco .admin-row .ar-nome{min-width:0;}
+/* ── IL DEBITO 4 DEL LOTTO 7, PAGATO ──
+   La riga delle quote è la più larga delle tre: nome + stepper + annotazione non ci stanno
+   a 320px, e quello che usciva dal bordo era «+2 amici» / «non conta» — cioè l'unica parte
+   che SPIEGA il numero. Spariva senza dirlo, che è il modo peggiore di non starci.
+   Adesso il valore è stretto quanto serve (le quote arrivano a 10, non a 12,5 kg: i 66px
+   dello stepper del formaggio qui erano spazio regalato) e l'annotazione può andare a capo
+   invece di uscire, allineata a destra sotto lo stepper. Da 375px in su resta in riga. */
+.persona-blocco .step-val{min-width:34px;}
+.persona-blocco .sw-riga{flex-wrap:wrap; row-gap:0;}
+.persona-blocco .sw-nota{margin-left:auto;}
+
+/* ── IL CONFINE FRA IL GIRO E CIÒ CHE RESTA ──
+   Coordinate di pagamento, Amministratori e l'archivio non appartengono a nessuna categoria
+   e non riguardano il giro che si sta facendo; senza una riga a dirlo sarebbero tre card
+   qualsiasi cadute in fondo alla pagina. Non è un titolo — non ha niente sotto di
+   sé da nominare — è un cambio di argomento, e per questo è una riga sottile e centrata e
+   non un'intestazione in grassetto: deve dividere, non annunciare. */
+.fuori-giro{font-family:'Nunito',sans-serif; font-size:var(--fs-2); font-weight:700;
+  color:var(--dim); text-transform:uppercase; letter-spacing:.5px; text-align:center;
+  margin:var(--sp-8) 0 var(--sp-6); padding-top:var(--sp-7);
+  border-top:1px dashed var(--line);}
 
 /* ── SOTTO-CARD: un blocco dentro una card, senza aprirne una seconda ──
    Nasce per la targhetta «admin», che appartiene alla card Amministratori ma non è la
@@ -994,7 +1039,7 @@ body.modal-aperto{overflow:hidden;}
   background:var(--cheese); border:1.5px solid var(--bg2);}
 
 /* ── BANNER SEGNALAZIONI (in cima all'admin, sopra la fisarmonica) ──
-   `--cheese` come la card ⑤ a cui porta, e non `--moss`/`--berry`: non è una buona
+   `--cheese` come la card a cui porta, e non `--moss`/`--berry`: non è una buona
    notizia né un allarme, è una cosa da sbrigare. Tutto il banner è il bersaglio, non
    solo un link dentro: è la prima cosa che si tocca dopo aver visto il pallino sul 🔐. */
 .banner-segnalazioni{display:flex; align-items:center; gap:var(--sp-6); width:100%; text-align:left;
@@ -1008,44 +1053,75 @@ body.modal-aperto{overflow:hidden;}
 .bs-sub{color:var(--dim); display:block;}
 .bs-freccia{color:var(--dim); font-size:var(--fs-9); line-height:1; flex-shrink:0;}
 
-/* ── FISARMONICA A FASI (admin) ──
-   Tredici card sempre aperte costringevano a scorrere sopra la quadratura dello scontrino
-   in piena raccolta ordini. La fase si DEDUCE dai dati, non si salva da nessuna parte:
-   niente migrazione e niente stato da tenere allineato. Le fasi passate restano
-   toccabili — la spedizione si corregge, gli ordini si riaprono. */
+/* ── LA STRISCIA DEI MOMENTI, E LA FISARMONICA DELLE CATEGORIE (admin) ──
+   Due cose, e in questa schermata si toccano: sopra la linea del tempo del giro (sei
+   pallini, dedotti dai dati), sotto le sezioni per argomento (aperte a mano e ricordate).
+   Sono sei anche loro, e non si corrispondono: la tabella che le lega sta in admin.js. Le classi sono tenute distinte apposta — `fasi-*`/`fs-*` per il tempo,
+   `categoria`/`cat-*` per le sezioni — perché il difetto che il lotto 10 è venuto a
+   togliere era proprio che fossero la stessa cosa. */
 .fasi-testa{background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg);
   padding:var(--sp-7) var(--sp-8); margin-bottom:var(--sp-6);}
 .fasi-striscia{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-1); margin-bottom:var(--sp-5);}
-.fs-passo{font-size:var(--fs-7); line-height:1; color:var(--dim); background:none; border:0; padding:var(--sp-1); cursor:pointer;}
-.fs-passo.fatto{color:var(--cheese-txt);}
-.fs-passo.ora{color:var(--cheese); font-size:var(--fs-10);}
+/* PALLINI DISEGNATI, non i caratteri ① … ⑥ che stavano qui: sei numeri sopra cinque
+   categorie numerate facevano chiedere perché non tornassero. Senza numero la striscia si
+   legge per quello che è — a che punto siamo — e non come un indice delle sezioni.
+   Il pallino è nel `::after` e il bottone resta grande: il bersaglio del dito è 26px
+   anche se il segno ne misura 9. `flex-shrink:0` perché a 320px i trattini si accorciano
+   fin quasi a sparire, e sono loro a doverlo fare, non i pallini. */
+.fs-passo{background:none; border:0; padding:var(--sp-6) var(--sp-4); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; line-height:0;}
+.fs-passo::after{content:""; display:block; width:9px; height:9px; border-radius:50%;
+  background:var(--line); transition:background .15s;}
+.fs-passo.fatto::after{background:var(--cheese-txt);}
+.fs-passo.ora::after{width:14px; height:14px; background:var(--cheese);
+  box-shadow:0 0 0 3px var(--cheese-bg);}
 .fs-linea{flex:1; height:1.5px; background:var(--line); min-width:4px;}
 .fasi-tocca{font-family:'Nunito',sans-serif; font-size:var(--fs-3); font-weight:600;
   line-height:1.45; color:var(--dim);}
 .fasi-tocca b{color:var(--cheese-txt); font-family:'Baloo 2',cursive; font-weight:800;
   font-size:var(--fs-6); display:block; margin-bottom:var(--sp-1);}
 
-.fase{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+.categoria{border:1px solid var(--line); border-radius:var(--r-lg); background:var(--card);
   margin-bottom:var(--sp-5); overflow:hidden;}
-.fase-testa{display:flex; align-items:center; gap:var(--sp-5); width:100%; text-align:left;
+.cat-testa{display:flex; align-items:center; gap:var(--sp-5); width:100%; text-align:left;
   background:none; border:0; padding:var(--sp-7) var(--sp-8); cursor:pointer; color:var(--text);
   font-family:'Baloo 2',cursive; font-weight:800; font-size:var(--fs-7);}
-.fase-num{width:24px; height:24px; flex-shrink:0; border-radius:50%; display:flex;
+.cat-num{width:24px; height:24px; flex-shrink:0; border-radius:50%; display:flex;
   align-items:center; justify-content:center; font-size:var(--fs-3); font-weight:800;
   background:var(--sunken); color:var(--dim); border:1px solid var(--line);}
-.fase.corrente .fase-num{background:var(--cheese-bg); color:var(--cheese-txt); border-color:var(--cheese-brd);}
-.fase.corrente > .fase-testa{color:var(--cheese-txt);}
-.fase-freccia{margin-left:auto; color:var(--dim); font-size:var(--fs-5); transition:transform .18s;}
-.fase.aperta .fase-freccia{transform:rotate(90deg);}
-.fase-corpo{display:none; padding:0 var(--sp-6) var(--sp-6);}
-.fase.aperta .fase-corpo{display:block; animation:tabIn .22s ease both;}
-.fase-corpo .card{border:none; background:transparent; padding:var(--sp-5) var(--sp-2); border-radius:0;}
-.fase-corpo .card + .card{border-top:1px solid var(--line);}
+/* `corrente` = la categoria dove sta il lavoro adesso, dedotta dal momento. È l'unico punto
+   in cui il tempo entra in una schermata ordinata per argomenti, ed è un accento e non un
+   vincolo: le altre quattro si aprono uguale. */
+.categoria.corrente .cat-num{background:var(--cheese-bg); color:var(--cheese-txt); border-color:var(--cheese-brd);}
+.categoria.corrente > .cat-testa{color:var(--cheese-txt);}
+.cat-freccia{margin-left:auto; color:var(--dim); font-size:var(--fs-5); transition:transform .18s;}
+.categoria.aperta .cat-freccia{transform:rotate(90deg);}
+.cat-corpo{display:none; padding:0 var(--sp-6) var(--sp-6);}
+.categoria.aperta .cat-corpo{display:block; animation:tabIn .22s ease both;}
+.cat-corpo .card{border:none; background:transparent; padding:var(--sp-5) var(--sp-2); border-radius:0;}
+.cat-corpo .card + .card{border-top:1px solid var(--line);}
+/* ── LE CARD SI CHIUDONO, UNA PER UNA ──
+   Stessa forma della fisarmonica delle categorie — titolo-bottone e freccia che ruota — e
+   non una seconda inventata apposta: due fisarmoniche diverse nella stessa schermata sono
+   due lingue per fare la stessa cosa.
+   Il bottone porta dentro il `.card-titolo` invece di sostituirlo, così il titolo resta
+   quello di sempre in ogni card, chiudibile o no. Il padding qui non è decorazione: senza,
+   il bersaglio del dito sarebbe alto quanto una riga di testo maiuscolo di 11px. */
+.card-testa{display:flex; align-items:center; gap:var(--sp-5); width:100%; text-align:left;
+  background:none; border:0; padding:var(--sp-4) 0; margin-bottom:var(--sp-1);
+  cursor:pointer; color:inherit;}
+.card-testa .card-titolo{margin-bottom:0; flex:1; min-width:0;}
+.card-freccia{color:var(--dim); font-size:var(--fs-5); line-height:1; flex-shrink:0;
+  transform:rotate(90deg); transition:transform .18s;}
+.card.chiusa .card-freccia{transform:none;}
+.card.chiusa .card-testa{margin-bottom:0;}
+.card.chiusa .card-corpo{display:none;}
+@media(prefers-reduced-motion:reduce){ .card-freccia{transition:none;} }
 /* "Pagamenti da confermare" deve restare evidenziata anche dentro la fisarmonica: è una
    coda di lavoro, non una card qualunque, e sciogliersi nel fondo la farebbe sparire. */
-.fase-corpo .card.card-attesa{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
+.cat-corpo .card.card-attesa{background:var(--cheese-bg); border:1px solid var(--cheese-brd);
   border-radius:var(--r-md); padding:var(--sp-7); margin-bottom:var(--sp-5);}
-@media(prefers-reduced-motion:reduce){ .fase.aperta .fase-corpo{animation:none;} .fase-freccia{transition:none;} }
+@media(prefers-reduced-motion:reduce){ .categoria.aperta .cat-corpo{animation:none;} .cat-freccia{transition:none;} }
 
 /* ── SCONTRINO: la sottrazione della spedizione, in chiaro ──
    L'admin digita un solo numero, quello che ha davanti agli occhi: la fattura del
